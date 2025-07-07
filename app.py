@@ -1,68 +1,88 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import gspread
+from datetime import datetime
 from google.oauth2 import service_account
 
-# ===== 1. Authen Google Sheet =====
-raw_secrets = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
-raw_secrets["private_key"] = raw_secrets["private_key"].replace("\\n", "\n")
-
+# ตั้งค่า Credential
 credentials = service_account.Credentials.from_service_account_info(
-    raw_secrets,
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    st.secrets["GCP_SERVICE_ACCOUNT"],
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 )
+
+# เปิด Spreadsheet
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open("สินค้าตู้เย็นปลีก_GS")
-sheet = spreadsheet.worksheet("ตู้เย็น")
-sales_sheet = spreadsheet.worksheet("ยอดขาย")
+worksheet_main = spreadsheet.worksheet("ตู้เย็น")
+worksheet_log = spreadsheet.worksheet("ยอดขาย")
 
-# ===== 2. Load Data =====
-data = pd.DataFrame(sheet.get_all_records())
+# โหลดข้อมูลจากชีท "ตู้เย็น"
+data = pd.DataFrame(worksheet_main.get_all_records())
 
-st.title("📦 ระบบจัดการสินค้าตู้เย็น - ร้านเจริญค้า")
+st.title("📦 ระบบจัดการสินค้าตู้เย็น - เจริญค้า")
 
-# ===== 3. ค้นหาสินค้า =====
-search = st.text_input("🔍 ค้นหาชื่อสินค้า", "")
-filtered = data[data["ชื่อสินค้า"].str.contains(search, case=False, na=False)] if search else data
-
-# ===== 4. แสดงสินค้าและปุ่มจัดการ =====
-for i, row in filtered.iterrows():
-    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-    with col1:
-        st.markdown(f"**{row['ชื่อสินค้า']}** (คงเหลือ: {row['คงเหลือในตู้']})")
-    with col2:
-        if st.button("🛒 ขาย", key=f"sell_{i}"):
-            data.at[i, "ออก"] += 1
-    with col3:
-        if st.button("➕ เติม", key=f"fill_{i}"):
-            data.at[i, "เข้า"] += 1
-    with col4:
-        if st.button("✏️ แก้ไข", key=f"edit_{i}"):
-            new_value = st.number_input("ระบุจำนวนใหม่", min_value=0, value=row["คงเหลือในตู้"], key=f"new_{i}")
-            if st.button("✅ บันทึก", key=f"save_{i}"):
-                data.at[i, "คงเหลือในตู้"] = new_value
-
-# ===== 5. คำนวณคงเหลือและกำไร =====
-data["คงเหลือในตู้"] = data["คงเหลือในตู้"] + data["เข้า"] - data["ออก"]
+# คำนวณกำไรต่อหน่วย
 data["กำไรต่อหน่วย"] = data["ราคาขาย"] - data["ต้นทุน"]
+
+# ช่องค้นหา
+search = st.text_input("🔍 ค้นหาชื่อสินค้า")
+if search:
+    data = data[data["ชื่อสินค้า"].str.contains(search, case=False)]
+
+# แสดงตารางสินค้า
+st.dataframe(data[["ชื่อสินค้า", "ราคาขาย", "ต้นทุน", "คงเหลือในตู้"]], use_container_width=True)
+
+# เลือกสินค้า
+selected = st.selectbox("เลือกสินค้า", data["ชื่อสินค้า"])
+
+# ดึงข้อมูลสินค้า
+row = data[data["ชื่อสินค้า"] == selected].index[0]
+
+# ป้อนจำนวน
+col1, col2 = st.columns(2)
+with col1:
+    qty_out = st.number_input("จำนวนที่ขายออก", min_value=0, step=1)
+with col2:
+    qty_in = st.number_input("จำนวนเติมสต๊อก", min_value=0, step=1)
+
+# ปุ่มขาย
+if st.button("🛒 ขายสินค้า"):
+    data.at[row, "ออก"] += qty_out
+    st.success(f"ขาย {selected} ออก {qty_out} หน่วย")
+
+# ปุ่มเติม
+if st.button("➕ เติมสต๊อก"):
+    data.at[row, "เข้า"] += qty_in
+    st.success(f"เติม {selected} เข้า {qty_in} หน่วย")
+
+# ปุ่มแก้ไขจำนวนคงเหลือ
+new_stock = st.number_input("แก้ไขจำนวนคงเหลือในตู้", value=int(data.at[row, "คงเหลือในตู้"]), step=1)
+if st.button("✏️ แก้ไขจำนวน"):
+    data.at[row, "คงเหลือในตู้"] = new_stock
+    st.success("อัปเดตจำนวนคงเหลือแล้ว")
+
+# คำนวณคงเหลือในตู้ใหม่
+data["คงเหลือในตู้"] = data["คงเหลือในตู้"] + data["เข้า"] - data["ออก"]
+
+# คำนวณกำไรรวม
 data["กำไร"] = data["ออก"] * data["กำไรต่อหน่วย"]
 
-# ===== 6. ปุ่มบันทึกยอดขายไปยัง Sheet "ยอดขาย" =====
+# ปุ่มบันทึกยอดขายลง Google Sheet (ชีท "ยอดขาย")
 if st.button("💾 บันทึกยอดขายวันนี้"):
-    today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for _, row in data.iterrows():
-        if row["ออก"] > 0:
-            sales_sheet.append_row([
-                today,
-                row["ชื่อสินค้า"],
-                row["ออก"],
-                row["ราคาขาย"],
-                row["ต้นทุน"],
-                row["กำไรต่อหน่วย"],
-                row["กำไร"]
-            ])
-    st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary_data = data[data["ออก"] > 0].copy()
+    summary_data["วันที่"] = now
+    summary_data["type"] = "drink"
 
-# ===== 7. บันทึกข้อมูลกลับไปที่ชีท "ตู้เย็น" =====
-sheet.update([data.columns.values.tolist()] + data.values.tolist())
+    if not summary_data.empty:
+        upload_df = summary_data[["วันที่", "ชื่อสินค้า", "ออก", "ราคาขาย", "ต้นทุน", "กำไร", "type"]]
+        worksheet_log.append_rows(upload_df.values.tolist(), value_input_option="USER_ENTERED")
+        st.success("บันทึกยอดขายเรียบร้อยแล้ว!")
+
+# ปุ่มอัปเดตข้อมูลกลับไปชีทหลัก
+if st.button("📤 อัปเดตกลับไป Google Sheet (ตู้เย็น)"):
+    worksheet_main.update([data.columns.values.tolist()] + data.values.tolist())
+    st.success("อัปเดตกลับชีทหลักสำเร็จ ✅"
