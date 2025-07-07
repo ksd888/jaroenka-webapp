@@ -1,60 +1,61 @@
 import streamlit as st
+import pandas as pd
 import gspread
 from google.oauth2 import service_account
 from datetime import datetime
 
-# เชื่อมต่อ Google Sheet ด้วย secrets
+# โหลด credentials จาก secrets.toml
 credentials = service_account.Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"],
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
+
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open("สินค้าตู้เย็นปลีก_GS")
-sheet = spreadsheet.worksheet("ตู้เย็น")
-log_sheet = spreadsheet.worksheet("ยอดขาย")  # สำหรับบันทึกยอดขาย
 
-# โหลดข้อมูลปัจจุบันจากชีท
-data = sheet.get_all_records()
-product_names = [row["ชื่อสินค้า"] for row in data]
+# โหลดข้อมูลชีทหลัก
+sheet_main = spreadsheet.worksheet("ตู้เย็น")
+df = pd.DataFrame(sheet_main.get_all_records())
 
-st.title("🧊 ระบบจัดการสินค้าตู้เย็น - เจริญค้า")
+# โหลดหรือเตรียมชีท "ยอดขาย"
+try:
+    sheet_sales = spreadsheet.worksheet("ยอดขาย")
+except gspread.exceptions.WorksheetNotFound:
+    sheet_sales = spreadsheet.add_worksheet(title="ยอดขาย", rows="1000", cols="20")
+    sheet_sales.append_row(["วันที่", "ชื่อสินค้า", "จำนวนที่ขาย", "ราคาขายต่อหน่วย", "กำไรต่อหน่วย", "ยอดขายรวม", "กำไรรวม"])
 
-# ค้นหาและเลือกสินค้า
-search = st.text_input("🔍 ค้นหาสินค้า")
-filtered_products = [p for p in product_names if search.lower() in p.lower()]
+# ส่วน UI
+st.title("💼 ระบบขายสินค้าตู้เย็น เจริญค้า")
 
-if not filtered_products:
-    st.warning("ไม่พบสินค้าที่ค้นหา")
-else:
-    selected_product = st.selectbox("เลือกสินค้า", filtered_products)
-    row_index = next(i for i, row in enumerate(data) if row["ชื่อสินค้า"] == selected_product)
-    product = data[row_index]
-    col_index = row_index + 2  # ชดเชย header + index base 1
+# ค้นหา
+search = st.text_input("🔍 ค้นหาชื่อสินค้า")
+filtered_df = df[df["ชื่อสินค้า"].str.contains(search, case=False, na=False)]
 
-    st.markdown(f"**สินค้า:** {selected_product}")
-    st.write(f"ราคาขาย: {product['ราคาขาย']} บาท | ต้นทุน: {product['ต้นทุน']} บาท")
-    st.write(f"คงเหลือในตู้: {product['คงเหลือ']}")
+for idx, row in filtered_df.iterrows():
+    col1, col2, col3, col4 = st.columns([3, 1.2, 1.2, 1.5])
+    with col1:
+        st.markdown(f"**{row['ชื่อสินค้า']}**")
+    with col2:
+        qty = st.number_input(f"ขาย {row['ชื่อสินค้า']}", min_value=0, step=1, key=f"qty_{idx}")
+    with col3:
+        if st.button("📦 ขาย", key=f"sell_{idx}") and qty > 0:
+            # คำนวณและอัปเดตในชีทหลัก
+            new_stock = max(0, row["คงเหลือ"] - qty)
+            sheet_main.update_cell(idx + 2, df.columns.get_loc("คงเหลือ") + 1, new_stock)
 
-    # 🔵 ปุ่มขายสินค้า
-    sell_qty = st.number_input("ขายออก (จำนวน)", min_value=0, step=1)
-    if st.button("📦 ขายสินค้า"):
-        new_balance = max(product["คงเหลือ"] - sell_qty, 0)
-        sheet.update_cell(col_index, product.keys().index("คงเหลือ") + 1, new_balance)
-        st.success(f"ขาย {sell_qty} ชิ้น | คงเหลือใหม่: {new_balance}")
+            # เพิ่มในชีทยอดขาย
+            profit_per_unit = row["ราคาขาย"] - row["ต้นทุน"]
+            total_sale = qty * row["ราคาขาย"]
+            total_profit = qty * profit_per_unit
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sheet_sales.append_row([now, row["ชื่อสินค้า"], qty, row["ราคาขาย"], profit_per_unit, total_sale, total_profit])
+            st.success(f"✅ ขาย {row['ชื่อสินค้า']} จำนวน {qty} ชิ้น เรียบร้อยแล้ว")
 
-        # บันทึกไปชีท "ยอดขาย"
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_sheet.append_row([now, selected_product, sell_qty, product["ราคาขาย"], product["ต้นทุน"], (product["ราคาขาย"] - product["ต้นทุน"]) * sell_qty])
+    with col4:
+        add = st.number_input(f"เติม {row['ชื่อสินค้า']}", min_value=0, step=1, key=f"add_{idx}")
+        if st.button("🔄 เติมสต๊อก", key=f"addbtn_{idx}") and add > 0:
+            updated_stock = row["คงเหลือ"] + add
+            sheet_main.update_cell(idx + 2, df.columns.get_loc("คงเหลือ") + 1, updated_stock)
+            st.success(f"✅ เติมสต๊อก {row['ชื่อสินค้า']} เพิ่ม {add} ชิ้น")
 
-    # 🔵 ปุ่มเติมสต๊อก
-    add_qty = st.number_input("เติมสินค้าเข้า (จำนวน)", min_value=0, step=1)
-    if st.button("➕ เติมสต๊อก"):
-        new_balance = product["คงเหลือ"] + add_qty
-        sheet.update_cell(col_index, product.keys().index("คงเหลือ") + 1, new_balance)
-        st.success(f"เติม {add_qty} ชิ้น | คงเหลือใหม่: {new_balance}")
-
-    # 🔵 ปุ่มแก้ไขจำนวน
-    edit_qty = st.number_input("ระบุจำนวนใหม่ (คงเหลือ)", min_value=0, step=1)
-    if st.button("✏️ แก้ไขจำนวน"):
-        sheet.update_cell(col_index, product.keys().index("คงเหลือ") + 1, edit_qty)
-        st.success(f"แก้ไขคงเหลือเป็น: {edit_qty}")
+# ✅ ปุ่มบันทึกยอดขายแยกอยู่แล้วใน `sheet_sales` ตามที่ร้องขอ
