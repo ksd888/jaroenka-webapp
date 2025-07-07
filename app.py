@@ -4,86 +4,115 @@ import datetime
 import gspread
 from google.oauth2 import service_account
 
-# เชื่อมต่อ Google Sheets
+# -- เชื่อมต่อ GCP --
 credentials = service_account.Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 )
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open("สินค้าตู้เย็นปลีก_GS")
 sheet_main = spreadsheet.worksheet("ตู้เย็น")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
+sheet_meta = spreadsheet.worksheet("Meta")  # ใช้เก็บวันที่ล่าสุด
 
-# โหลดข้อมูล
+# -- โหลดข้อมูล --
 data = pd.DataFrame(sheet_main.get_all_records())
+meta = pd.DataFrame(sheet_meta.get_all_records())
 
-# ตรวจสอบคอลัมน์
-expected = ["ชื่อสินค้า", "คงเหลือในตู้", "เข้า", "ออก", "ราคาขาย", "ต้นทุน"]
-if not all(col in data.columns for col in expected):
-    st.error("❌ ขาดคอลัมน์ที่จำเป็นในชีท")
-    st.stop()
+# -- รีเซ็ตยอด "เข้า" และ "ออก" ทุกวัน --
+today = datetime.date.today().isoformat()
+last_date = meta.at[0, "last_date"] if not meta.empty else ""
+if last_date != today:
+    data["เข้า"] = 0
+    data["ออก"] = 0
+    sheet_main.update([data.columns.values.tolist()] + data.values.tolist())
+    # update meta
+    new_meta = pd.DataFrame([{"last_date": today}])
+    sheet_meta.clear()
+    sheet_meta.update([new_meta.columns.tolist()] + new_meta.values.tolist())
+    st.experimental_rerun()
 
-# แปลงข้อมูล
-for col in ["คงเหลือในตู้", "เข้า", "ออก"]:
+# -- แปลงข้อมูล --
+expected_cols = ["ชื่อสินค้า", "คงเหลือในตู้", "เข้า", "ออก", "ราคาขาย", "ต้นทุน"]
+for col in ["เข้า","ออก","คงเหลือในตู้"]:
     data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0).astype(int)
-data["ราคาขาย"] = pd.to_numeric(data["ราคาขาย"], errors="coerce").fillna(0)
-data["ต้นทุน"] = pd.to_numeric(data["ต้นทุน"], errors="coerce").fillna(0)
+for col in ["ราคาขาย","ต้นทุน"]:
+    data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0.0)
 
-st.title("🧊 ระบบขายสินค้าตู้เย็น | เจริญค้า")
-st.markdown("---")
+st.set_page_config(layout="wide")
+st.title("📦 ระบบจัดการสินค้าตู้เย็นเจริญค้า")
 
-st.subheader("🛒 ขายสินค้าหลายรายการ")
-selected_items = st.multiselect("🔍 ค้นหาและเลือกสินค้า", data["ชื่อสินค้า"].tolist())
+# -- ระบบขายหลายรายการ --
+st.header("🛒 ขายหลายรายการ")
+search_items = st.multiselect("ค้นหาสินค้า", options=data["ชื่อสินค้า"].tolist())
 quantities = {}
-for item in selected_items:
-    qty = st.number_input(f"{item} (คงเหลือ {int(data.loc[data['ชื่อสินค้า'] == item, 'คงเหลือในตู้'].values[0])})", min_value=0, step=1, key=f"qty_{item}")
-    if qty > 0:
-        quantities[item] = qty
+if search_items:
+    for item in search_items:
+        qty = st.number_input(f"จำนวนขาย: {item}", min_value=0, step=1, key=f"qty_{item}")
+        if qty > 0:
+            quantities[item] = qty
 
-paid = st.number_input("💵 เงินที่ลูกค้าจ่าย", min_value=0.0, step=1.0)
-total = sum(float(data.loc[data["ชื่อสินค้า"] == item, "ราคาขาย"]) * qty for item, qty in quantities.items())
-change = paid - total
+cash = st.number_input("รับเงิน (บาท)", min_value=0.0, step=1.0, key="cash")
+if st.button("💰 ยืนยันการขาย"):
+    if not quantities:
+        st.error("❌ ยังไม่ระบุรายการขาย")
+    else:
+        total_amt = sum(data.loc[data["ชื่อสินค้า"]==it, "ราคาขาย"].values[0] * q for it, q in quantities.items())
+        total_profit = sum((data.loc[data["ชื่อสินค้า"]==it, "ราคาขาย"].values[0] - data.loc[data["ชื่อสินค้า"]==it, "ต้นทุน"].values[0]) * q for it, q in quantities.items())
+        change = cash - total_amt
 
-st.write(f"📦 ยอดรวมทั้งหมด: **{total:,.2f} บาท**")
-st.write(f"💰 เงินทอน: **{change:,.2f} บาท**")
+        # อัปเดตตาราง main และบันทึก sales log
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sales_rows = []
+        for it, q in quantities.items():
+            idx = data[data["ชื่อสินค้า"]==it].index[0]
+            price = float(data.at[idx, "ราคาขาย"])
+            cost = float(data.at[idx, "ต้นทุน"])
+            prod_profit = (price - cost) * q
+            data.at[idx, "ออก"] += q
+            sales_rows.append([now, it, int(q), price, cost, price-cost, prod_profit])
+        sheet_main.update([data.columns.tolist()] + data.values.tolist())
+        sheet_sales.append_rows(sales_rows)
 
-if st.button("✅ บันทึกการขาย"):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for item, qty in quantities.items():
-        idx = data[data["ชื่อสินค้า"] == item].index[0]
-        data.at[idx, "ออก"] += qty
-        cost = data.at[idx, "ต้นทุน"]
-        price = data.at[idx, "ราคาขาย"]
-        profit = (price - cost) * qty
+        # ใบเสร็จ
+        st.success("✅ ขายสำเร็จ")
+        st.subheader("🧾 ใบเสร็จ")
+        receipt = pd.DataFrame({
+            "สินค้า": list(quantities.keys()),
+            "จำนวน": list(quantities.values()),
+            "ราคาต่อหน่วย": [data.loc[data["ชื่อสินค้า"]==it,"ราคาขาย"].iloc[0] for it in quantities],
+            "ยอดรวม": [quantities[it]*data.loc[data["ชื่อสินค้า"]==it,"ราคาขาย"].iloc[0] for it in quantities]
+        })
+        st.table(receipt)
+        st.write(f"**ยอดรวม:** {total_amt:,.2f} บาท")
+        st.write(f"**รับเงิน:** {cash:,.2f} บาท")
+        st.write(f"**ทอนเงิน:** {change:,.2f} บาท")
+        st.write(f"**กำไรรวม:** {total_profit:,.2f} บาท")
 
-        # บันทึกลงชีทยอดขาย
-        sheet_sales.append_row([
-            now, item, qty, price, cost, price - cost, profit
-        ])
+        st.experimental_rerun()
 
-    # รีเซตค่าใน UI และอัปเดตกลับชีทหลัก
-    for item in selected_items:
-        idx = data[data["ชื่อสินค้า"] == item].index[0]
-        data.at[idx, "คงเหลือในตู้"] = data.at[idx, "คงเหลือในตู้"] + data.at[idx, "เข้า"] - data.at[idx, "ออก"]
-        data.at[idx, "เข้า"] = 0
-        data.at[idx, "ออก"] = 0
-    sheet_main.update([data.columns.values.tolist()] + data.values.tolist())
+# -- เติมสินค้า --
+st.header("➕ เติมสินค้าเข้าสต๊อก")
+with st.form("add_form"):
+    prod = st.selectbox("เลือกสินค้า", data["ชื่อสินค้า"])
+    aq = st.number_input("จำนวนเติม", min_value=0, step=1)
+    if st.form_submit_button("✅ เติม"):
+        idx = data[data["ชื่อสินค้า"]==prod].index[0]
+        data.at[idx, "เข้า"] += aq
+        sheet_main.update([data.columns.tolist()] + data.values.tolist())
+        st.success(f"✅ เติม {prod} +{aq}")
+        st.experimental_rerun()
 
-    st.success("✅ บันทึกเรียบร้อย + อัปเดตสต๊อก")
+# -- สรุปยอดขายวันนี้ --
+st.header("📊 สรุปกำไรและยอดขาย")
+data["กำไรต่อหน่วย"] = data["ราคาขาย"] - data["ต้นทุน"]
+data["กำไร"] = data["ออก"] * data["กำไรต่อหน่วย"]
+st.write(f"ยอดขายรวม: {(data['ออก']*data['ราคาขาย']).sum():,.2f} บาท")
+st.write(f"กำไรรวม: {data['กำไร'].sum():,.2f} บาท")
 
-    st.subheader("🧾 ใบเสร็จ")
-    for item, qty in quantities.items():
-        price = float(data.loc[data["ชื่อสินค้า"] == item, "ราคาขาย"])
-        st.write(f"{item} x {qty} = {qty*price:,.2f} บาท")
-    st.write(f"**รวม: {total:,.2f} บาท**")
-    st.write(f"**รับเงิน: {paid:,.2f} บาท | ทอน: {change:,.2f} บาท**")
-
-st.markdown("---")
-st.subheader("➕ เติมสินค้าเข้าตู้")
-item_to_add = st.selectbox("เลือกสินค้า", data["ชื่อสินค้า"])
-qty_to_add = st.number_input("จำนวนที่เติม", min_value=0, step=1)
-if st.button("📌 เติมสต๊อก"):
-    idx = data[data["ชื่อสินค้า"] == item_to_add].index[0]
-    data.at[idx, "เข้า"] += qty_to_add
-    sheet_main.update([data.columns.values.tolist()] + data.values.tolist())
-    st.success(f"✅ เติม {item_to_add} แล้ว +{qty_to_add}")
+# -- ตารางสินค้า --
+st.header("📋 รายการสินค้า")
+st.dataframe(data)
