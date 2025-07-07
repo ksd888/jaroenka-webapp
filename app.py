@@ -20,6 +20,9 @@ sheet = client.open("สินค้าตู้เย็นปลีก_GS").wo
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
+# แก้ปัญหาชื่อคอลัมน์ไม่ตรง
+df.columns = df.columns.str.strip()
+
 # สร้างตัวแปรสถานะการขาย
 if "sales_log" not in st.session_state:
     st.session_state.sales_log = []
