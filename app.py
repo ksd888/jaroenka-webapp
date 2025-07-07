@@ -1,119 +1,61 @@
 import streamlit as st
 import gspread
+from google.oauth2 import service_account
 import pandas as pd
-import json
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# โหลด GCP credentials จาก secrets (ผ่านหน้าเว็บหรือ .streamlit/secrets.toml)
-service_account_info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"])
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive",
-]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
-client = gspread.authorize(creds)
+# โหลด Credentials จาก secrets
+GCP_SERVICE_ACCOUNT = st.secrets["GCP_SERVICE_ACCOUNT"]
+credentials = service_account.Credentials.from_service_account_info(GCP_SERVICE_ACCOUNT)
+client = gspread.authorize(credentials)
 
-# อ่านข้อมูลจาก Google Sheet
-sheet = client.open("สินค้าตู้เย็นปลีก_GS").worksheet("ตู้เย็น")
+# เปิด Google Sheet
+SHEET_NAME = "สินค้าตู้เย็นปลีก_GS"
+WORKSHEET_NAME = "ตู้เย็น"
+sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
-# ทำความสะอาดชื่อคอลัมน์
-df.columns = df.columns.str.strip()
+# กำหนดชื่อคอลัมน์
+df.columns = ['ชื่อสินค้า', 'ราคาขาย', 'ต้นทุน', 'กำไรต่อหน่วย', 'คงเหลือ', 'เข้า', 'ออก', 'คงเหลือในตู้', 'กำไร', 'สต๊อกสำรอง']
 
-# ตั้งค่าตัวแปร session สำหรับเก็บ log
-if "sales_log" not in st.session_state:
-    st.session_state.sales_log = []
+st.title("📦 ระบบจัดการสินค้าตู้เย็น - ร้านเจริญค้า")
 
-# ----------------------------
-# ส่วน UI เริ่มที่นี่
-# ----------------------------
+# ระบบค้นหา
+search = st.text_input("🔍 ค้นหาสินค้า", "")
 
-st.title("🧊 ระบบจัดการสินค้าตู้เย็น (เจริญค้า)")
+# ฟังก์ชันอัปเดตข้อมูลกลับไปที่ Google Sheet
+def update_sheet(df):
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
-# 🔍 ช่องค้นหาสินค้า
-search = st.text_input("ค้นหาชื่อสินค้า")
-if search:
-    df = df[df["ชื่อสินค้า"].str.contains(search, case=False, na=False)]
+# แสดงตารางสินค้า
+filtered_df = df[df["ชื่อสินค้า"].str.contains(search, case=False, na=False)] if search else df.copy()
 
-# 📋 ตารางแสดงสินค้า
-st.dataframe(df, use_container_width=True)
+# ปุ่มขาย, เติม, แก้ไข
+for i, row in filtered_df.iterrows():
+    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+    with col1:
+        st.write(f"**{row['ชื่อสินค้า']}** (คงเหลือ: {row['คงเหลือ']}, ในตู้: {row['คงเหลือในตู้']})")
+    with col2:
+        if st.button("ขายสินค้า", key=f"sell_{i}"):
+            df.at[i, "ออก"] += 1
+            df.at[i, "คงเหลือในตู้"] -= 1
+            df.at[i, "กำไร"] = df.at[i, "ออก"] * df.at[i, "กำไรต่อหน่วย"]
+    with col3:
+        if st.button("เติมสต๊อก", key=f"add_{i}"):
+            df.at[i, "คงเหลือในตู้"] += 1
+            df.at[i, "สต๊อกสำรอง"] -= 1
+    with col4:
+        if st.button("แก้ไขจำนวน", key=f"edit_{i}"):
+            new_qty = st.number_input(f"🔧 ใส่จำนวนใหม่ของ {row['ชื่อสินค้า']}", value=int(row['คงเหลือ']), key=f"input_{i}")
+            df.at[i, "คงเหลือ"] = new_qty
 
-# ----------------------------
-# 📦 ฟีเจอร์: ขายสินค้า
-# ----------------------------
-st.subheader("📦 ขายสินค้า")
-selected_items = st.multiselect("เลือกสินค้าที่ขาย", df["ชื่อสินค้า"].tolist())
-quantities = {}
+# คำนวณยอดรวม
+total_sales = df["ออก"].sum()
+total_profit = df["กำไร"].sum()
+st.markdown(f"### 🧾 ยอดขายรวม: `{total_sales}` ชิ้น | 💰 กำไรสุทธิ: `{total_profit:.2f}` บาท")
 
-for item in selected_items:
-    quantities[item] = st.number_input(f"จำนวนที่ขาย - {item}", min_value=1, step=1, key=item)
-
-if st.button("✅ บันทึกยอดขาย"):
-    for item in selected_items:
-        row = df[df["ชื่อสินค้า"] == item].iloc[0]
-        quantity = quantities[item]
-        profit_per_unit = row["ราคาขาย"] - row["ต้นทุน"]
-        total_profit = profit_per_unit * quantity
-        total_sale = row["ราคาขาย"] * quantity
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # บันทึกลง Sheet2
-        client.open("สินค้าตู้เย็นปลีก_GS").worksheet("Sheet2").append_row([
-            now, item, quantity, row["ราคาขาย"], row["ต้นทุน"],
-            total_sale, total_profit, "drink"
-        ])
-
-        st.session_state.sales_log.append((item, quantity))
-
-    st.success("✅ บันทึกยอดขายสำเร็จแล้ว")
-
-# 🔁 Undo
-if st.button("↩️ ยกเลิกการขายล่าสุด") and st.session_state.sales_log:
-    undone = st.session_state.sales_log.pop()
-    st.warning(f"⛔ ยกเลิก: {undone[0]} จำนวน {undone[1]} (กรุณาแก้ใน Google Sheet ด้วยตนเอง)")
-
-# ----------------------------
-# ➕ เพิ่มสินค้าใหม่
-# ----------------------------
-st.subheader("➕ เพิ่มสินค้าใหม่")
-with st.expander("เพิ่มสินค้า"):
-    new_name = st.text_input("ชื่อสินค้าใหม่")
-    new_price = st.number_input("ราคาขาย", min_value=0)
-    new_cost = st.number_input("ต้นทุน", min_value=0)
-    if st.button("📌 เพิ่มสินค้า"):
-        profit = new_price - new_cost
-        sheet.append_row([new_name, 0, new_price, new_cost, profit])
-        st.success("✅ เพิ่มสินค้าเรียบร้อย กรุณารีเฟรชหน้า")
-
-# ----------------------------
-# ✏️ แก้ไขสินค้าเดิม
-# ----------------------------
-st.subheader("✏️ แก้ไขสินค้า")
-selected_edit = st.selectbox("เลือกสินค้าที่จะแก้ไข", df["ชื่อสินค้า"].tolist())
-edit_row = df[df["ชื่อสินค้า"] == selected_edit].iloc[0]
-new_edit_price = st.number_input("แก้ไขราคาขาย", value=int(edit_row["ราคาขาย"]))
-new_edit_cost = st.number_input("แก้ไขต้นทุน", value=int(edit_row["ต้นทุน"]))
-
-if st.button("💾 บันทึกการแก้ไข"):
-    index = df[df["ชื่อสินค้า"] == selected_edit].index[0] + 2  # +2 เผื่อ header
-    profit = new_edit_price - new_edit_cost
-    sheet.update(f"C{index}:E{index}", [[new_edit_price, new_edit_cost, profit]])
-    st.success("✅ แก้ไขสำเร็จ กรุณารีเฟรชหน้า")
-
-# ----------------------------
-# 💰 สรุปยอดขายในรอบ session นี้
-# ----------------------------
-st.subheader("💰 สรุปยอดขายในรอบนี้")
-if st.session_state.sales_log:
-    total_sales = 0
-    total_profit = 0
-    for item, quantity in st.session_state.sales_log:
-        row = df[df["ชื่อสินค้า"] == item].iloc[0]
-        total_sales += row["ราคาขาย"] * quantity
-        total_profit += (row["ราคาขาย"] - row["ต้นทุน"]) * quantity
-
-    st.info(f"💸 ยอดขายรวม: {total_sales:,.2f} บาท\n\n💰 กำไรรวม: {total_profit:,.2f} บาท")
-else:
-    st.write("ยังไม่มีการขายในรอบนี้")
+# ปุ่มบันทึกยอดขาย
+if st.button("📤 บันทึกยอดขายกลับไปที่ Google Sheet"):
+    update_sheet(df)
+    st.success("✅ บันทึกข้อมูลเรียบร้อยแล้ว!")
