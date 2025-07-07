@@ -1,58 +1,79 @@
 import streamlit as st
 import gspread
+from google.oauth2 import service_account
 import pandas as pd
 import json
-from google.oauth2 import service_account
+from datetime import datetime
 
-# โหลดข้อมูล key จาก secrets.toml
+# ✅ โหลด service account จาก secrets และแปลงเป็น dict
 service_account_info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT"])
 credentials = service_account.Credentials.from_service_account_info(service_account_info)
 
-# เชื่อมต่อ Google Sheets
+# ✅ เปิด Google Sheet
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open("สินค้าตู้เย็นปลีก_GS")
+
+# ✅ เปิดชีทหลัก (สินค้า)
 worksheet = spreadsheet.worksheet("ตู้เย็น")
 
-# โหลดข้อมูลจากชีต
+# ✅ โหลดข้อมูลจากชีท
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
-df.columns = df.columns.str.strip()  # ลบช่องว่างหัวตารางเผื่อมี
 
-# แสดงตารางสินค้า
-st.title("📦 จัดการสต๊อกสินค้า - เจริญค้า")
-st.dataframe(df)
+st.title("📦 ระบบจัดการสินค้าตู้เย็น - เจริญค้า")
 
-# เลือกสินค้าที่จะขายหรือเติม
-selected_product = st.selectbox("เลือกสินค้า", df["ชื่อสินค้า"].unique())
+# ✅ ปุ่ม: ค้นหา + แสดงสินค้า
+search = st.text_input("🔍 ค้นหาสินค้า")
+if search:
+    filtered_df = df[df["ชื่อสินค้า"].str.contains(search, case=False, na=False)]
+else:
+    filtered_df = df
 
-if selected_product:
-    selected_row = df[df["ชื่อสินค้า"] == selected_product].iloc[0]
-    st.write(f"**คงเหลือ:** {selected_row['คงเหลือ']} ชิ้น")
+# ✅ แสดงสินค้าในตาราง พร้อมปุ่ม
+for index, row in filtered_df.iterrows():
+    st.write(f"**{row['ชื่อสินค้า']}** (คงเหลือ: {row['คงเหลือ']})")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("ขายสินค้า", key=f"sell_{index}"):
+            df.at[index, 'คงเหลือ'] = max(0, row['คงเหลือ'] - 1)
+            df.at[index, 'ออก'] += 1
+    
+    with col2:
+        if st.button("เติมสต๊อก", key=f"restock_{index}"):
+            df.at[index, 'คงเหลือ'] += 1
+            df.at[index, 'เข้า'] += 1
+    
+    with col3:
+        new_value = st.number_input("แก้จำนวน", min_value=0, value=row['คงเหลือ'], step=1, key=f"edit_{index}")
+        if new_value != row['คงเหลือ']:
+            df.at[index, 'คงเหลือ'] = new_value
 
-    # ขายสินค้า
-    sell_qty = st.number_input("จำนวนที่ขาย", min_value=0, step=1)
-    if st.button("✅ ขายสินค้า"):
-        new_qty = int(selected_row["คงเหลือ"]) - int(sell_qty)
-        if new_qty < 0:
-            st.error("❌ สินค้าไม่พอขาย")
-        else:
-            cell = worksheet.find(selected_product)
-            row_num = cell.row
-            worksheet.update_cell(row_num, df.columns.get_loc("คงเหลือ") + 1, new_qty)
-            st.success(f"✅ ขาย {sell_qty} ชิ้น เรียบร้อยแล้ว")
+st.markdown("---")
 
-    # เติมสต๊อก
-    add_qty = st.number_input("จำนวนที่เติม", min_value=0, step=1, key="add_qty")
-    if st.button("➕ เติมสต๊อก"):
-        new_qty = int(selected_row["คงเหลือ"]) + int(add_qty)
-        cell = worksheet.find(selected_product)
-        row_num = cell.row
-        worksheet.update_cell(row_num, df.columns.get_loc("คงเหลือ") + 1, new_qty)
-        st.success(f"🧊 เติม {add_qty} ชิ้น เรียบร้อยแล้ว")
+# ✅ ปุ่มบันทึกกลับ Google Sheet
+if st.button("💾 บันทึกยอดขายกลับ Google Sheet"):
+    worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+    st.success("บันทึกเรียบร้อยแล้ว ✅")
 
-    # บันทึกยอดขาย (ลงชีทอื่นได้ภายหลัง)
-    if st.button("💾 บันทึกยอดขาย"):
-        cost = selected_row["ต้นทุน"]
-        price = selected_row["ราคาขาย"]
-        profit = (price - cost) * sell_qty
-        st.info(f"💰 กำไรจากการขาย {sell_qty} ชิ้น = {profit} บาท")
+# ✅ ปุ่มบันทึกแยกชีท “ยอดขาย”
+if st.button("🧾 บันทึกไปยังชีทยอดขาย"):
+    sale_sheet = spreadsheet.worksheet("ยอดขาย")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary = []
+
+    for index, row in df.iterrows():
+        if row['ออก'] > 0:
+            summary.append([
+                now,
+                row['ชื่อสินค้า'],
+                row['ออก'],
+                row['ราคาขาย'],
+                row['ต้นทุน'],
+                row['ออก'] * (row['ราคาขาย'] - row['ต้นทุน']),
+            ])
+    
+    if summary:
+        sale_sheet.append_rows(summary)
+        st.success("บันทึกยอดขายแยกสำเร็จ ✅")
+    
