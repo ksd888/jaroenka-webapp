@@ -29,34 +29,24 @@ for col in ["คงเหลือในตู้", "เข้า", "ออก"]
 data["ราคาขาย"] = pd.to_numeric(data["ราคาขาย"], errors="coerce").fillna(0)
 data["ต้นทุน"] = pd.to_numeric(data["ต้นทุน"], errors="coerce").fillna(0)
 
-# ชื่อสินค้า + ค้นหา
 st.title("🧊 ระบบขายสินค้าตู้เย็น | เจริญค้า")
 st.markdown("---")
 
-st.subheader("🔍 ค้นหาและขายหลายรายการ")
-search_term = st.text_input("🔎 พิมพ์ชื่อสินค้าเพื่อค้นหา")
-filtered = data[data["ชื่อสินค้า"].str.contains(search_term, case=False)] if search_term else data
-
+st.subheader("🛒 ขายสินค้าหลายรายการ")
+selected_items = st.multiselect("🔍 ค้นหาและเลือกสินค้า", data["ชื่อสินค้า"].tolist())
 quantities = {}
-for i, row in filtered.iterrows():
-    qty = st.number_input(f"{row['ชื่อสินค้า']} (คงเหลือ {row['คงเหลือในตู้']})", min_value=0, step=1, key=f"qty_{i}")
+for item in selected_items:
+    qty = st.number_input(f"{item} (คงเหลือ {int(data.loc[data['ชื่อสินค้า'] == item, 'คงเหลือในตู้'].values[0])})", min_value=0, step=1, key=f"qty_{item}")
     if qty > 0:
-        quantities[row["ชื่อสินค้า"]] = qty
+        quantities[item] = qty
 
-st.markdown("---")
 paid = st.number_input("💵 เงินที่ลูกค้าจ่าย", min_value=0.0, step=1.0)
-
-# คำนวณยอด
-total = 0
-for item, qty in quantities.items():
-    price = float(data.loc[data["ชื่อสินค้า"] == item, "ราคาขาย"])
-    total += price * qty
+total = sum(float(data.loc[data["ชื่อสินค้า"] == item, "ราคาขาย"]) * qty for item, qty in quantities.items())
 change = paid - total
 
 st.write(f"📦 ยอดรวมทั้งหมด: **{total:,.2f} บาท**")
 st.write(f"💰 เงินทอน: **{change:,.2f} บาท**")
 
-# บันทึกการขาย
 if st.button("✅ บันทึกการขาย"):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item, qty in quantities.items():
@@ -72,17 +62,15 @@ if st.button("✅ บันทึกการขาย"):
         ])
 
     # รีเซตค่าใน UI และอัปเดตกลับชีทหลัก
-    for item, qty in quantities.items():
+    for item in selected_items:
         idx = data[data["ชื่อสินค้า"] == item].index[0]
         data.at[idx, "คงเหลือในตู้"] = data.at[idx, "คงเหลือในตู้"] + data.at[idx, "เข้า"] - data.at[idx, "ออก"]
-        data.at[idx, "เข้า"] = 0  # ล้างยอดเข้า
-        data.at[idx, "ออก"] = 0  # ล้างยอดออกหลังขาย
+        data.at[idx, "เข้า"] = 0
+        data.at[idx, "ออก"] = 0
     sheet_main.update([data.columns.values.tolist()] + data.values.tolist())
 
     st.success("✅ บันทึกเรียบร้อย + อัปเดตสต๊อก")
 
-    # ใบเสร็จแบบย่อ
-    st.markdown("---")
     st.subheader("🧾 ใบเสร็จ")
     for item, qty in quantities.items():
         price = float(data.loc[data["ชื่อสินค้า"] == item, "ราคาขาย"])
@@ -90,7 +78,6 @@ if st.button("✅ บันทึกการขาย"):
     st.write(f"**รวม: {total:,.2f} บาท**")
     st.write(f"**รับเงิน: {paid:,.2f} บาท | ทอน: {change:,.2f} บาท**")
 
-# เติมสินค้าเข้าตู้
 st.markdown("---")
 st.subheader("➕ เติมสินค้าเข้าตู้")
 item_to_add = st.selectbox("เลือกสินค้า", data["ชื่อสินค้า"])
@@ -100,5 +87,3 @@ if st.button("📌 เติมสต๊อก"):
     data.at[idx, "เข้า"] += qty_to_add
     sheet_main.update([data.columns.values.tolist()] + data.values.tolist())
     st.success(f"✅ เติม {item_to_add} แล้ว +{qty_to_add}")
-        
-        
