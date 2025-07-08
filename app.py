@@ -1,131 +1,110 @@
 import streamlit as st
-import pandas as pd
-import datetime
 import gspread
 from google.oauth2 import service_account
+from datetime import datetime
 from reportlab.pdfgen import canvas
-from io import BytesIO
-import base64
+import io
 
-# --- CONFIG ---
-SPREADSHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
-SHEET_MAIN = "ตู้เย็น"
-SHEET_SALES = "ยอดขาย"
-SHEET_META = "Meta"
-
-# --- AUTH ---
+# Auth
 credentials = service_account.Credentials.from_service_account_info(
-    st.secrets["GCP_SERVICE_ACCOUNT"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    st.secrets["GCP_SERVICE_ACCOUNT"]
 )
 gc = gspread.authorize(credentials)
-spreadsheet = gc.open_by_key(SPREADSHEET_ID)
-sheet_main = spreadsheet.worksheet(SHEET_MAIN)
-sheet_sales = spreadsheet.worksheet(SHEET_SALES)
-sheet_meta = spreadsheet.worksheet(SHEET_META)
 
-# --- DATE RESET CHECK ---
-now_date = datetime.datetime.now().strftime("%Y-%m-%d")
+# ใช้ Spreadsheet ID
+spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+sheet = spreadsheet.worksheet("ตู้เย็น")
+sheet_sales = spreadsheet.worksheet("ยอดขาย")
+sheet_meta = spreadsheet.worksheet("Meta")  # ใช้เก็บวันที่ล่าสุด
+
+# ตรวจสอบวันใหม่ และรีเซตยอดเข้าออก
+now_date = datetime.now().strftime("%Y-%m-%d")
 try:
     last_date = sheet_meta.acell("B1").value
+    if last_date != now_date:
+        sheet.update("F2:F", [[""]]*1000)  # รีเซตเข้า
+        sheet.update("G2:G", [[""]]*1000)  # รีเซตออก
+        sheet_meta.update("B1", [[now_date]])
 except:
-    last_date = ""
-if last_date != now_date:
-    sheet_main.batch_update([{
-        "range": "C2:D",
-        "values": [["0", "0"]] * len(sheet_main.get_all_values())
-    }])
-    sheet_meta.update("A1", [["last_date"]])
+    sheet_meta.update("A1", [[ "last_date" ]])
     sheet_meta.update("B1", [[now_date]])
 
-# --- LOAD DATA ---
-df = pd.DataFrame(sheet_main.get_all_records())
-for col in ["เข้า", "ออก", "คงเหลือในตู้", "ราคาขาย", "ต้นทุน"]:
-    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+# ดึงรายการสินค้า
+data = sheet.get_all_records()
+product_names = [row["ชื่อสินค้า"] for row in data]
 
-df["กำไรต่อหน่วย"] = df["ราคาขาย"] - df["ต้นทุน"]
-df["กำไร"] = df["ออก"] * df["กำไรต่อหน่วย"]
+st.title("💼 ร้านเจริญค้า (ตู้เย็น)")
 
-# --- UI HEADER ---
-st.title("🧊 ร้านเจริญค้า: ระบบจัดการสินค้าตู้เย็น")
-st.markdown("🛒 *ขายหลายรายการ / เติมสต๊อก / ใบเสร็จ / กำไรสุทธิ*")
+st.markdown("### 🛒 ขายสินค้าหลายรายการ")
 
-# --- MULTI-SELL SYSTEM ---
-st.subheader("🛍️ ขายสินค้าหลายรายการ")
-selected_items = st.multiselect("🔍 ค้นหาและเลือกสินค้า", df["ชื่อสินค้า"].tolist())
+selected_items = st.multiselect("🔍 ค้นหาสินค้า", product_names)
 quantities = {}
 for item in selected_items:
-    qty = st.number_input(f"จำนวนขาย: {item}", min_value=0, step=1, key=item)
+    qty = st.number_input(f"จำนวนที่ขาย: {item}", min_value=1, step=1, key=f"qty_{item}")
     quantities[item] = qty
 
-if st.button("✅ ขายและบันทึก"):
+customer_paid = st.number_input("💵 ลูกค้าชำระเงิน (บาท)", min_value=0.0, step=1.0)
+
+# ปุ่มขายสินค้า
+if st.button("✅ ขายสินค้า"):
     total = 0
-    profit_total = 0
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    total_cost = 0
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary_lines = []
+
     for item, qty in quantities.items():
-        idx = df[df["ชื่อสินค้า"] == item].index[0]
-        if df.at[idx, "คงเหลือในตู้"] >= qty and qty > 0:
-            df.at[idx, "ออก"] += qty
-            profit = qty * df.at[idx, "กำไรต่อหน่วย"]
-            sheet_sales.append_row([
-                now, item, int(qty),
-                float(df.at[idx, "ราคาขาย"]),
-                float(df.at[idx, "ต้นทุน"]),
-                float(df.at[idx, "กำไรต่อหน่วย"]),
-                float(profit)
-            ])
-            df.at[idx, "คงเหลือในตู้"] -= qty
-            total += qty * df.at[idx, "ราคาขาย"]
-            profit_total += profit
+        for row_idx, row in enumerate(data, start=2):
+            if row["ชื่อสินค้า"] == item:
+                price = row["ราคาขาย"]
+                cost = row["ต้นทุน"]
+                profit = (price - cost) * qty
+                total += price * qty
+                total_cost += cost * qty
 
-    st.success(f"✅ ขายเสร็จ ยอดรวม: {total:,.2f} บาท | กำไร: {profit_total:,.2f} บาท")
-    st.session_state["receipt"] = (now, quantities, total, profit_total)
-    sheet_main.update([df.columns.tolist()] + df.values.tolist())
+                # อัปเดตคอลัมน์ 'ออก' และ 'คงเหลือในตู้'
+                new_out = row["ออก"] + qty if isinstance(row["ออก"], int) else qty
+                remaining = row["คงเหลือ"] + row["เข้า"] - new_out
 
-# --- RECEIPT ---
-if "receipt" in st.session_state:
-    st.subheader("🧾 ใบเสร็จล่าสุด")
-    now, quantities, total, profit_total = st.session_state["receipt"]
+                sheet.update(f"G{row_idx}", new_out)
+                sheet.update(f"H{row_idx}", remaining)
 
-    # สร้าง PDF ใบเสร็จ
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer)
-    c.drawString(100, 800, f"ร้านเจริญค้า - ใบเสร็จ ({now})")
-    y = 780
-    for item, qty in quantities.items():
+                # บันทึกลงชีทยอดขาย
+                sheet_sales.append_row([
+                    now, item, qty, price, cost, price - cost, profit
+                ])
+                summary_lines.append(f"{item} x{qty} = {price * qty} บาท")
+                break
+
+    change = customer_paid - total
+    st.success(f"✅ ยอดรวม: {total:.2f} บาท / เงินทอน: {change:.2f} บาท")
+
+    # พิมพ์ใบเสร็จ PDF
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer)
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(100, 800, f"ใบเสร็จร้านเจริญค้า")
+    pdf.drawString(100, 780, f"วันที่: {now}")
+    y = 750
+    for line in summary_lines:
+        pdf.drawString(100, y, line)
+        y -= 20
+    pdf.drawString(100, y-20, f"รวมทั้งสิ้น: {total:.2f} บาท")
+    pdf.drawString(100, y-40, f"เงินทอน: {change:.2f} บาท")
+    pdf.save()
+
+    st.download_button("📄 ดาวน์โหลดใบเสร็จ PDF", data=buffer.getvalue(), file_name="receipt.pdf")
+
+    # รีเฟรชหน้า
+    st.experimental_rerun()
+
+# เติมสินค้า
+st.markdown("### ➕ เติมสินค้าเข้าตู้")
+with st.expander("📦 เลือกสินค้าเพื่อเติม"):
+    for i, row in enumerate(data, start=2):
+        qty = st.number_input(f"เติม {row['ชื่อสินค้า']}", min_value=0, step=1, key=f"in_{i}")
         if qty > 0:
-            price = float(df[df["ชื่อสินค้า"] == item]["ราคาขาย"].values[0])
-            c.drawString(100, y, f"{item} x{qty} = {qty*price:.2f} บาท")
-            y -= 20
-    c.drawString(100, y-10, f"รวม: {total:.2f} บาท | กำไร: {profit_total:.2f} บาท")
-    c.save()
-    buffer.seek(0)
-
-    # แสดงปุ่มดาวน์โหลด
-    b64 = base64.b64encode(buffer.read()).decode()
-    href = f'<a href="data:application/pdf;base64,{b64}" download="receipt.pdf">📄 ดาวน์โหลดใบเสร็จ (PDF)</a>'
-    st.markdown(href, unsafe_allow_html=True)
-
-# --- เติมสต๊อก ---
-st.subheader("➕ เติมสินค้าเข้าตู้")
-col1, col2 = st.columns(2)
-with col1:
-    add_item = st.selectbox("เลือกสินค้า", df["ชื่อสินค้า"].tolist(), key="add")
-with col2:
-    add_qty = st.number_input("จำนวนที่เติม", min_value=0, step=1, key="add_qty")
-if st.button("📥 เติมสต๊อก"):
-    idx = df[df["ชื่อสินค้า"] == add_item].index[0]
-    df.at[idx, "เข้า"] += add_qty
-    df.at[idx, "คงเหลือในตู้"] += add_qty
-    sheet_main.update([df.columns.tolist()] + df.values.tolist())
-    st.success(f"✅ เติมแล้ว {add_item} +{add_qty} ชิ้น")
-
-# --- แสดงยอดรวม ---
-st.subheader("📊 สรุปผลกำไร")
-total_sales = (df["ออก"] * df["ราคาขาย"]).sum()
-total_profit = df["กำไร"].sum()
-st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
-st.metric("📈 กำไรรวม", f"{total_profit:,.2f} บาท")
-
-# --- Responsive UI Note ---
-st.markdown("📱 *UI รองรับ iPad / มือถือ / เดสก์ท็อป*")
+            new_in = row["เข้า"] + qty if isinstance(row["เข้า"], int) else qty
+            sheet.update(f"F{i}", new_in)
+            remaining = row["คงเหลือ"] + new_in - row["ออก"]
+            sheet.update(f"H{i}", remaining)
+            st.success(f"✅ เติม {row['ชื่อสินค้า']} จำนวน {qty} แล้ว")
