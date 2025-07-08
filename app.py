@@ -1,26 +1,22 @@
 import streamlit as st
 import gspread
-from google.oauth2 import service_account
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pandas as pd
 
-# ✅ โหลด credentials จาก secrets.toml
-scope = ["https://spreadsheets.google.com/feeds",
-         "https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive.file",
-         "https://www.googleapis.com/auth/drive"]
-
-creds = service_account.Credentials.from_service_account_info(
-    st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
+# โหลด credentials จาก secrets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
+         "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 client = gspread.authorize(creds)
 
-# ✅ เปิด Google Sheet
+# เปิดชีท
 spreadsheet = client.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_meta = spreadsheet.worksheet("Meta")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 
-# ✅ รีเซ็ตยอดเข้า/ออกเมื่อวันใหม่
+# รีเซ็ตรายวัน
 now_date = datetime.now().strftime("%Y-%m-%d")
 last_date = sheet_meta.acell("B1").value
 if last_date != now_date:
@@ -30,91 +26,73 @@ if last_date != now_date:
     }])
     sheet_meta.update("B1", [[now_date]])
 
-# ✅ โหลดข้อมูลจาก Google Sheet
+# โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
-# ✅ UI Streamlit
-st.title("📦 ระบบจัดการสินค้าตู้เย็น - ร้านเจริญค้า")
+# สร้าง session state สำหรับรายการขาย
+if "cart" not in st.session_state:
+    st.session_state.cart = []
 
-# -------------------
-# 🛒 ขายสินค้า
-# -------------------
-st.header("🛒 ขายสินค้า")
-search = st.text_input("ค้นหาสินค้า")
-filtered_df = df[df["ชื่อสินค้า"].str.contains(search, case=False, na=False)] if search else df
+# UI
+st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 
-quantities = {}
-for idx, row in filtered_df.iterrows():
+# --- เพิ่มสินค้า ---
+st.header("🛒 ค้นหาและเพิ่มสินค้า")
+search_term = st.text_input("🔍 พิมพ์ชื่อสินค้า")
+filtered = df[df["ชื่อสินค้า"].str.contains(search_term, case=False, na=False)] if search_term else df.iloc[0:0]
+
+if not filtered.empty:
+    product = filtered.iloc[0]
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.write(f"{row['ชื่อสินค้า']} ({row['ราคาขาย']} บาท)")
+        st.write(f"**{product['ชื่อสินค้า']}** (ขาย {product['ราคาขาย']} บาท)")
     with col2:
-        qty = st.number_input(f"จำนวน - {row['ชื่อสินค้า']}", min_value=0, step=1, key=row["ชื่อสินค้า"])
-        quantities[row["ชื่อสินค้า"]] = qty
+        qty = st.number_input("จำนวน", min_value=1, step=1, key="qty_input")
 
-# ✅ คำนวณยอดรวมและทอน
-total = 0
-summary = []
-for name, qty in quantities.items():
-    if qty > 0:
-        item = df[df["ชื่อสินค้า"] == name].iloc[0]
-        subtotal = item["ราคาขาย"] * qty
-        profit = (item["ราคาขาย"] - item["ต้นทุน"]) * qty
+    if st.button("➕ เพิ่มลงรายการขาย"):
+        st.session_state.cart.append({
+            "name": product["ชื่อสินค้า"],
+            "qty": qty,
+            "price": product["ราคาขาย"],
+            "cost": product["ต้นทุน"]
+        })
+        st.success(f"เพิ่ม {product['ชื่อสินค้า']} x {qty} สำเร็จ")
+
+# --- แสดงตะกร้าสินค้า ---
+if st.session_state.cart:
+    st.subheader("🧾 รายการที่จะขาย")
+    total = 0
+    total_profit = 0
+    for item in st.session_state.cart:
+        subtotal = item["qty"] * item["price"]
+        profit = item["qty"] * (item["price"] - item["cost"])
         total += subtotal
-        summary.append((name, qty, subtotal, profit))
+        total_profit += profit
+        st.write(f"- {item['name']} x {item['qty']} = {subtotal} บาท")
 
-if total > 0:
-    st.subheader(f"💵 ยอดรวม: {total:.2f} บาท")
-    paid = st.number_input("💰 รับเงินจากลูกค้า", min_value=0.0, step=1.0)
+    st.info(f"💵 ยอดรวม: {total} บาท / 🟢 กำไร: {total_profit} บาท")
+    paid = st.number_input("💰 รับเงิน", min_value=0, step=1, key="paid_input")
     if paid >= total:
-        st.success(f"เงินทอน: {paid - total:.2f} บาท")
+        st.success(f"เงินทอน: {paid - total} บาท")
     else:
-        st.warning("ยอดเงินยังไม่พอชำระ")
+        st.warning("💡 เงินไม่พอชำระ")
 
     if st.button("✅ ยืนยันการขาย"):
-        for name, qty, subtotal, profit in summary:
-            idx = df[df["ชื่อสินค้า"] == name].index[0] + 2
-            out_val = int(sheet.cell(idx, 7).value or 0) + qty
-            left_val = int(sheet.cell(idx, 5).value or 0) - qty
-            sheet.update_cell(idx, 7, out_val)
-            sheet.update_cell(idx, 5, left_val)
+        for item in st.session_state.cart:
+            idx = df[df["ชื่อสินค้า"] == item["name"]].index[0] + 2
+            old_out = sheet.cell(idx, 7).value or "0"
+            old_left = sheet.cell(idx, 5).value or "0"
+            sheet.update_cell(idx, 7, int(old_out) + item["qty"])
+            sheet.update_cell(idx, 5, int(old_left) - item["qty"])
             sheet_sales.append_row([
-                now_date, name, qty,
-                round(float(subtotal), 2),
-                round(float(profit), 2)
+                now_date, item["name"], item["qty"],
+                item["qty"] * item["price"],
+                item["qty"] * (item["price"] - item["cost"])
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
 
-# -------------------
-# ➕ เติมสินค้า
-# -------------------
-st.header("➕ เติมสินค้า")
-with st.form("เติมสินค้า"):
-    item_to_add = st.selectbox("เลือกสินค้า", df["ชื่อสินค้า"].tolist())
-    amount_to_add = st.number_input("จำนวนที่เติม", min_value=1, step=1)
-    submitted = st.form_submit_button("เติมเข้า")
-    if submitted:
-        idx = df[df["ชื่อสินค้า"] == item_to_add].index[0] + 2
-        in_val = int(sheet.cell(idx, 6).value or 0) + amount_to_add
-        left_val = int(sheet.cell(idx, 5).value or 0) + amount_to_add
-        sheet.update_cell(idx, 6, in_val)
-        sheet.update_cell(idx, 5, left_val)
-        st.success(f"✅ เติมสินค้า {item_to_add} จำนวน {amount_to_add} เรียบร้อยแล้ว")
-
-# -------------------
-# ✏️ แก้ไขสินค้า
-# -------------------
-st.header("✏️ แก้ไขสินค้า")
-edit_item = st.selectbox("เลือกรายการ", df["ชื่อสินค้า"].tolist())
-with st.form("edit_form"):
-    idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
-    new_price = st.number_input("ราคาขายใหม่", value=float(df.loc[idx-2, "ราคาขาย"]))
-    new_cost = st.number_input("ต้นทุนใหม่", value=float(df.loc[idx-2, "ต้นทุน"]))
-    new_stock = st.number_input("คงเหลือใหม่", value=int(df.loc[idx-2, "คงเหลือ"]), step=1)
-    confirm = st.form_submit_button("💾 บันทึก")
-    if confirm:
-        sheet.update_cell(idx, 3, new_price)
-        sheet.update_cell(idx, 4, new_cost)
-        sheet.update_cell(idx, 5, new_stock)
-        st.success(f"✅ อัปเดตรายการ {edit_item} เรียบร้อย")
+        # 🔄 ล้างตะกร้าหลังบันทึก
+        st.session_state.cart.clear()
+        st.session_state.qty_input = 1
+        st.session_state.paid_input = 0
