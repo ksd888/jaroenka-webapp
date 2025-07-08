@@ -1,126 +1,115 @@
 import streamlit as st
-import pandas as pd
-import datetime
 import gspread
-from google.oauth2 import service_account
+from google.oauth2.service_account import Credentials
+from datetime import datetime
 from reportlab.pdfgen import canvas
-from io import BytesIO
+import io
+import base64
 
-# ✅ เชื่อม Google Sheets
-credentials = service_account.Credentials.from_service_account_info(
+# Auth
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    scopes=scope
 )
 gc = gspread.authorize(credentials)
+
+# ใช้ Spreadsheet ID โดยตรง
 spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 sheet_meta = spreadsheet.worksheet("Meta")
 
-# ✅ รีเซ็ตรายวันอัตโนมัติ
-now_date = datetime.datetime.now().strftime("%Y-%m-%d")
+# ตรวจสอบวันใหม่ (รีเซตยอดเข้า/ออก)
+now_date = datetime.now().strftime("%Y-%m-%d")
 try:
     last_date = sheet_meta.acell("B1").value
-    if last_date != now_date:
-        sheet.batch_update([{
-            "range": "ตู้เย็น!F2:G",
-            "values": [["", ""] for _ in range(100)]
-        }])
-        sheet_meta.update("B1", [[now_date]])
 except:
-    sheet_meta.update("A1", [["last_date"]])
+    last_date = ""
+
+if last_date != now_date:
+    sheet.update("F2:F", [[""]]*sheet.row_count)  # ล้างคอลัมน์ 'เข้า'
+    sheet.update("G2:G", [[""]]*sheet.row_count)  # ล้างคอลัมน์ 'ออก'
     sheet_meta.update("B1", [[now_date]])
 
-# ✅ โหลดข้อมูลสินค้า
+# ดึงข้อมูลสินค้า
 data = sheet.get_all_records()
-df = pd.DataFrame(data)
 
-# ✅ ค้นหา + ขายหลายรายการ
-st.title("💼 ระบบขายสินค้า | ร้านเจริญค้า")
-st.markdown("## 🛒 เลือกสินค้าหลายรายการพร้อมกัน")
+st.set_page_config(page_title="เจริญค้า | ตู้เย็น", layout="wide")
+st.title("📦 ระบบขายสินค้าตู้เย็น - เจริญค้า")
 
-selected_items = []
-col1, col2 = st.columns([2, 1])
-with col1:
-    search_query = st.text_input("🔍 ค้นหาสินค้า").strip().lower()
+# ค้นหา
+search = st.text_input("🔍 ค้นหาสินค้า", "")
 
-with col2:
-    money_received = st.number_input("💵 รับเงินจากลูกค้า (บาท)", min_value=0.0, step=1.0, value=0.0)
+# ขายหลายรายการพร้อมกัน
+st.subheader("🛒 ขายสินค้าหลายรายการ")
+selected = []
+quantities = {}
 
-for index, row in df.iterrows():
-    name = row["ชื่อสินค้า"]
-    if search_query in name.lower():
-        col1, col2 = st.columns([2, 1])
+for item in data:
+    name = item["ชื่อสินค้า"]
+    if search.lower() in name.lower():
+        col1, col2 = st.columns([3, 1])
         with col1:
-            qty = st.number_input(f"{name} (คงเหลือ {row['คงเหลือในตู้']})", min_value=0, step=1, key=name)
+            selected_item = st.checkbox(name)
         with col2:
-            if qty > 0:
-                selected_items.append({
-                    "index": index,
-                    "name": name,
-                    "qty": qty,
-                    "price": row["ราคาขาย"],
-                    "cost": row["ต้นทุน"]
-                })
+            qty = st.number_input(f"จำนวน - {name}", min_value=0, step=1, key=name)
+        if selected_item and qty > 0:
+            selected.append(item)
+            quantities[name] = qty
 
-# ✅ คำนวณยอดขาย
-total = sum(item["qty"] * item["price"] for item in selected_items)
-total_cost = sum(item["qty"] * item["cost"] for item in selected_items)
-profit = total - total_cost
-change = money_received - total
+if selected:
+    total_price = 0
+    total_cost = 0
+    st.markdown("### 💰 รายการที่เลือกขาย")
+    for item in selected:
+        name = item["ชื่อสินค้า"]
+        qty = quantities[name]
+        price = float(item["ราคาขาย"])
+        cost = float(item["ต้นทุน"])
+        total_price += price * qty
+        total_cost += cost * qty
+        st.write(f"{name} x {qty} = {price * qty:.2f} บาท")
 
-st.markdown(f"### 💰 ยอดรวม: {total:.2f} บาท")
-st.markdown(f"### 💵 ทอนเงินลูกค้า: {change:.2f} บาท" if change >= 0 else "❌ เงินไม่พอ")
+    st.markdown(f"### 💵 ยอดรวม: **{total_price:.2f} บาท**")
+    cash_received = st.number_input("💸 รับเงินจากลูกค้า", min_value=0.0, value=total_price, step=1.0)
+    change = cash_received - total_price
+    st.success(f"เงินทอน: {change:.2f} บาท")
 
-# ✅ ปุ่มยืนยันการขาย
-if st.button("✅ ยืนยันการขาย"):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for item in selected_items:
-        idx = item["index"] + 2  # เพราะมี header 1 บรรทัด
-        # ✅ อัปเดตยอดออก
-        qty_old = df.loc[item["index"], "ออก"]
-        new_qty = qty_old + item["qty"]
-        sheet.update_cell(idx, 7, new_qty)
-        # ✅ อัปเดตคงเหลือในตู้
-        remain = df.loc[item["index"], "คงเหลือในตู้"] - item["qty"]
-        sheet.update_cell(idx, 8, remain)
-        # ✅ บันทึกลงยอดขาย
-        sheet_sales.append_row([
-            now, item["name"], item["qty"], item["price"], item["cost"],
-            item["price"] - item["cost"], item["qty"] * (item["price"] - item["cost"])
-        ])
+    if st.button("✅ ยืนยันการขาย"):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for item in selected:
+            name = item["ชื่อสินค้า"]
+            qty = quantities[name]
+            for idx, row in enumerate(data, start=2):
+                if row["ชื่อสินค้า"] == name:
+                    current_out = int(row["ออก"]) if row["ออก"] else 0
+                    new_out = current_out + qty
+                    sheet.update_cell(idx, 7, str(new_out))  # คอลัมน์ G: ออก
+                    remain = int(row["คงเหลือ"]) if row["คงเหลือ"] else 0
+                    sheet.update_cell(idx, 5, str(remain - qty))  # คอลัมน์ E: คงเหลือ
+                    break
+            sheet_sales.append_row([now, name, qty, item["ราคาขาย"], item["ต้นทุน"], total_price, total_price - total_cost, "retail"])
 
-    st.success("✅ บันทึกยอดขายและอัปเดตคงเหลือเรียบร้อยแล้ว")
-    st.experimental_rerun()
+        st.success("✅ บันทึกยอดขายเรียบร้อย")
 
-# ✅ ปุ่มเติมสินค้า
-st.markdown("---")
-st.markdown("### ➕ เติมสินค้าเข้าตู้")
-product_options = df["ชื่อสินค้า"].tolist()
-product_selected = st.selectbox("เลือกสินค้า", product_options)
-add_qty = st.number_input("จำนวนที่เติม", min_value=0, step=1)
-if st.button("📦 เติมสินค้า"):
-    index = df[df["ชื่อสินค้า"] == product_selected].index[0]
-    idx_excel = index + 2
-    old_in = df.loc[index, "เข้า"]
-    old_remain = df.loc[index, "คงเหลือในตู้"]
-    sheet.update_cell(idx_excel, 6, old_in + add_qty)
-    sheet.update_cell(idx_excel, 8, old_remain + add_qty)
-    st.success(f"✅ เติมสินค้า {product_selected} สำเร็จ")
-    st.experimental_rerun()
+        # PDF ใบเสร็จ
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer)
+        c.drawString(100, 800, "ใบเสร็จ - ร้านเจริญค้า")
+        y = 770
+        for item in selected:
+            name = item["ชื่อสินค้า"]
+            qty = quantities[name]
+            price = float(item["ราคาขาย"])
+            c.drawString(100, y, f"{name} x {qty} = {price * qty:.2f} บาท")
+            y -= 20
+        c.drawString(100, y - 10, f"รวมทั้งหมด: {total_price:.2f} บาท")
+        c.drawString(100, y - 30, f"รับเงิน: {cash_received:.2f} บาท")
+        c.drawString(100, y - 50, f"เงินทอน: {change:.2f} บาท")
+        c.save()
 
-# ✅ ปุ่มพิมพ์ใบเสร็จ
-if selected_items and st.button("🧾 พิมพ์ใบเสร็จ"):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer)
-    c.drawString(100, 800, "🧊 ใบเสร็จร้านเจริญค้า")
-    y = 780
-    for item in selected_items:
-        c.drawString(100, y, f"{item['name']} x {item['qty']} = {item['qty'] * item['price']} บาท")
-        y -= 20
-    c.drawString(100, y-10, f"รวมทั้งหมด: {total} บาท")
-    c.drawString(100, y-30, f"เงินรับ: {money_received} บาท")
-    c.drawString(100, y-50, f"เงินทอน: {change} บาท")
-    c.showPage()
-    c.save()
-    st.download_button("📥 ดาวน์โหลดใบเสร็จ (PDF)", data=buffer.getvalue(), file_name="receipt.pdf")
+        buffer.seek(0)
+        b64 = base64.b64encode(buffer.read()).decode()
+        href = f'<a href="data:application/pdf;base64,{b64}" download="receipt.pdf">📄 ดาวน์โหลดใบเสร็จ</a>'
+        st.markdown(href, unsafe_allow_html=True)
