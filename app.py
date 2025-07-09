@@ -4,7 +4,7 @@ from google.oauth2 import service_account
 from datetime import datetime
 import pandas as pd
 
-# ✅ โหลด credentials
+# ✅ โหลด credentials จาก secrets.toml
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -21,7 +21,7 @@ sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_meta = spreadsheet.worksheet("Meta")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 
-# ✅ รีเซ็ตยอดเข้า/ออกทุกวัน
+# ✅ รีเซ็ตยอดเข้า/ออกเมื่อวันใหม่
 now_date = datetime.now().strftime("%Y-%m-%d")
 last_date = sheet_meta.acell("B1").value
 if last_date != now_date:
@@ -31,33 +31,18 @@ if last_date != now_date:
     }])
     sheet_meta.update("B1", [[now_date]])
 
-# ✅ โหลดข้อมูลสินค้า
+# ✅ โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# ✅ Safe conversion
-def safe_float(val):
-    try:
-        num = pd.to_numeric(val, errors='coerce')
-        return float(num) if pd.notna(num) else 0.0
-    except:
-        return 0.0
-
-def safe_int(val):
-    try:
-        num = pd.to_numeric(val, errors='coerce')
-        return int(num) if pd.notna(num) else 0
-    except:
-        return 0
-
-# ✅ Session state
+# ✅ สร้าง Session state
 if "cart" not in st.session_state:
     st.session_state.cart = []
 if "paid_input" not in st.session_state:
     st.session_state.paid_input = 0.0
 
-# ✅ UI
+# ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.header("🛒 ขายสินค้า (เลือกหลายรายการพร้อมกัน)")
 
@@ -72,8 +57,12 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     for name in selected_items:
         qty = quantities.get(name, 1)
         item = df[df["ชื่อสินค้า"] == name].iloc[0]
-        price = safe_float(item["ราคาขาย"])
-        cost = safe_float(item["ต้นทุน"])
+        try:
+            price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce'))
+            cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce'))
+        except:
+            st.error(f"⚠️ ราคาหรือต้นทุนไม่ถูกต้องสำหรับ {name}")
+            continue
         st.session_state.cart.append({
             "name": name,
             "qty": qty,
@@ -81,7 +70,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             "cost": cost
         })
     st.success("✅ เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
-    st.rerun()  # ✅ รีโหลดหน้า
+    st.rerun()
 
 # ✅ แสดงตะกร้า
 if st.session_state.cart:
@@ -120,12 +109,17 @@ if st.session_state.cart:
                 float(subtotal),
                 float(profit)
             ])
+
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
-        st.session_state.cart = []
-        st.session_state.paid_input = 0.0
+        st.session_state.update({
+            "cart": [],
+            "paid_input": 0.0
+        })
         st.rerun()
 
-# ✅ เติมสินค้า
+# ------------------------
+# 📦 เติมสินค้า
+# ------------------------
 with st.expander("📦 เติมสินค้า"):
     selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
     add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -136,11 +130,27 @@ with st.expander("📦 เติมสินค้า"):
         st.success(f"✅ เติม {selected_item} จำนวน {add_amount} สำเร็จแล้ว")
         st.rerun()
 
-# ✅ แก้ไขสินค้า
+# ------------------------
+# ✏️ แก้ไขสินค้า
+# ------------------------
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
     default_row = df[df["ชื่อสินค้า"] == edit_item].iloc[0]
+
+    def safe_float(val):
+        try:
+            num = pd.to_numeric(val, errors='coerce')
+            return float(num) if pd.notna(num) else 0.0
+        except:
+            return 0.0
+
+    def safe_int(val):
+        try:
+            num = pd.to_numeric(val, errors='coerce')
+            return int(num) if pd.notna(num) else 0
+        except:
+            return 0
 
     price_val = safe_float(default_row["ราคาขาย"])
     cost_val = safe_float(default_row["ต้นทุน"])
