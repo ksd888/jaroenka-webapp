@@ -1,4 +1,3 @@
-
 import streamlit as st
 import gspread
 from google.oauth2 import service_account
@@ -37,19 +36,21 @@ data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# ✅ ตั้งค่า session_state
+# ✅ ค่าเริ่มต้นของ Session State
 for key, default in {
     "cart": [],
     "paid_input": 0.0,
-    "reset_paid": False
+    "reset_after_sale": False
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ✅ รีเซ็ต paid_input เมื่อมี flag
-if st.session_state["reset_paid"]:
+# ✅ รีเซ็ตค่าหลังขาย
+if st.session_state["reset_after_sale"]:
+    st.session_state["cart"] = []
     st.session_state["paid_input"] = 0.0
-    st.session_state["reset_paid"] = False
+    st.session_state["reset_after_sale"] = False
+    st.success("🆕 พร้อมเริ่มขายรอบใหม่แล้ว!")
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -118,10 +119,11 @@ if st.session_state["cart"]:
                 float(profit)
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
-        st.session_state["cart"] = []
-        st.session_state["reset_paid"] = True
+        st.session_state["reset_after_sale"] = True
 
+# ------------------------
 # 📦 เติมสินค้า
+# ------------------------
 with st.expander("📦 เติมสินค้า"):
     selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
     add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -131,7 +133,9 @@ with st.expander("📦 เติมสินค้า"):
         sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) + add_amount)
         st.success(f"✅ เติม {selected_item} จำนวน {add_amount} สำเร็จแล้ว")
 
+# ------------------------
 # ✏️ แก้ไขสินค้า
+# ------------------------
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
