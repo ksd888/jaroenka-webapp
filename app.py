@@ -3,7 +3,6 @@ import gspread
 from google.oauth2 import service_account
 from datetime import datetime
 import pandas as pd
-from math import isnan
 
 # ✅ โหลด credentials จาก secrets.toml
 scope = [
@@ -37,32 +36,30 @@ data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
 # ✅ Session state
-if "cart" not in st.session_state:
-    st.session_state["cart"] = []
-if "add_qty" not in st.session_state:
-    st.session_state["add_qty"] = 1
-if "add_name" not in st.session_state:
-    st.session_state["add_name"] = ""
+for key, default in {"cart": [], "add_qty": 1, "add_name": ""}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.header("🛒 ขายสินค้า (พิมพ์ชื่อ + กด ➕ เพิ่มทันที)")
 
 product_names = sorted(df["ชื่อสินค้า"].tolist())
+user_input = st.text_input("🔍 ค้นหาสินค้า (พิมพ์ชื่อ)", st.session_state["add_name"], key="input_name")
 
-# ✅ ช่องค้นหาแบบ autocomplete
-user_input = st.text_input("🔍 ค้นหาสินค้า (พิมพ์ชื่อ)", key="add_name")
-suggestions = [p for p in product_names if user_input.lower() in p.lower()]
-
+# ✅ Suggestion guide
+suggestions = [p for p in product_names if user_input.strip().lower() in p.lower()]
 if suggestions and user_input.strip():
-    st.caption("📌 ผลลัพธ์ใกล้เคียง:")
+    st.caption("📌 คลิกเพื่อเลือกชื่อสินค้า:")
     for s in suggestions[:5]:
-        st.write(f"• {s}")
+        if st.button(f"➤ {s}", key=f"suggestion_{s}"):
+            st.session_state["input_name"] = s
+            st.experimental_rerun()
 
 selected_qty = st.number_input("จำนวน", min_value=1, step=1, key="add_qty")
 
 if st.button("➕ เพิ่มลงตะกร้า"):
-    match = [p for p in product_names if p.lower() == user_input.strip().lower()]
+    match = [p for p in product_names if p.lower() == st.session_state["input_name"].strip().lower()]
     if match:
         selected_product = match[0]
         item = df[df["ชื่อสินค้า"] == selected_product].iloc[0]
@@ -74,7 +71,8 @@ if st.button("➕ เพิ่มลงตะกร้า"):
         })
         st.success(f"✅ เพิ่ม {selected_product} x {selected_qty} สำเร็จ")
         st.session_state["add_qty"] = 1
-        st.session_state["add_name"] = ""
+        st.session_state["input_name"] = ""
+        st.experimental_rerun()
     else:
         st.warning("❌ ไม่พบสินค้าที่พิมพ์ กรุณาตรวจสอบชื่อให้ตรง")
 
@@ -110,17 +108,18 @@ if st.session_state["cart"]:
 
             sheet_sales.append_row([
                 now_date,
-                str(item["name"]),
-                int(qty),
-                float(subtotal),
-                float(profit)
+                item["name"],
+                qty,
+                subtotal,
+                profit
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
 
         st.session_state["cart"] = []
         st.session_state["paid_input"] = 0.0
+        st.session_state["input_name"] = ""
         st.session_state["add_qty"] = 1
-        st.session_state["add_name"] = ""
+        st.experimental_rerun()
 
 # ------------------------
 # 📦 เติมสินค้า
