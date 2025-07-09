@@ -36,13 +36,11 @@ data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# ✅ Session state เริ่มต้น
-default_states = {
-    "cart": [],
-    "paid_input": 0.0,
-}
-for key, val in default_states.items():
-    st.session_state.setdefault(key, val)
+# ✅ Session state
+if "cart" not in st.session_state:
+    st.session_state["cart"] = []
+if "paid_input" not in st.session_state:
+    st.session_state["paid_input"] = 0.0
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -71,8 +69,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             "price": price,
             "cost": cost
         })
-    st.success("✅ เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
-    st.stop()
+    st.experimental_rerun()
 
 # ✅ แสดงตะกร้า
 if st.session_state["cart"]:
@@ -114,7 +111,7 @@ if st.session_state["cart"]:
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
         st.session_state["cart"] = []
         st.session_state["paid_input"] = 0.0
-        st.stop()
+        st.experimental_rerun()
 
 # ------------------------
 # 📦 เติมสินค้า
