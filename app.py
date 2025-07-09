@@ -26,14 +26,17 @@ if "selected_products" not in st.session_state: st.session_state.selected_produc
 if "quantities" not in st.session_state: st.session_state.quantities = {}
 if "paid_input" not in st.session_state: st.session_state.paid_input = 0.0
 if "sale_completed" not in st.session_state: st.session_state.sale_completed = False
+if "reset_after_sale" not in st.session_state: st.session_state.reset_after_sale = False
 
-# ✅ รีเซ็ตเมื่อขายเสร็จ
-if st.session_state.sale_completed:
+# 🔁 รีเซ็ต UI หลังขายเสร็จ
+if st.session_state.reset_after_sale:
     st.session_state.cart = []
     st.session_state.selected_products = []
     st.session_state.quantities = {}
     st.session_state.paid_input = 0.0
     st.session_state.sale_completed = False
+    st.session_state.reset_after_sale = False
+    st.stop()
 
 # 🎯 UI เริ่ม
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -105,6 +108,7 @@ if st.session_state.cart:
         ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
         st.session_state.sale_completed = True
+        st.session_state.reset_after_sale = True
         st.stop()
 
 # 📥 เติมสินค้า
