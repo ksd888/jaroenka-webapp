@@ -26,14 +26,13 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "sale_confirmed": False,
-    "just_sold": False,
+    "just_sold": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ✅ รีเซ็ตหลังขายเสร็จทันที
+# ✅ รีเซ็ตหน้าทันทีหลังขายสำเร็จ
 if st.session_state.just_sold:
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
     for key, default in default_session.items():
@@ -108,9 +107,9 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # ✅ แสดงข้อความสำเร็จ + เตรียมรีเซ็ตรอบหน้า
+        # ✅ ตั้ง flag เพื่อรีเซ็ตรอบถัดไป
         st.session_state.just_sold = True
-        st.experimental_rerun()
+        st.stop()
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
