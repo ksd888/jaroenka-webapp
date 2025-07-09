@@ -20,12 +20,21 @@ df = pd.DataFrame(data)
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🔁 สร้าง session_state
+# 🔁 session_state
 if "cart" not in st.session_state: st.session_state.cart = []
 if "selected_products" not in st.session_state: st.session_state.selected_products = []
 if "quantities" not in st.session_state: st.session_state.quantities = {}
 if "paid_input" not in st.session_state: st.session_state.paid_input = 0.0
 if "sale_completed" not in st.session_state: st.session_state.sale_completed = False
+
+# ✅ รีเซ็ตอัตโนมัติหลังขายเสร็จ
+if st.session_state.sale_completed:
+    st.session_state.cart = []
+    st.session_state.selected_products = []
+    st.session_state.quantities = {}
+    st.session_state.paid_input = 0.0
+    st.session_state.sale_completed = False
+    st.experimental_rerun()
 
 # 🎯 UI เริ่ม
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -35,6 +44,7 @@ product_names = df["ชื่อสินค้า"].tolist()
 selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
 st.session_state.selected_products = selected
 
+# 🔢 เพิ่ม/ลดจำนวน
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
@@ -50,6 +60,7 @@ for p in selected:
     with col4:
         st.markdown(f"จำนวน: **{st.session_state.quantities[p]}**")
 
+# ➕ เพิ่มลงตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
         qty = safe_int(st.session_state.quantities[p])
@@ -71,6 +82,7 @@ if st.session_state.cart:
 
     st.info(f"💰 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
     st.session_state.paid_input = st.number_input("💵 รับเงิน", value=st.session_state.paid_input, step=1.0)
+
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
@@ -86,25 +98,20 @@ if st.session_state.cart:
             new_left = safe_int(row["คงเหลือในตู้"]) - qty
             worksheet.update_cell(row_idx, df.columns.get_loc("ออก")+1, new_out)
             worksheet.update_cell(row_idx, df.columns.get_loc("คงเหลือในตู้")+1, new_left)
+
         summary_ws.append_row([
             now,
-            ", ".join([f"{i} x {q}" for i,q in st.session_state.cart]),
+            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
             st.session_state.paid_input,
             st.session_state.paid_input - total_price,
             "drink"
         ])
+
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
-
-        # ✅ รีเซ็ตค่าทุกอย่าง
-        st.session_state.cart = []
-        st.session_state.selected_products = []
-        st.session_state.quantities = {}
-        st.session_state.paid_input = 0.0
-
-        # ✅ รีเฟรชหน้าทันที
-        st.experimental_rerun()
+        st.session_state.sale_completed = True
+        st.stop()
 
 # 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
