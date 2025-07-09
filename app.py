@@ -34,49 +34,44 @@ if last_date != now_date:
 # ✅ โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
-product_names = sorted(df["ชื่อสินค้า"].tolist())
+product_names = sorted(df["ชื่อสินค้า"].dropna().tolist())
 
 # ✅ Session state
 if "cart" not in st.session_state:
     st.session_state["cart"] = []
+if "selected_items" not in st.session_state:
+    st.session_state["selected_items"] = []
 if "add_qty" not in st.session_state:
     st.session_state["add_qty"] = 1
-if "add_name" not in st.session_state:
-    st.session_state["add_name"] = ""
 
-# ✅ UI ขายสินค้า
+# ✅ UI
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.header("🛒 ขายสินค้า (ค้นหา + กด ➕ เพิ่มทันที)")
+st.header("🛒 ขายสินค้า (ค้นหาหลายรายการ + ใส่จำนวน + ยืนยัน)")
 
-# ✅ ช่องค้นหา + autocomplete + ปุ่ม ➕
-user_input = st.text_input("🔍 พิมพ์ชื่อสินค้า", value=st.session_state["add_name"], key="product_input")
-suggestions = [p for p in product_names if user_input.strip().lower() in p.lower()]
+# ✅ ระบบ multiselect
+st.session_state["selected_items"] = st.multiselect("🔍 พิมพ์หรือเลือกสินค้า", product_names, default=st.session_state["selected_items"])
 
-if suggestions and user_input.strip():
-    st.caption("📌 คลิกเพื่อเพิ่มสินค้า:")
-    for s in suggestions[:5]:
-        if st.button(f"➕ {s}"):
-            st.session_state["add_name"] = s
-            st.stop()
+# ✅ เพิ่มสินค้าจาก multiselect
+qty = st.number_input("จำนวนที่ต้องการใส่ในแต่ละรายการ", min_value=1, step=1, key="add_qty")
 
-selected_qty = st.number_input("จำนวน", min_value=1, step=1, key="add_qty")
-
-if st.button("➕ เพิ่มลงตะกร้า") and st.session_state["add_name"]:
-    item = df[df["ชื่อสินค้า"] == st.session_state["add_name"]].iloc[0]
-    price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce') or 0)
-    cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce') or 0)
-
-    st.session_state["cart"].append({
-        "name": st.session_state["add_name"],
-        "qty": selected_qty,
-        "price": price,
-        "cost": cost
-    })
-
-    st.success(f"✅ เพิ่ม {st.session_state['add_name']} x {selected_qty} สำเร็จ")
-    st.session_state["add_qty"] = 1
-    st.session_state["add_name"] = ""
-    st.stop()
+if st.button("➕ เพิ่มสินค้าทั้งหมดในรายการ"):
+    for name in st.session_state["selected_items"]:
+        row = df[df["ชื่อสินค้า"] == name]
+        if not row.empty:
+            item = row.iloc[0]
+            try:
+                price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce') or 0)
+                cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce') or 0)
+            except:
+                st.error(f"⚠️ {name} ราคาหรือต้นทุนผิด")
+                continue
+            st.session_state["cart"].append({
+                "name": name,
+                "qty": qty,
+                "price": price,
+                "cost": cost
+            })
+    st.success("✅ เพิ่มสินค้าทั้งหมดแล้ว")
 
 # ✅ แสดงตะกร้า
 if st.session_state["cart"]:
@@ -118,8 +113,7 @@ if st.session_state["cart"]:
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
         st.session_state["cart"] = []
         st.session_state["paid_input"] = 0.0
-        st.session_state["add_qty"] = 1
-        st.session_state["add_name"] = ""
+        st.session_state["selected_items"] = []
         st.stop()
 
 # ------------------------
