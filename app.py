@@ -36,9 +36,13 @@ data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# ✅ Session state
-st.session_state.setdefault("cart", [])
-st.session_state.setdefault("paid_input", 0.0)
+# ✅ Session state เริ่มต้น
+default_states = {
+    "cart": [],
+    "paid_input": 0.0,
+}
+for key, val in default_states.items():
+    st.session_state.setdefault(key, val)
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
