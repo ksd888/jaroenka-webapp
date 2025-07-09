@@ -26,16 +26,18 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "sale_complete": False
+    "sale_complete": False,
+    "just_sold": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# 🧼 รีเซ็ตเมื่อ flag ถูกตั้ง
-if st.session_state.sale_complete:
-    for key, default in default_session.items():
-        st.session_state[key] = default
+# ✅ หากขายเสร็จแล้วและยังไม่รีเซ็ต
+if st.session_state.sale_complete and not st.session_state.just_sold:
+    for key in ["cart", "selected_products", "quantities", "paid_input"]:
+        st.session_state[key] = default_session[key]
+    st.session_state.just_sold = True
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
 # 🛒 UI เริ่มต้น
@@ -106,9 +108,9 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # 🔁 รีเซ็ตทันทีหลังบันทึก
+        # ✅ ตั้ง flag เพื่อให้แสดงผลรีเซ็ตหน้า
         st.session_state.sale_complete = True
-        st.experimental_rerun()
+        st.session_state.just_sold = False
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
