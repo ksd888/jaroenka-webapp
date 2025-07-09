@@ -1,3 +1,4 @@
+
 import streamlit as st
 import datetime
 import gspread
@@ -38,7 +39,7 @@ for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
     cols = st.columns([2, 1, 1])
-    with cols[0]: st.markdown(f"**{p}**")
+    with cols[0]: st.markdown(f"**{p} (จำนวน: {st.session_state.quantities[p]})**")
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
