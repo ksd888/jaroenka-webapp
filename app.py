@@ -6,10 +6,12 @@ import pandas as pd
 from math import isnan
 
 # ✅ โหลด credentials จาก secrets.toml
-scope = ["https://spreadsheets.google.com/feeds",
-         "https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive.file",
-         "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive"
+]
 creds = service_account.Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 client = gspread.authorize(creds)
@@ -20,7 +22,7 @@ sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_meta = spreadsheet.worksheet("Meta")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 
-# ✅ รีเซ็ตยอดเข้า/ออก เมื่อวันใหม่
+# ✅ รีเซ็ตยอดเข้า/ออกเมื่อวันใหม่
 now_date = datetime.now().strftime("%Y-%m-%d")
 last_date = sheet_meta.acell("B1").value
 if last_date != now_date:
@@ -56,14 +58,13 @@ if st.button("➕ เพิ่มลงตะกร้า"):
         st.session_state.cart.append({
             "name": selected_product,
             "qty": selected_qty,
-            "price": item["ราคาขาย"],
-            "cost": item["ต้นทุน"]
+            "price": float(item["ราคาขาย"]),
+            "cost": float(item["ต้นทุน"])
         })
         st.success(f"เพิ่ม {selected_product} x {selected_qty} แล้ว")
-        st.session_state.add_name = product_names[0]
         st.session_state.add_qty = 1
     else:
-        st.warning("กรุณาเลือกสินค้าที่มีอยู่")
+        st.warning("กรุณาเลือกสินค้าที่มีอยู่ในระบบ")
 
 # ✅ แสดงตะกร้า
 if st.session_state.cart:
@@ -74,7 +75,7 @@ if st.session_state.cart:
         profit = item["qty"] * (item["price"] - item["cost"])
         total += subtotal
         profit_total += profit
-        st.write(f"- {item['name']} x {item['qty']} = {subtotal} บาท")
+        st.write(f"- {item['name']} x {item['qty']} = {subtotal:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total:.2f} บาท | 🟢 กำไร: {profit_total:.2f} บาท")
     paid = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
@@ -104,10 +105,11 @@ if st.session_state.cart:
                 float(profit)
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
+
+        # ✅ รีเซ็ตค่าหลังขาย
         st.session_state.cart = []
         st.session_state.paid_input = 0.0
         st.session_state.add_qty = 1
-        st.session_state.add_name = product_names[0]
 
 # ------------------------
 # 📦 เติมสินค้า
@@ -128,9 +130,16 @@ with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
     default_row = df[df["ชื่อสินค้า"] == edit_item].iloc[0]
-    new_price = st.number_input("ราคาขายใหม่", value=float(default_row["ราคาขาย"]), key="edit_price")
-    new_cost = st.number_input("ต้นทุนใหม่", value=float(default_row["ต้นทุน"]), key="edit_cost")
-    new_stock = st.number_input("คงเหลือใหม่", value=int(default_row["คงเหลือ"]), step=1, key="edit_stock")
+
+    # ✅ ตรวจสอบค่าก่อนแสดงผล
+    price_val = float(default_row["ราคาขาย"]) if pd.notna(default_row["ราคาขาย"]) else 0.0
+    cost_val = float(default_row["ต้นทุน"]) if pd.notna(default_row["ต้นทุน"]) else 0.0
+    stock_val = int(default_row["คงเหลือ"]) if pd.notna(default_row["คงเหลือ"]) else 0
+
+    new_price = st.number_input("ราคาขายใหม่", value=price_val, key="edit_price")
+    new_cost = st.number_input("ต้นทุนใหม่", value=cost_val, key="edit_cost")
+    new_stock = st.number_input("คงเหลือใหม่", value=stock_val, step=1, key="edit_stock")
+
     if st.button("💾 บันทึกการแก้ไข"):
         sheet.update_cell(idx, 3, new_price)
         sheet.update_cell(idx, 4, new_cost)
