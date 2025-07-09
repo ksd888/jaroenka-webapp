@@ -43,55 +43,40 @@ if "add_qty" not in st.session_state:
     st.session_state["add_qty"] = 1
 if "add_name" not in st.session_state:
     st.session_state["add_name"] = ""
-if "should_rerun" not in st.session_state:
-    st.session_state["should_rerun"] = False
-
-# ✅ ป้องกัน rerun crash
-if st.session_state["should_rerun"]:
-    st.session_state["should_rerun"] = False
-    st.stop()
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.header("🛒 ขายสินค้า (ค้นหาแล้วกด ➕)")
+st.header("🛒 ขายสินค้า (ค้นหา + กด ➕ เพิ่มทันที)")
 
-user_input = st.text_input("🔍 ค้นหาสินค้า", value=st.session_state["add_name"])
+# ✅ ช่องค้นหา + autocomplete + ปุ่ม ➕
+user_input = st.text_input("🔍 พิมพ์ชื่อสินค้า", value=st.session_state["add_name"], key="product_input")
 suggestions = [p for p in product_names if user_input.strip().lower() in p.lower()]
 
 if suggestions and user_input.strip():
-    st.caption("📌 คลิกเพื่อเลือกสินค้า:")
+    st.caption("📌 คลิกเพื่อเพิ่มสินค้า:")
     for s in suggestions[:5]:
         if st.button(f"➕ {s}"):
             st.session_state["add_name"] = s
-            st.session_state["should_rerun"] = True
             st.stop()
 
 selected_qty = st.number_input("จำนวน", min_value=1, step=1, key="add_qty")
 
-if st.button("➕ เพิ่มลงตะกร้า"):
-    match = [p for p in product_names if p.lower() == st.session_state["add_name"].strip().lower()]
-    if match:
-        selected_product = match[0]
-        item = df[df["ชื่อสินค้า"] == selected_product].iloc[0]
-        try:
-            price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce'))
-            cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce'))
-        except:
-            st.error("⚠️ ราคาหรือต้นทุนไม่ถูกต้อง")
-            price, cost = 0, 0
-        st.session_state["cart"].append({
-            "name": selected_product,
-            "qty": selected_qty,
-            "price": price,
-            "cost": cost
-        })
-        st.success(f"✅ เพิ่ม {selected_product} x {selected_qty} สำเร็จ")
-        st.session_state["add_qty"] = 1
-        st.session_state["add_name"] = ""
-        st.session_state["should_rerun"] = True
-        st.stop()
-    else:
-        st.warning("❌ ไม่พบสินค้าที่พิมพ์ กรุณาตรวจสอบชื่อ")
+if st.button("➕ เพิ่มลงตะกร้า") and st.session_state["add_name"]:
+    item = df[df["ชื่อสินค้า"] == st.session_state["add_name"]].iloc[0]
+    price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce') or 0)
+    cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce') or 0)
+
+    st.session_state["cart"].append({
+        "name": st.session_state["add_name"],
+        "qty": selected_qty,
+        "price": price,
+        "cost": cost
+    })
+
+    st.success(f"✅ เพิ่ม {st.session_state['add_name']} x {selected_qty} สำเร็จ")
+    st.session_state["add_qty"] = 1
+    st.session_state["add_name"] = ""
+    st.stop()
 
 # ✅ แสดงตะกร้า
 if st.session_state["cart"]:
@@ -135,7 +120,6 @@ if st.session_state["cart"]:
         st.session_state["paid_input"] = 0.0
         st.session_state["add_qty"] = 1
         st.session_state["add_name"] = ""
-        st.session_state["should_rerun"] = True
         st.stop()
 
 # ------------------------
@@ -170,9 +154,9 @@ with st.expander("✏️ แก้ไขสินค้า"):
         except:
             return 0
 
-    price_val = safe_float(default_row.get("ราคาขาย", 0))
-    cost_val = safe_float(default_row.get("ต้นทุน", 0))
-    stock_val = safe_int(default_row.get("คงเหลือ", 0))
+    price_val = safe_float(default_row["ราคาขาย"])
+    cost_val = safe_float(default_row["ต้นทุน"])
+    stock_val = safe_int(default_row["คงเหลือ"])
 
     new_price = st.number_input("ราคาขายใหม่", value=price_val, key="edit_price")
     new_cost = st.number_input("ต้นทุนใหม่", value=cost_val, key="edit_cost")
