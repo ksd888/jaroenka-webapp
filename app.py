@@ -34,6 +34,7 @@ if last_date != now_date:
 # ✅ โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
+product_names = sorted(df["ชื่อสินค้า"].tolist())
 
 # ✅ Session state
 if "cart" not in st.session_state:
@@ -42,12 +43,17 @@ if "add_qty" not in st.session_state:
     st.session_state["add_qty"] = 1
 if "add_name" not in st.session_state:
     st.session_state["add_name"] = ""
+if "should_rerun" not in st.session_state:
+    st.session_state["should_rerun"] = False
+
+# ✅ ควบคุม rerun อย่างปลอดภัย
+if st.session_state["should_rerun"]:
+    st.session_state["should_rerun"] = False
+    st.experimental_rerun()
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.header("🛒 ขายสินค้า (พิมพ์ชื่อ + กด ➕ เพิ่มทันที)")
-
-product_names = sorted(df["ชื่อสินค้า"].tolist())
 
 # ✅ ช่องค้นหาแบบ autocomplete
 user_input = st.text_input("🔍 ค้นหาสินค้า", value=st.session_state["add_name"], key="product_search")
@@ -58,7 +64,7 @@ if suggestions and user_input.strip():
     for s in suggestions[:5]:
         if st.button(f"➕ {s}"):
             st.session_state["add_name"] = s
-            st.experimental_rerun()
+            st.session_state["should_rerun"] = True
 
 selected_qty = st.number_input("จำนวน", min_value=1, step=1, key="add_qty")
 
@@ -82,7 +88,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
         st.success(f"✅ เพิ่ม {selected_product} x {selected_qty} สำเร็จ")
         st.session_state["add_qty"] = 1
         st.session_state["add_name"] = ""
-        st.experimental_rerun()
+        st.session_state["should_rerun"] = True
     else:
         st.warning("❌ ไม่พบสินค้าที่พิมพ์ กรุณาตรวจสอบชื่อ")
 
@@ -128,7 +134,7 @@ if st.session_state["cart"]:
         st.session_state["paid_input"] = 0.0
         st.session_state["add_qty"] = 1
         st.session_state["add_name"] = ""
-        st.experimental_rerun()
+        st.session_state["should_rerun"] = True
 
 # ------------------------
 # 📦 เติมสินค้า
