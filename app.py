@@ -25,11 +25,20 @@ default_session = {
     "cart": [],
     "selected_products": [],
     "quantities": {},
-    "paid_input": 0.0
+    "paid_input": 0.0,
+    "sale_confirmed": False,
+    "just_sold": False,
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+# ✅ รีเซ็ตหลังขายเสร็จทันที
+if st.session_state.just_sold:
+    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
+    for key, default in default_session.items():
+        st.session_state[key] = default
+    st.stop()
 
 # 🛒 UI เริ่มต้น
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -37,7 +46,6 @@ st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
 selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
-st.session_state.selected_products = selected
 
 for p in selected:
     if p not in st.session_state.quantities:
@@ -100,10 +108,8 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # 🔁 รีเซ็ต session และ rerun เพื่อให้ UI เคลียร์ทันที
-        for key in default_session:
-            st.session_state[key] = default_session[key]
-        st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
+        # ✅ แสดงข้อความสำเร็จ + เตรียมรีเซ็ตรอบหน้า
+        st.session_state.just_sold = True
         st.experimental_rerun()
 
 # 📦 เติมสินค้า
