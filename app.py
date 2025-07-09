@@ -25,7 +25,7 @@ default_session = {
     "cart": [],
     "selected_products": [],
     "quantities": {},
-    "paid_input": 0.0,
+    "paid_input": 0.0
 }
 for key, default in default_session.items():
     if key not in st.session_state:
@@ -37,6 +37,7 @@ st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
 selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
+st.session_state.selected_products = selected
 
 for p in selected:
     if p not in st.session_state.quantities:
@@ -99,10 +100,11 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # 🔄 รีเซ็ต session ทันที
+        # 🔁 รีเซ็ต session และ rerun เพื่อให้ UI เคลียร์ทันที
         for key in default_session:
             st.session_state[key] = default_session[key]
         st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
+        st.experimental_rerun()
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
