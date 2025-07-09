@@ -26,19 +26,20 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "sale_complete": False
+    "sale_complete": False,
+    "reset_trigger": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
-if "rerun_flag" not in st.session_state:
-    st.session_state.rerun_flag = False
 
-# 🔁 รีเซ็ตเมื่อขายเสร็จ
-if st.session_state.sale_complete:
+# 🔁 รีเซ็ตเมื่อ flag ติด
+if st.session_state.reset_trigger:
     for key, default in default_session.items():
         st.session_state[key] = default
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
+    st.session_state.reset_trigger = False
+    st.stop()
 
 # 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -107,9 +108,9 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # ตั้ง flag เพื่อรีเซ็ตรอบถัดไป
-        st.session_state.sale_complete = True
-        st.session_state.rerun_flag = True
+        # ตั้ง trigger ให้รีเซ็ตรอบหน้า
+        st.session_state.reset_trigger = True
+        st.experimental_rerun()  # ปลอดภัยเพราะเกิดหลังบันทึก
 
 # 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
@@ -139,8 +140,3 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
-
-# 🔁 Trigger rerun ถ้าตั้งค่าไว้
-if st.session_state.get("rerun_flag"):
-    st.session_state.rerun_flag = False
-    st.experimental_rerun()
