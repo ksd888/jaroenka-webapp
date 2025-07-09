@@ -1,3 +1,4 @@
+# ✅ โค้ด app.py เวอร์ชันล่าสุด แก้ปัญหากด "ยืนยันขาย" ครั้งเดียวรีเซ็ตได้เลย
 import streamlit as st
 import datetime
 import gspread
@@ -26,18 +27,17 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "just_sold": False
+    "sale_complete": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ✅ รีเซ็ตทันทีหลังขายสำเร็จ
-if st.session_state.just_sold:
+# ✅ รีเซ็ตเมื่อ flag sale_complete ถูกตั้งไว้
+if st.session_state.sale_complete:
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
-    for key, default in default_session.items():
-        st.session_state[key] = default
-    st.stop()
+    for key in default_session:
+        st.session_state[key] = default_session[key]
 
 # 🛒 UI เริ่มต้น
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -45,6 +45,7 @@ st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
 selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
+st.session_state.selected_products = selected
 
 for p in selected:
     if p not in st.session_state.quantities:
@@ -85,8 +86,7 @@ if st.session_state.cart:
     else:
         st.warning("💸 ยอดเงินไม่พอ")
 
-    # ✅ ป้องกันกดยืนยันซ้ำ
-    if not st.session_state.just_sold and st.button("✅ ยืนยันการขาย"):
+    if st.button("✅ ยืนยันการขาย"):
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
@@ -107,7 +107,9 @@ if st.session_state.cart:
             st.session_state.paid_input - total_price,
             "drink"
         ])
-        st.session_state.just_sold = True
+
+        # ✅ ตั้ง flag ให้รีเซ็ตทันทีรอบหน้า
+        st.session_state.sale_complete = True
         st.stop()
 
 # 📦 เติมสินค้า
