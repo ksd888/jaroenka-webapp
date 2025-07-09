@@ -21,16 +21,12 @@ def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
 # 🧊 สร้าง session_state
-for key, default in {
+default_session = {
     "cart": [], "selected_products": [], "quantities": {}, "paid_input": 0.0
-}.items():
+}
+for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
-
-# ✅ แสดงข้อความสำเร็จเมื่อมีการขาย
-if st.session_state.get("sale_complete", False):
-    st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
-    st.session_state.sale_complete = False
 
 # 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -88,6 +84,7 @@ if st.session_state.cart:
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
+        # บันทึกยอดขาย
         summary_ws.append_row([
             now,
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
@@ -98,11 +95,10 @@ if st.session_state.cart:
             "drink"
         ])
 
-        st.session_state.cart.clear()
-        st.session_state.selected_products.clear()
-        st.session_state.quantities.clear()
-        st.session_state.paid_input = 0.0
-        st.session_state.sale_complete = True
+        # ✅ Reset หน้า
+        st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
+        for key in default_session:
+            st.session_state[key] = default_session[key]
         st.experimental_rerun()
 
 # 📥 เติมสินค้า
