@@ -1,4 +1,3 @@
-
 import streamlit as st
 import datetime
 import gspread
@@ -78,13 +77,12 @@ if st.session_state.cart:
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
-            idx_in_sheet = index + 2  # Google Sheet starts at row 2
+            idx_in_sheet = index + 2
             new_out = safe_int(row["ออก"]) + qty
             new_left = safe_int(row["คงเหลือในตู้"]) - qty
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-        # บันทึกยอดขาย
         summary_ws.append_row([
             now,
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
@@ -95,7 +93,9 @@ if st.session_state.cart:
             "drink"
         ])
 
-        st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
+        st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
+
+        # ✅ รีเซ็ตทุกอย่างทันที
         st.session_state.cart.clear()
         st.session_state.selected_products.clear()
         st.session_state.quantities.clear()
