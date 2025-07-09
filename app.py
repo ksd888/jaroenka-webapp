@@ -20,13 +20,23 @@ df = pd.DataFrame(data)
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🧊 สร้าง session_state
+# 🧊 ค่าเริ่มต้น session_state
 default_session = {
-    "cart": [], "selected_products": [], "quantities": {}, "paid_input": 0.0
+    "cart": [],
+    "selected_products": [],
+    "quantities": {},
+    "paid_input": 0.0,
+    "sale_complete": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+# 🔁 รีเซ็ตเมื่อขายเสร็จ
+if st.session_state.sale_complete:
+    for key, default in default_session.items():
+        st.session_state[key] = default
+    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
 # 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -39,7 +49,7 @@ for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
     cols = st.columns([2, 1, 1])
-    with cols[0]: st.markdown(f"**{p} (จำนวน: {st.session_state.quantities[p]})**")
+    with cols[0]: st.markdown(f"**{p}**")
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
@@ -78,7 +88,7 @@ if st.session_state.cart:
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
-            idx_in_sheet = index + 2
+            idx_in_sheet = index + 2  # Google Sheet starts at row 2
             new_out = safe_int(row["ออก"]) + qty
             new_left = safe_int(row["คงเหลือในตู้"]) - qty
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
@@ -95,11 +105,8 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # ✅ Reset หน้า
-        st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
-        for key in default_session:
-            st.session_state[key] = default_session[key]
-        st.experimental_rerun()
+        # ตั้ง flag เพื่อรีเซ็ตรอบถัดไป
+        st.session_state.sale_complete = True
 
 # 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
