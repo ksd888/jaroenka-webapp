@@ -22,35 +22,27 @@ def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
 # 🧊 สร้าง session_state
 for key, default in {
-    "cart": [],
-    "selected_products": [],
-    "quantities": {},
-    "paid_input": 0.0,
-    "sale_complete": False
+    "cart": [], "selected_products": [], "quantities": {}, "paid_input": 0.0
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+# ✅ แสดงข้อความสำเร็จเมื่อมีการขาย
+if st.session_state.get("sale_complete", False):
+    st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
+    st.session_state.sale_complete = False
 
 # 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=[] if st.session_state.sale_complete else st.session_state.selected_products)
+selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
 
-# รีเซ็ตค่าหลังการขายเสร็จ
-if st.session_state.sale_complete:
-    st.session_state.cart.clear()
-    st.session_state.selected_products.clear()
-    st.session_state.quantities.clear()
-    st.session_state.paid_input = 0.0
-    st.session_state.sale_complete = False
-
-# แสดงจำนวนและปุ่ม +/-
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-    cols = st.columns([3, 1, 1])
+    cols = st.columns([2, 1, 1])
     with cols[0]: st.markdown(f"**{p} (จำนวน: {st.session_state.quantities[p]})**")
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
@@ -80,7 +72,6 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
-
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
@@ -107,9 +98,12 @@ if st.session_state.cart:
             "drink"
         ])
 
-        st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว และรีเซ็ตหน้าขายแล้ว")
+        st.session_state.cart.clear()
+        st.session_state.selected_products.clear()
+        st.session_state.quantities.clear()
+        st.session_state.paid_input = 0.0
         st.session_state.sale_complete = True
-        st.stop()  # รีเซ็ตหน้าโดยสมบูรณ์
+        st.experimental_rerun()
 
 # 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
