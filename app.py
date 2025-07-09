@@ -42,39 +42,38 @@ st.session_state.setdefault("paid_input", 0.0)
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.header("🛒 ขายสินค้าหลายรายการ (พิมพ์แล้วเลือกได้ทันที)")
+st.header("🛒 ขายสินค้า (เลือกหลายรายการพร้อมกัน)")
 
-# ✅ ช่องค้นหาแบบ Multiselect
-selected_items = st.multiselect("🔍 เลือกสินค้า", product_names)
+selected_items = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names)
+quantities = {}
 
-# ✅ กรอกจำนวนสำหรับแต่ละสินค้า
-item_qty = {}
-for item in selected_items:
-    item_qty[item] = st.number_input(f"จำนวน {item}", min_value=1, step=1, key=f"qty_{item}")
+for name in selected_items:
+    qty = st.number_input(f"จำนวน - {name}", min_value=1, step=1, key=f"qty_{name}")
+    quantities[name] = qty
 
-# ✅ เพิ่มลงตะกร้า
-if st.button("➕ เพิ่มทั้งหมดลงตะกร้า"):
-    for item in selected_items:
-        row = df[df["ชื่อสินค้า"] == item].iloc[0]
+if st.button("➕ เพิ่มลงตะกร้า"):
+    for name in selected_items:
+        qty = quantities.get(name, 1)
+        item = df[df["ชื่อสินค้า"] == name].iloc[0]
         try:
-            price = float(pd.to_numeric(row["ราคาขาย"], errors="coerce"))
-            cost = float(pd.to_numeric(row["ต้นทุน"], errors="coerce"))
+            price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce'))
+            cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce'))
         except:
-            st.error(f"⚠️ ราคาหรือต้นทุนของ {item} ไม่ถูกต้อง")
+            st.error(f"⚠️ ราคาหรือต้นทุนไม่ถูกต้องสำหรับ {name}")
             continue
         st.session_state["cart"].append({
-            "name": item,
-            "qty": item_qty[item],
+            "name": name,
+            "qty": qty,
             "price": price,
             "cost": cost
         })
-    st.success("✅ เพิ่มสินค้าทั้งหมดสำเร็จ")
+    st.success("✅ เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
+    st.stop()
 
 # ✅ แสดงตะกร้า
 if st.session_state["cart"]:
     st.subheader("🧾 รายการขาย")
-    total = 0
-    profit_total = 0
+    total, profit_total = 0, 0
     for item in st.session_state["cart"]:
         subtotal = item["qty"] * item["price"]
         profit = item["qty"] * (item["price"] - item["cost"])
@@ -83,8 +82,7 @@ if st.session_state["cart"]:
         st.write(f"- {item['name']} x {item['qty']} = {subtotal:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total:.2f} บาท | 🟢 กำไร: {profit_total:.2f} บาท")
-
-    paid = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0)
+    paid = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
     if paid >= total:
         st.success(f"เงินทอน: {paid - total:.2f} บาท")
     else:
@@ -93,9 +91,9 @@ if st.session_state["cart"]:
     if st.button("✅ ยืนยันการขาย"):
         for item in st.session_state["cart"]:
             idx = df[df["ชื่อสินค้า"] == item["name"]].index[0] + 2
-            qty = item["qty"]
-            price = item["price"]
-            cost = item["cost"]
+            qty = int(item["qty"])
+            price = float(item["price"])
+            cost = float(item["cost"])
             subtotal = round(qty * price, 2)
             profit = round(qty * (price - cost), 2)
 
@@ -104,41 +102,60 @@ if st.session_state["cart"]:
 
             sheet_sales.append_row([
                 now_date,
-                item["name"],
-                qty,
-                subtotal,
-                profit
+                str(item["name"]),
+                int(qty),
+                float(subtotal),
+                float(profit)
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
         st.session_state["cart"] = []
         st.session_state["paid_input"] = 0.0
+        st.stop()
 
-# ✅ เติมสินค้า
+# ------------------------
+# 📦 เติมสินค้า
+# ------------------------
 with st.expander("📦 เติมสินค้า"):
-    item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
-    amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
+    selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
+    add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
     if st.button("📥 ยืนยันเติมสินค้า"):
-        idx = df[df["ชื่อสินค้า"] == item].index[0] + 2
-        sheet.update_cell(idx, 6, int(sheet.cell(idx, 6).value or 0) + amount)
-        sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) + amount)
-        st.success(f"✅ เติม {item} แล้ว")
+        idx = df[df["ชื่อสินค้า"] == selected_item].index[0] + 2
+        sheet.update_cell(idx, 6, int(sheet.cell(idx, 6).value or 0) + add_amount)
+        sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) + add_amount)
+        st.success(f"✅ เติม {selected_item} จำนวน {add_amount} สำเร็จแล้ว")
 
-# ✅ แก้ไขสินค้า
+# ------------------------
+# ✏️ แก้ไขสินค้า
+# ------------------------
 with st.expander("✏️ แก้ไขสินค้า"):
-    item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
-    idx = df[df["ชื่อสินค้า"] == item].index[0] + 2
-    row = df[df["ชื่อสินค้า"] == item].iloc[0]
+    edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
+    idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
+    default_row = df[df["ชื่อสินค้า"] == edit_item].iloc[0]
 
-    def safe_float(val): return float(pd.to_numeric(val, errors="coerce")) if pd.notna(val) else 0.0
-    def safe_int(val): return int(pd.to_numeric(val, errors="coerce")) if pd.notna(val) else 0
+    def safe_float(val):
+        try:
+            num = pd.to_numeric(val, errors='coerce')
+            return float(num) if pd.notna(num) else 0.0
+        except:
+            return 0.0
 
-    new_price = st.number_input("ราคาขายใหม่", value=safe_float(row["ราคาขาย"]), key="edit_price")
-    new_cost = st.number_input("ต้นทุนใหม่", value=safe_float(row["ต้นทุน"]), key="edit_cost")
-    new_stock = st.number_input("คงเหลือใหม่", value=safe_int(row["คงเหลือ"]), step=1, key="edit_stock")
+    def safe_int(val):
+        try:
+            num = pd.to_numeric(val, errors='coerce')
+            return int(num) if pd.notna(num) else 0
+        except:
+            return 0
+
+    price_val = safe_float(default_row["ราคาขาย"])
+    cost_val = safe_float(default_row["ต้นทุน"])
+    stock_val = safe_int(default_row["คงเหลือ"])
+
+    new_price = st.number_input("ราคาขายใหม่", value=price_val, key="edit_price")
+    new_cost = st.number_input("ต้นทุนใหม่", value=cost_val, key="edit_cost")
+    new_stock = st.number_input("คงเหลือใหม่", value=stock_val, step=1, key="edit_stock")
 
     if st.button("💾 บันทึกการแก้ไข"):
         sheet.update_cell(idx, 3, new_price)
         sheet.update_cell(idx, 4, new_cost)
         sheet.update_cell(idx, 5, new_stock)
-        st.success("✅ อัปเดตเรียบร้อยแล้ว")
-    
+        st.success(f"✅ อัปเดต {edit_item} เรียบร้อยแล้ว")
