@@ -26,20 +26,18 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "sale_complete": False,
-    "reset_trigger": False
+    "sale_complete": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# 🔁 รีเซ็ตเมื่อ flag ติด
-if st.session_state.reset_trigger:
+# 🔁 รีเซ็ตเมื่อขายเสร็จ
+if st.session_state.sale_complete:
+    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
     for key, default in default_session.items():
         st.session_state[key] = default
-    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
-    st.session_state.reset_trigger = False
-    st.stop()
+    st.stop()  # หยุดการประมวลผลเพื่อให้รีเซ็ตได้ทันที
 
 # 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -91,7 +89,7 @@ if st.session_state.cart:
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
-            idx_in_sheet = index + 2  # Google Sheet starts at row 2
+            idx_in_sheet = index + 2
             new_out = safe_int(row["ออก"]) + qty
             new_left = safe_int(row["คงเหลือในตู้"]) - qty
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
@@ -108,9 +106,8 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # ตั้ง trigger ให้รีเซ็ตรอบหน้า
-        st.session_state.reset_trigger = True
-        st.experimental_rerun()  # ปลอดภัยเพราะเกิดหลังบันทึก
+        st.session_state.sale_complete = True
+        st.stop()
 
 # 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
