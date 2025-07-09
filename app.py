@@ -4,7 +4,7 @@ from google.oauth2 import service_account
 from datetime import datetime
 import pandas as pd
 
-# 🔐 โหลด credentials
+# ✅ Credentials
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -15,33 +15,34 @@ creds = service_account.Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 client = gspread.authorize(creds)
 
-# 📗 เปิดชีท
+# ✅ Open Sheets
 spreadsheet = client.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_meta = spreadsheet.worksheet("Meta")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 
-# 🔁 รีเซ็ตยอดเข้า/ออกเมื่อวันใหม่
+# ✅ Reset เข้า/ออก ทุกวันใหม่
 now_date = datetime.now().strftime("%Y-%m-%d")
 last_date = sheet_meta.acell("B1").value
 if last_date != now_date:
-    sheet.batch_update([{'range': 'F2:G1000', 'values': [[0, 0]] * 999}])
+    sheet.batch_update([{
+        'range': 'F2:G1000',
+        'values': [[0, 0]] * 999
+    }])
     sheet_meta.update("B1", [[now_date]])
 
-# 📦 โหลดสินค้า
+# ✅ Load data
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# 🧠 ตัวแปร state
+# ✅ Session State ปลอดภัย
 if "cart" not in st.session_state:
-    st.session_state.cart = []
+    st.session_state["cart"] = []
 if "paid_input" not in st.session_state:
-    st.session_state.paid_input = 0.0
-if "added_to_cart" not in st.session_state:
-    st.session_state.added_to_cart = False
+    st.session_state["paid_input"] = 0.0
 
-# 🧊 UI หลัก
+# ✅ UI เริ่มต้น
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.header("🛒 ขายสินค้า (เลือกหลายรายการพร้อมกัน)")
 
@@ -52,6 +53,7 @@ for name in selected_items:
     qty = st.number_input(f"จำนวน - {name}", min_value=1, step=1, key=f"qty_{name}")
     quantities[name] = qty
 
+# ✅ เพิ่มสินค้าเข้าตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for name in selected_items:
         qty = quantities.get(name, 1)
@@ -62,21 +64,20 @@ if st.button("➕ เพิ่มลงตะกร้า"):
         except:
             st.error(f"⚠️ ราคาหรือต้นทุนไม่ถูกต้องสำหรับ {name}")
             continue
-        st.session_state.cart.append({
+        st.session_state["cart"].append({
             "name": name,
             "qty": qty,
             "price": price,
             "cost": cost
         })
-    st.session_state.added_to_cart = True
     st.success("✅ เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
-    st.stop()
+    st.experimental_rerun()
 
-# ✅ เฉพาะตอนเพิ่มแล้วจึงแสดงตะกร้า
-if st.session_state.cart:
+# ✅ แสดงตะกร้า
+if st.session_state["cart"]:
     st.subheader("🧾 รายการขาย")
     total, profit_total = 0, 0
-    for item in st.session_state.cart:
+    for item in st.session_state["cart"]:
         subtotal = item["qty"] * item["price"]
         profit = item["qty"] * (item["price"] - item["cost"])
         total += subtotal
@@ -91,7 +92,7 @@ if st.session_state.cart:
         st.warning("ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
-        for item in st.session_state.cart:
+        for item in st.session_state["cart"]:
             idx = df[df["ชื่อสินค้า"] == item["name"]].index[0] + 2
             qty = int(item["qty"])
             price = float(item["price"])
@@ -99,20 +100,22 @@ if st.session_state.cart:
             subtotal = round(qty * price, 2)
             profit = round(qty * (price - cost), 2)
 
-            sheet.update_cell(idx, 7, int(sheet.cell(idx, 7).value or 0) + qty)  # ออก
-            sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) - qty)  # คงเหลือ
+            sheet.update_cell(idx, 7, int(sheet.cell(idx, 7).value or 0) + qty)
+            sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) - qty)
 
             sheet_sales.append_row([
-                now_date, str(item["name"]), int(qty), float(subtotal), float(profit)
+                now_date,
+                str(item["name"]),
+                int(qty),
+                float(subtotal),
+                float(profit)
             ])
-
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
-        st.session_state.cart = []
-        st.session_state.paid_input = 0.0
-        st.session_state.added_to_cart = False
-        st.stop()
+        st.session_state["cart"] = []
+        st.session_state["paid_input"] = 0.0
+        st.experimental_rerun()
 
-# 📥 เติมสินค้า
+# 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
     add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
