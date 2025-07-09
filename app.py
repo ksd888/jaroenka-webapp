@@ -26,19 +26,10 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
-    "sale_complete": False,
-    "just_sold": False
 }
 for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
-
-# ✅ หากขายเสร็จแล้วและยังไม่รีเซ็ต
-if st.session_state.sale_complete and not st.session_state.just_sold:
-    for key in ["cart", "selected_products", "quantities", "paid_input"]:
-        st.session_state[key] = default_session[key]
-    st.session_state.just_sold = True
-    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
 # 🛒 UI เริ่มต้น
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -108,9 +99,10 @@ if st.session_state.cart:
             "drink"
         ])
 
-        # ✅ ตั้ง flag เพื่อให้แสดงผลรีเซ็ตหน้า
-        st.session_state.sale_complete = True
-        st.session_state.just_sold = False
+        # 🔄 รีเซ็ต session ทันที
+        for key in default_session:
+            st.session_state[key] = default_session[key]
+        st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
