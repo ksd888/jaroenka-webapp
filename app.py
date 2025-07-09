@@ -4,7 +4,7 @@ from google.oauth2 import service_account
 from datetime import datetime
 import pandas as pd
 
-# ✅ Credentials
+# ✅ โหลด credentials จาก secrets.toml
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -15,13 +15,13 @@ creds = service_account.Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 client = gspread.authorize(creds)
 
-# ✅ Open Sheets
+# ✅ เปิด Google Sheet
 spreadsheet = client.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 sheet = spreadsheet.worksheet("ตู้เย็น")
 sheet_meta = spreadsheet.worksheet("Meta")
 sheet_sales = spreadsheet.worksheet("ยอดขาย")
 
-# ✅ Reset เข้า/ออก ทุกวันใหม่
+# ✅ รีเซ็ตยอดเข้า/ออกเมื่อวันใหม่
 now_date = datetime.now().strftime("%Y-%m-%d")
 last_date = sheet_meta.acell("B1").value
 if last_date != now_date:
@@ -31,18 +31,20 @@ if last_date != now_date:
     }])
     sheet_meta.update("B1", [[now_date]])
 
-# ✅ Load data
+# ✅ โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
-# ✅ Session State ปลอดภัย
+# ✅ Session state
 if "cart" not in st.session_state:
-    st.session_state["cart"] = []
+    st.session_state.cart = []
 if "paid_input" not in st.session_state:
-    st.session_state["paid_input"] = 0.0
+    st.session_state.paid_input = 0.0
+if "added_to_cart" not in st.session_state:
+    st.session_state.added_to_cart = False
 
-# ✅ UI เริ่มต้น
+# ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.header("🛒 ขายสินค้า (เลือกหลายรายการพร้อมกัน)")
 
@@ -53,7 +55,6 @@ for name in selected_items:
     qty = st.number_input(f"จำนวน - {name}", min_value=1, step=1, key=f"qty_{name}")
     quantities[name] = qty
 
-# ✅ เพิ่มสินค้าเข้าตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for name in selected_items:
         qty = quantities.get(name, 1)
@@ -64,20 +65,24 @@ if st.button("➕ เพิ่มลงตะกร้า"):
         except:
             st.error(f"⚠️ ราคาหรือต้นทุนไม่ถูกต้องสำหรับ {name}")
             continue
-        st.session_state["cart"].append({
+        st.session_state.cart.append({
             "name": name,
             "qty": qty,
             "price": price,
             "cost": cost
         })
+    st.session_state.added_to_cart = True
+
+# ✅ แสดงผลหลังเพิ่มตะกร้า
+if st.session_state.added_to_cart:
     st.success("✅ เพิ่มสินค้าลงตะกร้าเรียบร้อยแล้ว")
-    st.experimental_rerun()
+    st.session_state.added_to_cart = False
 
 # ✅ แสดงตะกร้า
-if st.session_state["cart"]:
+if st.session_state.cart:
     st.subheader("🧾 รายการขาย")
     total, profit_total = 0, 0
-    for item in st.session_state["cart"]:
+    for item in st.session_state.cart:
         subtotal = item["qty"] * item["price"]
         profit = item["qty"] * (item["price"] - item["cost"])
         total += subtotal
@@ -92,7 +97,7 @@ if st.session_state["cart"]:
         st.warning("ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
-        for item in st.session_state["cart"]:
+        for item in st.session_state.cart:
             idx = df[df["ชื่อสินค้า"] == item["name"]].index[0] + 2
             qty = int(item["qty"])
             price = float(item["price"])
@@ -111,11 +116,12 @@ if st.session_state["cart"]:
                 float(profit)
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
-        st.session_state["cart"] = []
-        st.session_state["paid_input"] = 0.0
-        st.experimental_rerun()
+        st.session_state.cart = []
+        st.session_state.paid_input = 0.0
 
+# ------------------------
 # 📦 เติมสินค้า
+# ------------------------
 with st.expander("📦 เติมสินค้า"):
     selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
     add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -125,7 +131,9 @@ with st.expander("📦 เติมสินค้า"):
         sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) + add_amount)
         st.success(f"✅ เติม {selected_item} จำนวน {add_amount} สำเร็จแล้ว")
 
+# ------------------------
 # ✏️ แก้ไขสินค้า
+# ------------------------
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
