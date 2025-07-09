@@ -131,10 +131,21 @@ with st.expander("✏️ แก้ไขสินค้า"):
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
     default_row = df[df["ชื่อสินค้า"] == edit_item].iloc[0]
 
-    # ✅ ตรวจสอบค่าก่อนแสดงผล
-    price_val = float(default_row["ราคาขาย"]) if pd.notna(default_row["ราคาขาย"]) else 0.0
-    cost_val = float(default_row["ต้นทุน"]) if pd.notna(default_row["ต้นทุน"]) else 0.0
-    stock_val = int(default_row["คงเหลือ"]) if pd.notna(default_row["คงเหลือ"]) else 0
+    # ✅ ตรวจสอบค่าก่อนแสดงผล (แบบปลอดภัย)
+    try:
+        price_val = float(pd.to_numeric(default_row["ราคาขาย"], errors='coerce'))
+        if pd.isna(price_val): price_val = 0.0
+    except: price_val = 0.0
+
+    try:
+        cost_val = float(pd.to_numeric(default_row["ต้นทุน"], errors='coerce'))
+        if pd.isna(cost_val): cost_val = 0.0
+    except: cost_val = 0.0
+
+    try:
+        stock_raw = pd.to_numeric(default_row["คงเหลือ"], errors='coerce')
+        stock_val = int(stock_raw) if not pd.isna(stock_raw) else 0
+    except: stock_val = 0
 
     new_price = st.number_input("ราคาขายใหม่", value=price_val, key="edit_price")
     new_cost = st.number_input("ต้นทุนใหม่", value=cost_val, key="edit_cost")
