@@ -37,8 +37,25 @@ df = pd.DataFrame(data)
 product_names = sorted(df["ชื่อสินค้า"].tolist())
 
 # ✅ Session state
-st.session_state.setdefault("cart", [])
-st.session_state.setdefault("paid_input", 0.0)
+if "cart" not in st.session_state:
+    st.session_state.cart = []
+if "paid_input" not in st.session_state:
+    st.session_state.paid_input = 0.0
+
+# ✅ ฟังก์ชันปลอดภัย
+def safe_float(val):
+    try:
+        num = pd.to_numeric(val, errors='coerce')
+        return float(num) if pd.notna(num) else 0.0
+    except:
+        return 0.0
+
+def safe_int(val):
+    try:
+        num = pd.to_numeric(val, errors='coerce')
+        return int(num) if pd.notna(num) else 0
+    except:
+        return 0
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
@@ -55,13 +72,9 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     for name in selected_items:
         qty = quantities.get(name, 1)
         item = df[df["ชื่อสินค้า"] == name].iloc[0]
-        try:
-            price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce'))
-            cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce'))
-        except:
-            st.error(f"⚠️ ราคาหรือต้นทุนไม่ถูกต้องสำหรับ {name}")
-            continue
-        st.session_state["cart"].append({
+        price = safe_float(item["ราคาขาย"])
+        cost = safe_float(item["ต้นทุน"])
+        st.session_state.cart.append({
             "name": name,
             "qty": qty,
             "price": price,
@@ -71,10 +84,10 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     st.stop()
 
 # ✅ แสดงตะกร้า
-if st.session_state["cart"]:
+if st.session_state.cart:
     st.subheader("🧾 รายการขาย")
     total, profit_total = 0, 0
-    for item in st.session_state["cart"]:
+    for item in st.session_state.cart:
         subtotal = item["qty"] * item["price"]
         profit = item["qty"] * (item["price"] - item["cost"])
         total += subtotal
@@ -89,7 +102,7 @@ if st.session_state["cart"]:
         st.warning("ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
-        for item in st.session_state["cart"]:
+        for item in st.session_state.cart:
             idx = df[df["ชื่อสินค้า"] == item["name"]].index[0] + 2
             qty = int(item["qty"])
             price = float(item["price"])
@@ -108,8 +121,8 @@ if st.session_state["cart"]:
                 float(profit)
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
-        st.session_state["cart"] = []
-        st.session_state["paid_input"] = 0.0
+        st.session_state.cart = []
+        st.session_state.paid_input = 0.0
         st.stop()
 
 # ------------------------
@@ -131,20 +144,6 @@ with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
     default_row = df[df["ชื่อสินค้า"] == edit_item].iloc[0]
-
-    def safe_float(val):
-        try:
-            num = pd.to_numeric(val, errors='coerce')
-            return float(num) if pd.notna(num) else 0.0
-        except:
-            return 0.0
-
-    def safe_int(val):
-        try:
-            num = pd.to_numeric(val, errors='coerce')
-            return int(num) if pd.notna(num) else 0
-        except:
-            return 0
 
     price_val = safe_float(default_row["ราคาขาย"])
     cost_val = safe_float(default_row["ต้นทุน"])
