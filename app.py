@@ -1,6 +1,6 @@
 import streamlit as st
 import gspread
-from google.oauth2 import service_account
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 import pandas as pd
 
@@ -11,7 +11,7 @@ scope = [
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive"
 ]
-creds = service_account.Credentials.from_service_account_info(
+creds = Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 client = gspread.authorize(creds)
 
@@ -34,44 +34,37 @@ if last_date != now_date:
 # ✅ โหลดข้อมูล
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
-product_names = sorted(df["ชื่อสินค้า"].dropna().tolist())
+product_names = sorted(df["ชื่อสินค้า"].tolist())
 
 # ✅ Session state
 if "cart" not in st.session_state:
     st.session_state["cart"] = []
 if "selected_items" not in st.session_state:
     st.session_state["selected_items"] = []
-if "add_qty" not in st.session_state:
-    st.session_state["add_qty"] = 1
 
-# ✅ UI
+# ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.header("🛒 ขายสินค้า (ค้นหาหลายรายการ + ใส่จำนวน + ยืนยัน)")
+st.header("🛒 ขายสินค้า (เลือกได้หลายรายการ)")
 
-# ✅ ระบบ multiselect
-st.session_state["selected_items"] = st.multiselect("🔍 พิมพ์หรือเลือกสินค้า", product_names, default=st.session_state["selected_items"])
-
-# ✅ เพิ่มสินค้าจาก multiselect
-qty = st.number_input("จำนวนที่ต้องการใส่ในแต่ละรายการ", min_value=1, step=1, key="add_qty")
-
-if st.button("➕ เพิ่มสินค้าทั้งหมดในรายการ"):
-    for name in st.session_state["selected_items"]:
-        row = df[df["ชื่อสินค้า"] == name]
-        if not row.empty:
-            item = row.iloc[0]
-            try:
-                price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce') or 0)
-                cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce') or 0)
-            except:
-                st.error(f"⚠️ {name} ราคาหรือต้นทุนผิด")
-                continue
-            st.session_state["cart"].append({
-                "name": name,
-                "qty": qty,
-                "price": price,
-                "cost": cost
-            })
-    st.success("✅ เพิ่มสินค้าทั้งหมดแล้ว")
+# ✅ ระบบ multiselect autocomplete
+selected = st.multiselect("🔍 ค้นหาสินค้า", product_names, key="selected_items")
+for name in selected:
+    qty = st.number_input(f"จำนวน {name}", min_value=1, step=1, key=f"qty_{name}")
+    if st.button(f"➕ เพิ่ม {name}"):
+        item = df[df["ชื่อสินค้า"] == name].iloc[0]
+        try:
+            price = float(pd.to_numeric(item["ราคาขาย"], errors='coerce'))
+            cost = float(pd.to_numeric(item["ต้นทุน"], errors='coerce'))
+        except:
+            st.error(f"⚠️ ราคาหรือต้นทุนของ {name} ไม่ถูกต้อง")
+            continue
+        st.session_state["cart"].append({
+            "name": name,
+            "qty": qty,
+            "price": price,
+            "cost": cost
+        })
+        st.success(f"✅ เพิ่ม {name} x {qty} สำเร็จ")
 
 # ✅ แสดงตะกร้า
 if st.session_state["cart"]:
@@ -85,7 +78,7 @@ if st.session_state["cart"]:
         st.write(f"- {item['name']} x {item['qty']} = {subtotal:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total:.2f} บาท | 🟢 กำไร: {profit_total:.2f} บาท")
-    paid = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
+    paid = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input_ui")
     if paid >= total:
         st.success(f"เงินทอน: {paid - total:.2f} บาท")
     else:
@@ -112,13 +105,12 @@ if st.session_state["cart"]:
             ])
         st.success("✅ บันทึกยอดขายเรียบร้อยแล้ว")
         st.session_state["cart"] = []
-        st.session_state["paid_input"] = 0.0
         st.session_state["selected_items"] = []
+        if "paid_input_ui" in st.session_state:
+            del st.session_state["paid_input_ui"]
         st.stop()
 
-# ------------------------
-# 📦 เติมสินค้า
-# ------------------------
+# ✅ เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     selected_item = st.selectbox("เลือกสินค้า", product_names, key="restock_item")
     add_amount = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -128,9 +120,7 @@ with st.expander("📦 เติมสินค้า"):
         sheet.update_cell(idx, 5, int(sheet.cell(idx, 5).value or 0) + add_amount)
         st.success(f"✅ เติม {selected_item} จำนวน {add_amount} สำเร็จแล้ว")
 
-# ------------------------
-# ✏️ แก้ไขสินค้า
-# ------------------------
+# ✅ แก้ไขสินค้า
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_item")
     idx = df[df["ชื่อสินค้า"] == edit_item].index[0] + 2
