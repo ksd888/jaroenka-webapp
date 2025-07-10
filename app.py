@@ -57,7 +57,15 @@ st.title("🧊 ระบบขายสินค้า - ร้านเจร�
 st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products, key="search_items")
+selected = 
+default_selected = []
+if "reset_search_items" in st.session_state:
+    default_selected = []
+    del st.session_state["reset_search_items"]
+else:
+    default_selected = st.session_state.get("search_items", [])
+
+st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products, default=default_selected, key="search_items")
 
 for p in selected:
     if p not in st.session_state.quantities:
@@ -100,7 +108,7 @@ if st.session_state.cart:
     if st.button("✅ ยืนยันการขาย"):
 
 
-        st.session_state["search_items"] = []  # reset multiselect
+        st.session_state["reset_search_items"] = True  # set flag to reset multiselect on rerun
 
 
         st.session_state["search_query"] = ""  # reset search
