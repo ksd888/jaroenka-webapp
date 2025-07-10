@@ -57,7 +57,7 @@ st.title("🧊 ระบบขายสินค้า - ร้านเจร�
 st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-selected = 
+# selected =  # ⚠️ แก้ไข: ไม่มีค่าต่อท้าย เดิม Error
 default_selected = []
 if "reset_search_items" in st.session_state:
     default_selected = []
