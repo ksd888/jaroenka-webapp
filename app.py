@@ -1,104 +1,94 @@
 import streamlit as st
 import pandas as pd
+from google.oauth2 import service_account
 import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
+import json
 
-# ตั้งค่าการเชื่อมต่อ Google Sheet
-scope = ["https://www.googleapis.com/auth/spreadsheets"]
-credentials = Credentials.from_service_account_info(
-    st.secrets["GCP_SERVICE_ACCOUNT"],
-    scopes=scope
+# ใช้ Google Auth แทน oauth2client
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope
 )
 gc = gspread.authorize(credentials)
+sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+worksheet = sheet.worksheet("ตู้เย็น")
+sale_sheet = sheet.worksheet("ยอดขาย")
 
-spreadsheet_id = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
-sheet = gc.open_by_key(spreadsheet_id)
-sheet_data = sheet.worksheet("ตู้เย็น")
-sheet_log = sheet.worksheet("ยอดขาย")
+st.set_page_config(page_title="ร้านเจริญค้า - ระบบขายสินค้า", layout="centered")
 
-# โหลดข้อมูลจากชีท
-data = sheet_data.get_all_records()
-df = pd.DataFrame(data)
+st.markdown("## 🧊 ร้านเจริญค้า - ระบบขายสินค้า")
 
-# แปลงชื่อคีย์ให้สอดคล้อง
-df.columns = [col.strip() for col in df.columns]
-if "ชื่อสินค้า" not in df.columns:
-    st.error("❌ ไม่พบคอลัมน์: ชื่อสินค้า")
-    st.stop()
+@st.cache_data
+def load_data():
+    df = pd.DataFrame(worksheet.get_all_records())
+    return df
 
-# Session state
-if "cart" not in st.session_state:
-    st.session_state.cart = {}
+df = load_data()
+df["กำไรต่อหน่วย"] = df["ราคาขาย"] - df["ต้นทุน"]
 
-# Helper
-def safe_key(s):
-    return s.replace(" ", "_").replace("/", "_")
+# ------------------- UI -------------------
+search_term = st.text_input("🔍 ค้นหาสินค้า", "")
 
-# UI
-st.title("🧊 ร้านเจริญค้า - ระบบขายสินค้า")
-st.subheader("🛒 เลือกสินค้าจากชื่อ")
+filtered_df = df[df["ชื่อสินค้า"].str.contains(search_term, case=False, na=False)]
 
-product_names = df["ชื่อสินค้า"].tolist()
-selected_products = st.multiselect("🧐 เลือกสินค้าจากชื่อ", product_names, key="selected")
+cart = st.session_state.get("cart", {})
 
-# แสดงรายการสินค้าที่เลือก พร้อมจำนวน
-for name in selected_products:
-    row = df[df["ชื่อสินค้า"] == name].iloc[0]
-    key = safe_key(name)
-    if key not in st.session_state.cart:
-        st.session_state.cart[key] = {"name": name, "qty": 1}
+for _, row in filtered_df.iterrows():
+    name = row["ชื่อสินค้า"]
+    if name not in cart:
+        cart[name] = 0
 
-    col1, col2, col3 = st.columns([1, 1, 4])
+    col1, col2, col3 = st.columns([1,1,5])
     with col1:
-        if st.button("➖", key=f"sub_{key}"):
-            if st.session_state.cart[key]["qty"] > 1:
-                st.session_state.cart[key]["qty"] -= 1
+        if st.button("-", key=f"sub_{name}"):
+            if cart[name] > 0:
+                cart[name] -= 1
     with col2:
-        if st.button("➕", key=f"add_{key}"):
-            st.session_state.cart[key]["qty"] += 1
+        if st.button("+", key=f"add_{name}"):
+            cart[name] += 1
     with col3:
-        st.markdown(f"**{name}** (จำนวน: {st.session_state.cart[key]['qty']})")
+        st.write(f"**{name} (จำนวน: {cart[name]})**")
+
+st.session_state["cart"] = cart
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# ตะกร้า
-st.subheader("🧺 ตะกร้าสินค้า")
-if not st.session_state.cart:
-    st.info("ยังไม่มีสินค้าในตะกร้า")
-else:
-    total = 0
-    profit = 0
-    for item in st.session_state.cart.values():
-        row = df[df["ชื่อสินค้า"] == item["name"]].iloc[0]
-        qty = item["qty"]
-        price = float(row["ราคาขาย"])
-        cost = float(row["ต้นทุน"])
-        total += price * qty
-        profit += (price - cost) * qty
-        st.markdown(f"- {item['name']} x {qty} = {price * qty:.2f} บาท")
+# ---------------- ตะกร้าสินค้า ----------------
+st.markdown("### 🧺 ตะกร้าสินค้า")
 
-    st.markdown(f"### 💰 ยอดรวม: {total:.2f} บาท")
-    st.markdown(f"### 📈 กำไร: {profit:.2f} บาท")
+total = 0
+profit = 0
+sell_rows = []
 
-    if st.button("✅ ยืนยันการขาย"):
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for item in st.session_state.cart.values():
-            row = df[df["ชื่อสินค้า"] == item["name"]].iloc[0]
-            price = float(row["ราคาขาย"])
-            cost = float(row["ต้นทุน"])
-            profit_per_unit = price - cost
-            qty = item["qty"]
-            sheet_log.append_row([
-                now, item["name"], qty, price, cost, price * qty, profit_per_unit * qty
-            ])
-            # อัปเดตจำนวนออก + คงเหลือ
-            idx = df[df["ชื่อสินค้า"] == item["name"]].index[0]
-            col_out = df.columns.get_loc("ออก")
-            col_remain = df.columns.get_loc("คงเหลือในตู้")
-            sheet_data.update_cell(idx + 2, col_out + 1, int(df.iloc[idx, col_out]) + qty)
-            sheet_data.update_cell(idx + 2, col_remain + 1, int(df.iloc[idx, col_remain]) - qty)
+for name, qty in cart.items():
+    if qty > 0:
+        row = df[df["ชื่อสินค้า"] == name].iloc[0]
+        price = row["ราคาขาย"]
+        cost = row["ต้นทุน"]
+        subtotal = price * qty
+        subprofit = (price - cost) * qty
+        total += subtotal
+        profit += subprofit
+        st.write(f"- {name} x {qty} = {subtotal:.2f} บาท")
+        sell_rows.append({
+            "ชื่อสินค้า": name,
+            "จำนวน": qty,
+            "ยอดขาย": subtotal,
+            "กำไร": subprofit,
+            "วันที่": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
-        st.session_state.cart = {}  # 🔄 รีเซ็ตตะกร้า
-        st.success("✅ ขายสินค้าเรียบร้อยแล้ว!")
+st.markdown(f"### 💰 ยอดรวม: {total:.2f} บาท")
+st.markdown(f"### 📈 กำไร: {profit:.2f} บาท")
+
+if st.button("✅ ยืนยันการขาย"):
+    for r in sell_rows:
+        try:
+            sale_sheet.append_row(list(r.values()))
+        except:
+            st.error("ไม่สามารถบันทึกยอดขายได้")
+    st.success("✅ ขายสินค้าเรียบร้อยแล้ว!")
+    st.session_state["cart"] = {}
+    st.experimental_rerun()
