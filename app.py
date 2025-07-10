@@ -67,6 +67,7 @@ else:
 
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
+selected = st.session_state.get("search_items", [])  # ✅ ป้องกัน selected ไม่ถูกกำหนด
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
