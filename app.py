@@ -65,7 +65,7 @@ if "reset_search_items" in st.session_state:
 else:
     default_selected = st.session_state.get("search_items", [])
 
-st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products, default=default_selected, key="search_items")
+st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
 for p in selected:
     if p not in st.session_state.quantities:
