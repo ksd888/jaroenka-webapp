@@ -1,3 +1,10 @@
+
+def safe_int(value):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
@@ -25,7 +32,7 @@ for row in data:
         "ชื่อสินค้า": row["ชื่อสินค้า"],
         "ราคาขาย": float(row["ราคาขาย"]),
         "ต้นทุน": float(row["ต้นทุน"]),
-        "คงเหลือ": int(row["คงเหลือ"])
+        "คงเหลือ": safe_int(row["คงเหลือ"])
     })
 
 # สร้างตัวเลือกสินค้า
