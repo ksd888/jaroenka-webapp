@@ -1,26 +1,11 @@
 import streamlit as st
-import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import re
 
-# ฟังก์ชันเพื่อจัดการ key ซ้ำ
-def safe_key(s):
-    return re.sub(r"[^a-zA-Z0-9_]", "_", s)
-
-# ฟังก์ชันแปลง float ปลอดภัย
-def safe_float(val):
-    try:
-        return float(val)
-    except:
-        return 0.0
-
-# เชื่อมต่อ Google Sheet
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
+# ตั้งค่าการเข้าถึง Google Sheet
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
+         "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
 
 credentials = Credentials.from_service_account_info(
     st.secrets["GCP_SERVICE_ACCOUNT"],
@@ -29,69 +14,95 @@ credentials = Credentials.from_service_account_info(
 
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-
 sheet = spreadsheet.worksheet("ตู้เย็น")
 
-# ดึงข้อมูลจาก Google Sheet
+# อ่านข้อมูลจากชีท
 data = sheet.get_all_records()
 
-# แปลงข้อมูลเป็น DataFrame
-df = pd.DataFrame(data)
+# แปลงข้อมูลให้อยู่ในรูปแบบลิสต์ของ dict พร้อมใช้
+products = []
+for row in data:
+    products.append({
+        "ชื่อ": row.get("ชื่อ", ""),
+        "ราคาขาย": float(row.get("ราคาขาย", 0)),
+        "ต้นทุน": float(row.get("ต้นทุน", 0)),
+        "คงเหลือ": int(row.get("คงเหลือ", 0)),
+        "เข้า": int(row.get("เข้า", 0)),
+        "ออก": int(row.get("ออก", 0))
+    })
 
-# UI
-st.title("แอปร้านเจริญค้า 🍧")
+st.title("ระบบขายสินค้า - เจริญค้า")
 
-# ช่องค้นหา
-search = st.text_input("ค้นหาสินค้า 🔍")
-filtered_df = df[df["ชื่อ"].str.contains(search, case=False)] if search else df
+# ฟังก์ชันสำหรับแปลง key ให้ปลอดภัย
+def safe_key(name):
+    return name.replace(" ", "_").replace(".", "_").replace("/", "_").replace("(", "").replace(")", "")
 
-# แสดงสินค้า
-st.subheader("รายการสินค้า")
-for i, row in filtered_df.iterrows():
-    col1, col2, col3 = st.columns([3, 2, 2])
-    with col1:
-        st.markdown(f"**{row['ชื่อ']}**")
-    with col2:
-        qty_key = safe_key(f"qty_{row['ชื่อ']}")
-        if qty_key not in st.session_state:
-            st.session_state[qty_key] = 1
-        if st.button("-", key=safe_key(f"sub_{row['ชื่อ']}")):
-            st.session_state[qty_key] = max(1, st.session_state[qty_key] - 1)
-        st.write(f"{st.session_state[qty_key]} ชิ้น")
-        if st.button("+", key=safe_key(f"add_{row['ชื่อ']}")):
-            st.session_state[qty_key] += 1
-    with col3:
-        if st.button("เพิ่มใส่ตะกร้า 🛒", key=safe_key(f"cart_{row['ชื่อ']}")):
-            if "cart" not in st.session_state:
-                st.session_state["cart"] = {}
-            st.session_state["cart"][row['ชื่อ']] = st.session_state[qty_key]
+# ค้นหาสินค้า
+search_query = st.text_input("ค้นหาสินค้า")
+filtered_products = [p for p in products if search_query.lower() in p["ชื่อ"].lower()] if search_query else []
 
 # ตะกร้าสินค้า
-st.subheader("🛍️ ตะกร้าสินค้า")
-if "cart" in st.session_state and st.session_state["cart"]:
-    total = 0
-    for name, qty in st.session_state["cart"].items():
-        price = safe_float(df[df["ชื่อ"] == name]["ราคาขาย"].values[0])
-        st.write(f"{name}: {qty} x {price} = {qty * price:.2f} บาท")
-        total += qty * price
+if "cart" not in st.session_state:
+    st.session_state.cart = {}
 
-    st.markdown(f"**💰 รวม: {total:.2f} บาท**")
+# แสดงสินค้าค้นหา
+st.subheader("ผลลัพธ์สินค้า")
+for p in filtered_products:
+    pname = p["ชื่อ"]
+    key_qty = f"qty_{safe_key(pname)}"
+    key_add = f"add_{safe_key(pname)}"
+    key_sub = f"sub_{safe_key(pname)}"
+    st.session_state.setdefault(key_qty, 1)
 
-    if st.button("✅ ยืนยันการขาย"):
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for name, qty in st.session_state["cart"].items():
-            idx = df[df["ชื่อ"] == name].index[0]
-            out_cell = f"G{idx + 2}"
-            old_out = safe_float(df.at[idx, "ออก"])
-            new_out = old_out + qty
-            sheet.update(out_cell, [[new_out]])
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    with col1:
+        st.markdown(f"**{pname}**")
+    with col2:
+        if st.button("-", key=key_sub):
+            st.session_state[key_qty] = max(1, st.session_state[key_qty] - 1)
+    with col3:
+        st.markdown(f"{st.session_state[key_qty]}")
+    with col4:
+        if st.button("+", key=key_add):
+            st.session_state[key_qty] += 1
 
-        st.success("บันทึกการขายเรียบร้อย ✅")
-        st.session_state["cart"] = {}
-        for key in list(st.session_state.keys()):
-            if key.startswith("qty_"):
-                st.session_state[key] = 1
-        st.experimental_rerun()
-else:
-    st.info("ยังไม่มีสินค้าถูกเลือกในตะกร้า")
+    if st.button("เพิ่มลงตะกร้า", key=f"add_to_cart_{safe_key(pname)}"):
+        st.session_state.cart[pname] = st.session_state.cart.get(pname, 0) + st.session_state[key_qty]
+        st.success(f"เพิ่ม {pname} แล้ว ({st.session_state.cart[pname]})")
 
+# แสดงตะกร้าสินค้า
+st.subheader("ตะกร้าสินค้า")
+total = 0
+profit = 0
+for pname, qty in st.session_state.cart.items():
+    item = next((x for x in products if x["ชื่อ"] == pname), None)
+    if item:
+        price = item["ราคาขาย"]
+        cost = item["ต้นทุน"]
+        total += price * qty
+        profit += (price - cost) * qty
+        st.write(f"{pname} × {qty} = {price * qty:.2f} บาท")
+
+st.markdown(f"**ยอดรวม: {total:.2f} บาท**")
+st.markdown(f"**กำไร: {profit:.2f} บาท**")
+
+# ปุ่มยืนยันการขาย
+if st.button("✅ ยืนยันการขาย"):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for pname, qty in st.session_state.cart.items():
+        try:
+            cell = sheet.find(pname)
+            row = cell.row
+            out_cell = f"G{row}"  # คอลัมน์ 'ออก'
+            current_out = int(sheet.acell(out_cell).value or 0)
+            sheet.update(out_cell, current_out + qty)
+
+            remain_cell = f"E{row}"  # คอลัมน์ 'คงเหลือ'
+            current_remain = int(sheet.acell(remain_cell).value or 0)
+            sheet.update(remain_cell, max(0, current_remain - qty))
+
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดกับ {pname}: {e}")
+    st.success("บันทึกการขายเรียบร้อยแล้ว ✅")
+    st.session_state.cart.clear()
+    st.experimental_rerun()
