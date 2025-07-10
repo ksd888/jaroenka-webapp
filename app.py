@@ -4,10 +4,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
-
 
 # 🔐 เชื่อมต่อ Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -57,7 +55,6 @@ st.title("🧊 ระบบขายสินค้า - ร้านเจร�
 st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-# selected =  # ⚠️ แก้ไข: ไม่มีค่าต่อท้าย เดิม Error
 default_selected = []
 if "reset_search_items" in st.session_state:
     default_selected = []
@@ -67,7 +64,7 @@ else:
 
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
-selected = st.session_state.get("search_items", [])  # ✅ ป้องกัน selected ไม่ถูกกำหนด
+selected = st.session_state.get("search_items", [])
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
@@ -79,6 +76,15 @@ for p in selected:
     with cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
+
+    # ✅ แสดงคงเหลือในตู้ พร้อมสีแดงเมื่อเหลือน้อยกว่า 3
+    row = df[df['ชื่อสินค้า'] == p]
+    stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
+    color = 'red' if stock < 3 else 'white'
+    st.markdown(
+        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
+        unsafe_allow_html=True
+    )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
@@ -107,24 +113,19 @@ if st.session_state.cart:
         st.warning("💸 ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
-
-
-        st.session_state["reset_search_items"] = True  # set flag to reset multiselect on rerun
-
-
-        st.session_state["search_query"] = ""  # reset search
+        st.session_state["reset_search_items"] = True
+        st.session_state["search_query"] = ""
 
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
-            idx_in_sheet = index + 2  # Google Sheet starts at row 2
+            idx_in_sheet = index + 2
             new_out = safe_safe_int(row["ออก"]) + qty
             new_left = safe_safe_int(row["คงเหลือในตู้"]) - qty
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-        # บันทึกยอดขาย
         summary_ws.append_row([
             now,
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
