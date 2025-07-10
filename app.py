@@ -1,100 +1,89 @@
 import streamlit as st
 import pandas as pd
-import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+from datetime import datetime
+import json
 
-# ตั้งค่าการเชื่อมต่อ Google Sheets
+st.set_page_config(page_title="ร้านเจริญค้า", layout="wide")
+
+# เชื่อมต่อ Google Sheets
 scope = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_info(
-    st.secrets["GCP_SERVICE_ACCOUNT"],
-    scopes=scope,
-)
-gc = gspread.authorize(creds)
-sh = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-sheet = sh.worksheet("ตู้เย็น")
+credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
+gc = gspread.authorize(credentials)
+spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 
-# โหลดข้อมูล
+sheet = spreadsheet.worksheet("ตู้เย็น")
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
+
+# ✅ แก้ไขตรงนี้: แปลงราคาขายและต้นทุนเป็นตัวเลข
+df["ราคาขาย"] = pd.to_numeric(df["ราคาขาย"], errors="coerce")
+df["ต้นทุน"] = pd.to_numeric(df["ต้นทุน"], errors="coerce")
 df["กำไรต่อหน่วย"] = df["ราคาขาย"] - df["ต้นทุน"]
 
-# ชื่อสินค้า
-product_names = df["ชื่อสินค้า"].tolist()
-
-# ตั้งค่าตะกร้าและจำนวนสินค้าใน session_state
+# สร้าง cart และตัวแปรสถานะ
 if "cart" not in st.session_state:
     st.session_state.cart = {}
-if "search_selection" not in st.session_state:
-    st.session_state.search_selection = []
+
+if "selected_products" not in st.session_state:
+    st.session_state.selected_products = []
 
 st.title("🛒 เลือกสินค้าจากชื่อ")
 
-# ค้นหาสินค้า
-search_selection = st.multiselect("🛒 เลือกสินค้าจากชื่อ", product_names, key="search_selection")
+product_names = df["ชื่อสินค้า"].dropna().tolist()
 
-for item in search_selection:
-    if item not in st.session_state.cart:
-        st.session_state.cart[item] = 0
+st.session_state.selected_products = st.multiselect(
+    "🛒 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products
+)
 
-    st.subheader(f"{item}")
-    col1, col2 = st.columns([1, 1])
+# แสดงช่องใส่จำนวน
+for product in st.session_state.selected_products:
+    col1, col2, col3 = st.columns([1, 1, 4])
     with col1:
-        if st.button("➖", key=f"decrease_{item}"):
-            if st.session_state.cart[item] > 0:
-                st.session_state.cart[item] -= 1
+        if st.button("➖", key=f"decrease_{product}"):
+            st.session_state.cart[product] = max(0, st.session_state.cart.get(product, 0) - 1)
     with col2:
-        if st.button("➕", key=f"increase_{item}"):
-            st.session_state.cart[item] += 1
+        if st.button("➕", key=f"increase_{product}"):
+            st.session_state.cart[product] = st.session_state.cart.get(product, 0) + 1
+    with col3:
+        st.write(f"{product}")
+        st.write(f"จำนวน: {st.session_state.cart.get(product, 0)}")
 
-    st.text(f"จำนวน: {st.session_state.cart[item]}")
-
+# เพิ่มสินค้าลงตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
-    st.session_state.search_selection = []  # ✅ รีเซ็ตการค้นหา
 
 # แสดงตะกร้า
+if st.session_state.cart:
+    st.subheader("🧺 ตะกร้าสินค้า")
+    total = 0
+    profit = 0
+    for product, qty in st.session_state.cart.items():
+        row = df[df["ชื่อสินค้า"] == product]
+        if not row.empty:
+            price = float(row["ราคาขาย"].values[0])
+            unit_profit = float(row["กำไรต่อหน่วย"].values[0])
+            st.write(f"- {product} x {qty} = {price * qty:.2f} บาท")
+            total += price * qty
+            profit += unit_profit * qty
+    st.write(f"💰 **ยอดรวม:** {total:.2f} บาท")
+    st.write(f"📈 **กำไร:** {profit:.2f} บาท")
+
+    if st.button("✅ ยืนยันการขาย"):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet2 = spreadsheet.worksheet("ยอดขาย")
+        for product, qty in st.session_state.cart.items():
+            row = df[df["ชื่อสินค้า"] == product]
+            if not row.empty:
+                price = float(row["ราคาขาย"].values[0])
+                unit_profit = float(row["กำไรต่อหน่วย"].values[0])
+                sheet2.append_row([now, product, qty, price * qty, unit_profit * qty, "drink"])
+        st.success("✅ ขายสินค้าเรียบร้อยแล้ว!")
+
+        # ✅ รีเซ็ตตะกร้าและรายการที่ค้นหา
+        st.session_state.cart = {}
+        st.session_state.selected_products = []
+
 st.markdown("---")
-st.subheader("🧺 ตะกร้าสินค้า")
-
-total = 0
-total_profit = 0
-for item, qty in st.session_state.cart.items():
-    if qty > 0:
-        item_row = df[df["ชื่อสินค้า"] == item].iloc[0]
-        price = item_row["ราคาขาย"]
-        profit = item_row["กำไรต่อหน่วย"]
-        st.write(f"- {item} x {qty} = {price * qty:.2f} บาท")
-        total += price * qty
-        total_profit += profit * qty
-
-st.markdown(f"💰 **ยอดรวม: {total:.2f} บาท**")
-st.markdown(f"📈 **กำไร: {total_profit:.2f} บาท**")
-
-# ยืนยันการขาย
-if st.button("✅ ยืนยันการขาย"):
-    now = datetime.datetime.now()
-    for item, qty in st.session_state.cart.items():
-        if qty > 0:
-            item_row = df[df["ชื่อสินค้า"] == item].iloc[0]
-            profit = item_row["กำไรต่อหน่วย"]
-            sheet_to_log = sh.worksheet("ยอดขาย")
-            sheet_to_log.append_row([
-                now.strftime("%Y-%m-%d %H:%M:%S"),
-                item,
-                qty,
-                item_row["ราคาขาย"],
-                item_row["ต้นทุน"],
-                profit,
-                qty * profit,
-                "drink"
-            ])
-            # อัปเดตคงเหลือ
-            idx = df[df["ชื่อสินค้า"] == item].index[0]
-            df.at[idx, "ออก"] += qty
-            df.at[idx, "คงเหลือในตู้"] = df.at[idx, "เข้า"] - df.at[idx, "ออก"]
-            sheet.update_cell(idx + 2, df.columns.get_loc("ออก") + 1, df.at[idx, "ออก"])
-            sheet.update_cell(idx + 2, df.columns.get_loc("คงเหลือในตู้") + 1, df.at[idx, "คงเหลือในตู้"])
-    st.success("✅ ขายสินค้าเรียบร้อยแล้ว!")
-    st.session_state.cart = {}  # ล้างตะกร้า
-    st.session_state.search_selection = []  # ✅ ล้างช่องค้นหาอีกครั้ง
+st.caption("สร้างโดย ❤️ ร้านเจริญค้า")
