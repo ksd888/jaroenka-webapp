@@ -1,123 +1,154 @@
 import streamlit as st
-import datetime
 import gspread
-import pandas as pd
-from google.oauth2.service_account import Credentials
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 
 # 🔐 เชื่อมต่อ Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
-gc = gspread.authorize(credentials)
-sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-worksheet = sheet.worksheet("ตู้เย็น")
-summary_ws = sheet.worksheet("ยอดขาย")
+creds = ServiceAccountCredentials.from_json_keyfile_dict(
+    st.secrets["GCP_SERVICE_ACCOUNT"], scope
+)
+client = gspread.authorize(creds)
+sheet = client.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+inventory_ws = sheet.worksheet("ตู้เย็น")
+sales_ws = sheet.worksheet("ยอดขาย")
 
-# 🧠 ฟังก์ชันช่วยอ่านค่าปลอดภัย
-def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
-def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
+# 🛡️ helper ปลอดภัย
+def safe_float(value):
+    try:
+        return float(value)
+    except:
+        return 0.0
 
-# 📦 โหลดข้อมูลสินค้า
-data = worksheet.get_all_records()
-df = pd.DataFrame(data)
+def safe_int(value):
+    try:
+        return int(value)
+    except:
+        return 0
 
-# 🧊 ค่าเริ่มต้น session_state
-default_session = {
-    "cart": [],
-    "selected_products": [],
-    "quantities": {},
-    "paid_input": 0.0,
-    "sale_complete": False
-}
-for key, default in default_session.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
+# 📥 โหลดข้อมูลสินค้า
+data = inventory_ws.get_all_records()
+products = []
+for row in data:
+    try:
+        products.append({
+            "ชื่อ": row.get("ชื่อ", ""),
+            "ราคาขาย": safe_float(row.get("ราคาขาย", 0)),
+            "ต้นทุน": safe_float(row.get("ต้นทุน", 0)),
+            "คงเหลือ": safe_int(row.get("คงเหลือ", 0)),
+        })
+    except Exception as e:
+        st.warning(f"พบข้อผิดพลาดในข้อมูลสินค้า: {e}")
 
-# 🔁 รีเซ็ตเมื่อขายเสร็จ
-if st.session_state.sale_complete:
-    for key in ["cart", "selected_products", "quantities", "paid_input"]:
-        st.session_state[key] = default_session[key]
-    st.session_state.sale_complete = False
-    st.success("✅ บันทึกยอดขายและรีเซ็ตเรียบร้อยแล้ว")
-
-# 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.subheader("🛒 เลือกสินค้า")
+st.subheader("🛍️ เลือกสินค้า")
 
-product_names = df["ชื่อสินค้า"].tolist()
-selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state.selected_products)
-st.session_state.selected_products = selected
+cart = st.session_state.get("cart", [])
 
-for p in selected:
-    if p not in st.session_state.quantities:
-        st.session_state.quantities[p] = 1
-    cols = st.columns([2, 1, 1])
-    with cols[0]: st.markdown(f"**{p}**")
-    with cols[1]:
+# ค้นหาสินค้าแบบ multiselect
+selected_names = st.multiselect("🔍 เลือกสินค้าจากชื่อ", [p["ชื่อ"] for p in products])
+
+# ใส่จำนวนสำหรับสินค้าแต่ละตัว
+for p in selected_names:
+    if f"qty_{p}" not in st.session_state:
+        st.session_state[f"qty_{p}"] = 1
+    col1, col2, col3 = st.columns([4, 1, 1])
+    with col1:
+        st.markdown(f"**{p}**")
+    with col2:
         if st.button("➖", key=f"dec_{p}"):
-            st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    with cols[2]:
+            st.session_state[f"qty_{p}"] = max(1, st.session_state[f"qty_{p}"] - 1)
+    with col3:
         if st.button("➕", key=f"inc_{p}"):
-            st.session_state.quantities[p] += 1
+            st.session_state[f"qty_{p}"] += 1
 
+# ➕ เพิ่มลงตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
-    for p in selected:
-        qty = safe_int(st.session_state.quantities[p])
-        if qty > 0:
-            st.session_state.cart.append((p, qty))
+    for p in selected_names:
+        qty = st.session_state.get(f"qty_{p}", 1)
+        cart.append({"ชื่อ": p, "จำนวน": qty})
+    st.session_state["cart"] = cart
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# 🧾 แสดงตะกร้า
-if st.session_state.cart:
-    st.subheader("📋 รายการขาย")
-    total_price, total_profit = 0, 0
-    for item, qty in st.session_state.cart:
-        row = df[df["ชื่อสินค้า"] == item].iloc[0]
-        price, cost = safe_float(row["ราคาขาย"]), safe_float(row["ต้นทุน"])
-        subtotal, profit = qty * price, qty * (price - cost)
-        total_price += subtotal
-        total_profit += profit
-        st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
+# 🧾 รายการขาย
+st.subheader("🧾 รายการขาย")
+total = 0
+profit = 0
+for item in cart:
+    product = next((x for x in products if x["ชื่อ"] == item["ชื่อ"]), None)
+    if product:
+        line_total = product["ราคาขาย"] * item["จำนวน"]
+        line_profit = (product["ราคาขาย"] - product["ต้นทุน"]) * item["จำนวน"]
+        st.markdown(f"- {item['ชื่อ']} x {item['จำนวน']} = {line_total:.2f} บาท")
+        total += line_total
+        profit += line_profit
 
-    st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
-    if st.session_state.paid_input >= total_price:
-        st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
-    else:
-        st.warning("💸 ยอดเงินไม่พอ")
+st.info(f"💵 ยอดรวม: {total:.2f} บาท | 🟢 กำไร: {profit:.2f} บาท")
 
-    if st.button("✅ ยืนยันการขาย"):
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for item, qty in st.session_state.cart:
-            index = df[df["ชื่อสินค้า"] == item].index[0]
-            row = df.loc[index]
-            idx_in_sheet = index + 2
-            new_out = safe_int(row["ออก"]) + qty
-            new_left = safe_int(row["คงเหลือในตู้"]) - qty
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+# 💸 เงินรับ
+receive = st.number_input("💰 รับเงิน", min_value=0.0, step=1.0)
+change = receive - total
+if change < 0:
+    st.warning("💸 ยอดเงินไม่พอ")
+else:
+    st.success(f"💚 เงินทอน: {change:.2f} บาท")
 
-        summary_ws.append_row([
-            now,
-            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
-            total_price,
-            total_profit,
-            st.session_state.paid_input,
-            st.session_state.paid_input - total_price,
-            "drink"
-        ])
+# ✅ ยืนยันการขาย
+if st.checkbox("✅ ยืนยันการขาย"):
+    if cart and receive >= total:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for item in cart:
+            row = [
+                now,
+                item["ชื่อ"],
+                item["จำนวน"],
+                next((p["ราคาขาย"] for p in products if p["ชื่อ"] == item["ชื่อ"]), 0),
+                next((p["ต้นทุน"] for p in products if p["ชื่อ"] == item["ชื่อ"]), 0),
+                total,
+                profit,
+                "drink"
+            ]
+            sales_ws.append_row(row)
 
-        st.session_state.sale_complete = True
+            # 🔄 อัปเดตคงเหลือ
+            cell = inventory_ws.find(item["ชื่อ"])
+            if cell:
+                current_qty = safe_int(inventory_ws.cell(cell.row, cell.col + 3).value)
+                inventory_ws.update_cell(cell.row, cell.col + 3, current_qty - item["จำนวน"])
 
-# 📥 เติมสินค้าแบบปลอดภัย (หลีกเลี่ยง key ซ้ำ)
-with st.expander("📦 เติมสินค้า"):
-    for i, p in enumerate(product_names):
-        qty = st.number_input(f"เติม {p}", min_value=0, key=f"เติม_{p}_{i}")
-        if qty > 0:
-            idx = df[df["ชื่อสินค้า"] == p].index[0]
-            sheet_row = idx + 2
-            new_in = safe_int(df.at[idx, "เข้า"]) + qty
-            new_left = safe_int(df.at[idx, "คงเหลือในตู้"]) + qty
-            worksheet.update_cell(sheet_row, df.columns.get_loc("เข้า") + 1, new_in)
-            worksheet.update_cell(sheet_row, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-            st.success(f"เติม {p} แล้ว {qty} ชิ้น")
-            st.session_state[f"เติม_{p}_{i}"] = 0
+        # 🔄 รีเซ็ต cart
+        for p in selected_names:
+            del st.session_state[f"qty_{p}"]
+        st.session_state["cart"] = []
+        st.success("✅ บันทึกยอดขายและรีเซ็ตตะกร้าเรียบร้อยแล้ว")
+
+        # 🔁 รีเฟรช
+        st.experimental_rerun()
+
+# 📦 เติมสินค้า
+st.markdown("---")
+st.subheader("📦 เติมสินค้า")
+for p in [x["ชื่อ"] for x in products]:
+    qty = st.number_input(f"เติม {p}", min_value=0, key=f"เติม_{p}")
+    if qty > 0:
+        cell = inventory_ws.find(p)
+        if cell:
+            now_qty = safe_int(inventory_ws.cell(cell.row, cell.col + 3).value)
+            inventory_ws.update_cell(cell.row, cell.col + 3, now_qty + qty)
+        st.success(f"✅ เติม {p} แล้ว +{qty}")
+
+# ✏️ แก้ไขสินค้า
+st.markdown("---")
+st.subheader("✏️ แก้ไขสินค้า")
+edit_product = st.selectbox("เลือกสินค้า", [p["ชื่อ"] for p in products])
+new_price = st.number_input("📌 ราคาขายใหม่", min_value=0.0, step=1.0, value=safe_float(
+    next((x["ราคาขาย"] for x in products if x["ชื่อ"] == edit_product), 0)))
+new_cost = st.number_input("💰 ต้นทุนใหม่", min_value=0.0, step=1.0, value=safe_float(
+    next((x["ต้นทุน"] for x in products if x["ชื่อ"] == edit_product), 0)))
+if st.button("💾 บันทึกการแก้ไข"):
+    cell = inventory_ws.find(edit_product)
+    if cell:
+        inventory_ws.update_cell(cell.row, cell.col + 1, new_price)
+        inventory_ws.update_cell(cell.row, cell.col + 2, new_cost)
+        st.success("✅ แก้ไขสินค้าเรียบร้อยแล้ว")
+        st.experimental_rerun()
