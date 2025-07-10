@@ -1,72 +1,96 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# เชื่อมต่อ Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
-client = gspread.authorize(creds)
-spreadsheet = client.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+# ตั้งค่าขอบเขตสิทธิ์
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
+# โหลดข้อมูลจาก secrets หรือไฟล์ service_account.json
+creds = Credentials.from_service_account_info(
+    st.secrets["GCP_SERVICE_ACCOUNT"], scopes=SCOPES
+)
+gc = gspread.authorize(creds)
+
+# เปิด Google Sheet
+spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 sheet = spreadsheet.worksheet("ตู้เย็น")
 
-# โหลดข้อมูล
+# โหลดข้อมูล Google Sheet
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
 st.title("🧊 ร้านเจริญค้า - ระบบขายสินค้า")
 
-# ระบบค้นหา
-search_term = st.text_input("🔍 ค้นหาสินค้า", "")
-filtered_df = df[df["ชื่อสินค้า"].str.contains(search_term, case=False, na=False)]
+# ฟังก์ชันค้นหาปลอดภัย
+def safe_key(key):
+    return key.replace(" ", "_").replace(".", "_")
 
-# สร้างตะกร้า
+# ค้นหาสินค้า
+search_term = st.text_input("🔍 ค้นหาสินค้า", key="search")
+filtered_df = df[df["ชื่อสินค้า"].str.contains(search_term, case=False, na=False)] if search_term else df
+
+# สร้างตะกร้าสินค้าใน session state
 if "cart" not in st.session_state:
     st.session_state.cart = {}
 
-# แสดงผลลัพธ์การค้นหา
-for index, row in filtered_df.iterrows():
-    st.markdown(f"**{row['ชื่อสินค้า']}**")
-    col1, col2, col3 = st.columns([1, 1, 2])
+# แสดงสินค้าให้เลือก
+selected_products = st.multiselect("🛒 เลือกสินค้าจากชื่อ", filtered_df["ชื่อสินค้า"].tolist())
+
+# เพิ่มสินค้าเข้าตะกร้า
+for p in selected_products:
+    row = df[df["ชื่อสินค้า"] == p].iloc[0]
+    col1, col2, col3 = st.columns([3,1,1])
     with col1:
-        if st.button("-", key=f"sub_{row['ชื่อสินค้า']}"):
-            if row['ชื่อสินค้า'] in st.session_state.cart and st.session_state.cart[row['ชื่อสินค้า']] > 0:
-                st.session_state.cart[row['ชื่อสินค้า']] -= 1
+        st.markdown(f"**{row['ชื่อสินค้า']}**")
     with col2:
-        qty = st.session_state.cart.get(row['ชื่อสินค้า'], 0)
-        st.markdown(f"จำนวน: **{qty}**")
+        if st.button("-", key=f"sub_{safe_key(p)}"):
+            st.session_state.cart[p] = max(0, st.session_state.cart.get(p, 1) - 1)
     with col3:
-        if st.button("+", key=f"add_{row['ชื่อสินค้า']}"):
-            st.session_state.cart[row['ชื่อสินค้า']] = st.session_state.cart.get(row['ชื่อสินค้า'], 0) + 1
+        if st.button("+", key=f"add_{safe_key(p)}"):
+            st.session_state.cart[p] = st.session_state.cart.get(p, 0) + 1
 
-st.markdown("---")
-st.subheader("🛒 ตะกร้าสินค้า")
+    if p in st.session_state.cart:
+        st.markdown(f"จำนวนที่เลือก: {st.session_state.cart[p]}")
 
-# สรุปยอดในตะกร้า
-total_price = 0
-total_profit = 0
-for product, qty in st.session_state.cart.items():
-    item_row = df[df["ชื่อสินค้า"] == product].iloc[0]
-    price = item_row["ราคาขาย"]
-    cost = item_row["ต้นทุน"]
-    profit = (price - cost) * qty
-    total = price * qty
-    st.write(f"{product} x {qty} = {total:.2f} บาท")
-    total_price += total
-    total_profit += profit
+    st.divider()
 
-st.info(f"📦 ยอดรวม: {total_price:.2f} บาท 🟢 กำไร: {total_profit:.2f} บาท")
+if st.button("➕ เพิ่มลงตะกร้า"):
+    st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# รับเงิน
-money = st.number_input("💰 รับเงิน", min_value=0.0, format="%.2f")
-if money < total_price:
-    st.warning("❌ ยอดเงินไม่พอ")
-else:
+# แสดงรายการขาย
+if st.session_state.cart:
+    st.markdown("📋 **รายการขาย**")
+    total = 0
+    profit = 0
+    for name, qty in st.session_state.cart.items():
+        row = df[df["ชื่อสินค้า"] == name].iloc[0]
+        price = row["ราคาขาย"]
+        cost = row["ต้นทุน"]
+        st.write(f"{name} x {qty} = {qty * price:.2f} บาท")
+        total += qty * price
+        profit += qty * (price - cost)
+    st.info(f"💰 ยอดรวม: {total:.2f} บาท   🟢 กำไร: {profit:.2f} บาท")
+
+    cash = st.number_input("💰 เงินรับ", min_value=0.0, format="%.2f")
+    if cash < total:
+        st.warning("❌ ยอดเงินไม่พอ")
+    else:
+        change = cash - total
+        st.success(f"✅ เงินทอน: {change:.2f} บาท")
+
     if st.button("✅ ยืนยันการขาย"):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for product, qty in st.session_state.cart.items():
-            sheet.insert_row([now, product, qty], index=2)
-        st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
-        st.session_state.cart = {}  # รีเซ็ตตะกร้า
+        for name, qty in st.session_state.cart.items():
+            row = df[df["ชื่อสินค้า"] == name].iloc[0]
+            price = row["ราคาขาย"]
+            cost = row["ต้นทุน"]
+            sheet_to_write = spreadsheet.worksheet("ยอดขาย")
+            sheet_to_write.append_row([now, name, qty, price, cost, price - cost, qty * (price - cost)])
+        st.success("📝 บันทึกยอดขายแล้ว")
+        st.session_state.cart = {}
         st.experimental_rerun()
