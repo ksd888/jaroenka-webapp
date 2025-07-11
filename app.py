@@ -4,40 +4,48 @@ import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
-# ✅ ปลอดภัย
+# ✅ ฟังก์ชันปลอดภัย
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# ✅ toggle dark/light mode
+# 🌓 Toggle โหมดมืด/สว่าง
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True
+    st.session_state.dark_mode = False
 
 dark_mode = st.toggle("🌙 เปิดโหมดมืด", value=st.session_state.dark_mode)
 st.session_state.dark_mode = dark_mode
 
-# ✅ theme style
+# 🎨 ปรับธีมตาม toggle
 if dark_mode:
     st.markdown("""
         <style>
-        html, body, [class*="css"]  {
+        html, body, [class*="css"] {
             font-family: 'Kanit', sans-serif;
-            background-color: #0e1117;
-            color: white;
+            background-color: #0e1117 !important;
+            color: white !important;
+        }
+        .stButton>button, .stTextInput>div>input {
+            background-color: #1f2937 !important;
+            color: white !important;
         }
         </style>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
         <style>
-        html, body, [class*="css"]  {
+        html, body, [class*="css"] {
             font-family: 'Kanit', sans-serif;
-            background-color: #ffffff;
-            color: black;
+            background-color: #ffffff !important;
+            color: black !important;
+        }
+        .stButton>button, .stTextInput>div>input {
+            background-color: #f0f0f0 !important;
+            color: black !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-# 🔐 เชื่อมต่อ Google Sheets
+# 🔐 เชื่อม Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(credentials)
@@ -45,31 +53,32 @@ sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 
-# 📥 โหลดข้อมูล
+# 📦 โหลดข้อมูลสินค้า
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
 
-# 🧠 session state
+# 🧠 ตั้งค่า session_state
 for key in ["cart", "search_items", "quantities", "paid_input", "sale_complete", "sale_trigger"]:
     if key not in st.session_state:
-        st.session_state[key] = [] if key in ["cart", "search_items"] else 0.0 if key == "paid_input" else {} if key == "quantities" else False
+        st.session_state[key] = [] if key in ["cart", "search_items"] else {} if key == "quantities" else 0.0 if key == "paid_input" else False
 
-# 🔁 reset หลังขาย
+# 🔁 รีเซ็ตหลังขายเสร็จ
 if st.session_state.sale_complete:
     st.session_state["cart"] = []
     st.session_state["search_items"] = []
     st.session_state["quantities"] = {}
     st.session_state["paid_input"] = 0.0
     st.session_state["sale_complete"] = False
-    st.success("✅ รีเซ็ตเรียบร้อย")
+    st.success("✅ รีเซ็ตหน้าหลังบันทึกแล้ว")
 
-# 🧊 UI
+# 🛍️ เริ่มหน้าจอ
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.subheader("🛒 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state["search_items"], key="search_items")
 
+# ➕➖ ปรับจำนวนพร้อมแสดงคงเหลือ
 for p in st.session_state["search_items"]:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
@@ -79,8 +88,8 @@ for p in st.session_state["search_items"]:
 
     cols = st.columns([3, 1, 1])
     with cols[0]:
-        st.markdown(f"<b>{p}</b><br>🧊 คงเหลือในตู้: <span style='color:green'>{stock}</span>", unsafe_allow_html=True)
-        st.markdown(f"🔢 จำนวน: {st.session_state.quantities[p]}", unsafe_allow_html=True)
+        st.markdown(f"<b>{p}</b><br><span style='color:#ffffff'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:white'>🔢 จำนวน: {st.session_state.quantities[p]}</span>", unsafe_allow_html=True)
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
@@ -90,7 +99,7 @@ for p in st.session_state["search_items"]:
             st.session_state.quantities[p] += 1
             st.rerun()
 
-# ➕ ตะกร้า
+# ✅ เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in st.session_state["search_items"]:
         qty = st.session_state.quantities[p]
@@ -98,10 +107,10 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มลงตะกร้าแล้ว")
 
-# 📋 ตะกร้า
+# 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
-    total_price = total_profit = 0.0
+    total_price, total_profit = 0.0, 0.0
     for item, qty in st.session_state.cart:
         row = df[df["ชื่อสินค้า"] == item].iloc[0]
         price = safe_float(row["ราคาขาย"])
@@ -121,7 +130,7 @@ if st.session_state.cart:
     if st.button("✅ ยืนยันการขาย"):
         st.session_state.sale_trigger = True
 
-# ✅ ขายจริง
+# ✅ ดำเนินการขายจริง
 if st.session_state.sale_trigger:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item, qty in st.session_state.cart:
