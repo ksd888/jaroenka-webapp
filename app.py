@@ -34,16 +34,15 @@ if st.session_state.sale_complete:
     st.session_state["sale_complete"] = False
     st.success("✅ รีเซ็ตหน้าหลังบันทึกแล้ว")
 
-# ✅ CSS แบบ Apple + สีดำชัดเจน
+# 🎨 CSS Style ละมุน
 st.markdown("""
 <style>
 body {
-    background-color: #f5f5f7;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 h1, h2 {
     text-align: center;
-    color: #1d1d1f;
+    color: #f2f2f2;
 }
 .stButton>button {
     border-radius: 10px;
@@ -66,32 +65,31 @@ div[data-testid="stSidebar"] {
     padding: 15px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 10px;
-    color: black;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 🧊 Header
-st.markdown("<h1>🧊 ร้านเจริญค้า</h1>", unsafe_allow_html=True)
-st.markdown("<h2>ระบบขายสินค้า | ปลีกตู้เย็น</h2>", unsafe_allow_html=True)
+# 🧊 หัวหน้า
+st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
+st.subheader("🛒 เลือกสินค้า")
 
 # 🔍 ค้นหา
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 ค้นหาสินค้า", product_names, default=st.session_state["search_items"], key="search_items")
 
-# ➕➖ แสดงสินค้า
+# ➕➖ แสดงจำนวน
 for p in st.session_state["search_items"]:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
 
     row = df[df["ชื่อสินค้า"] == p]
     stock = safe_int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
-    color = "red" if stock < 3 else "green"
+    color = "red" if stock < 3 else "black"
 
     st.markdown(f"""
-    <div class='card'>
-        <b style='font-size:18px;'>{p}</b><br>
-        <span style='color:{color};font-weight:bold'>🧊 คงเหลือในตู้: {stock}</span><br>
+    <div class="card">
+        <b style="color:black;">{p}</b><br>
+        <span style='color:{color}; font-weight:bold;'>🧊 คงเหลือในตู้: {stock}</span><br>
         🔢 จำนวน: <b>{st.session_state.quantities[p]}</b>
     </div>
     """, unsafe_allow_html=True)
@@ -106,7 +104,7 @@ for p in st.session_state["search_items"]:
             st.session_state.quantities[p] += 1
             st.experimental_rerun()
 
-# ➕ เพิ่มตะกร้า
+# 🛒 เพิ่มลงตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in st.session_state["search_items"]:
         qty = st.session_state.quantities[p]
@@ -114,7 +112,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มลงตะกร้าแล้ว")
 
-# 🧾 ตะกร้า
+# 📋 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0.0, 0.0
@@ -127,8 +125,8 @@ if st.session_state.cart:
         st.write(f"- {item} x {qty} = {qty * price:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
-
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
