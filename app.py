@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
@@ -38,7 +39,7 @@ def set_theme(light=True):
 # ---------------------
 # 🌟 UI Section
 # ---------------------
-theme_mode = st.radio("Theme", ["Light", "Dark"], horizontal=True)
+theme_mode = st.radio("Theme", ["Light", "Dark"], )
 set_theme(light=(theme_mode == "Light"))
 
 st.image("logo.png", width=120)
