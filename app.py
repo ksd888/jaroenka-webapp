@@ -3,7 +3,7 @@ import pandas as pd
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # --- Setup Theme Toggle ---
 if "theme" not in st.session_state:
@@ -128,7 +128,7 @@ elif page == "📊 Dashboard":
     st.header("📊 Dashboard รายงานยอดขาย")
 
     today = datetime.datetime.now().date()
-    summary_df["วันที่"] = pd.to_datetime(summary_df["วันที่"])
+    summary_df["วันที่"] = pd.to_datetime(summary_df["วันที่"], errors='coerce')
     today_sales = summary_df[summary_df["วันที่"].dt.date == today]
 
     total_sales = today_sales["ยอดขาย"].sum()
@@ -142,11 +142,13 @@ elif page == "📊 Dashboard":
         st.dataframe(today_sales[["เวลา", "รายการ", "ยอดขาย", "กำไร"]])
 
         st.subheader("📊 กราฟยอดขาย")
-        fig, ax = plt.subplots()
-        today_sales.groupby("เวลา")["ยอดขาย"].sum().plot(kind="bar", ax=ax, color="#4da6ff" if not is_dark else "#00ffff")
-        ax.set_ylabel("ยอดขาย (บาท)")
-        ax.set_xlabel("เวลา")
-        ax.set_title("ยอดขายรายรายการ")
-        st.pyplot(fig)
+        fig = px.bar(
+            today_sales,
+            x="เวลา",
+            y="ยอดขาย",
+            title="ยอดขายรายรายการ",
+            color_discrete_sequence=["#4da6ff"] if not is_dark else ["#00ffff"]
+        )
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("ยังไม่มีข้อมูลยอดขายสำหรับวันนี้")
