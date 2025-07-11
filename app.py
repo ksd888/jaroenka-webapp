@@ -55,12 +55,13 @@ gc = gspread.authorize(credentials)
 sh = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 worksheet = sh.worksheet("ตู้เย็น")
 df = pd.DataFrame(worksheet.get_all_records())
+st.write('🧠 คอลัมน์ใน DataFrame:', df.columns.tolist())
 
 # ---------------------
 # 🔍 ระบบค้นหา + ตะกร้าสินค้า
 # ---------------------
 cart = {}
-search = st.multiselect("🔍 ค้นหาสินค้า", options=df["สินค้า"].tolist())
+search = st.multiselect("🔍 ค้นหาสินค้า", options=df["ชื่อสินค้า"].tolist())
 
 for item in search:
     col1, col2, col3 = st.columns([1,2,1])
@@ -80,7 +81,7 @@ if cart:
     st.markdown("### 🧾 ตะกร้าสินค้า")
     total = 0
     for item, qty in cart.items():
-        price = df[df["สินค้า"] == item]["ราคาขาย"].values[0]
+        price = df[df["ชื่อสินค้า"] == item]["ราคาขาย"].values[0]
         st.write(f"- {item} × {qty} = {qty * price} บาท")
         total += qty * price
     st.markdown(f"## 💸 ยอดรวม: {total} บาท")
