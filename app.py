@@ -8,7 +8,6 @@ from google.oauth2.service_account import Credentials
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🎨 ปรับสไตล์ให้รองรับโหมดมืด/สว่าง + ข้อความชัดเจน
 # 🌙 Toggle Dark/Light Mode
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -87,8 +86,8 @@ for p in st.session_state["search_items"]:
 
     cols = st.columns([3, 1, 1])
     with cols[0]:
-        st.markdown(f"<b>{p}</b><br><span style='color:#ffffff'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
-        st.markdown(f"<span style='color:white'>🔢 จำนวน: {st.session_state.quantities[p]}</span>", unsafe_allow_html=True)
+        st.markdown(f"<b>{p}</b><br><span style='color:{text_color}'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{text_color}'>🔢 จำนวน: {st.session_state.quantities[p]}</span>", unsafe_allow_html=True)
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
