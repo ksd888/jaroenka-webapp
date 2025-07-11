@@ -29,37 +29,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-import streamlit as st
-import datetime
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
-
-# ✅ Light Theme Style แบบ Apple
-st.markdown("""
-    <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    .stButton>button {
-        color: white !important;
-        background-color: #007aff !important;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5em 1em;
-    }
-    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
-        background-color: #f5f5f5 !important;
-        color: #000 !important;
-    }
-    .st-expander, .st-expander>details {
-        background-color: #f8f8f8 !important;
-        color: #000000 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
@@ -215,3 +184,61 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
+
+
+
+# 🔄 ใช้ st.number_input แทนปุ่ม ➕➖
+st.subheader("🛒 เลือกสินค้า")
+
+# กำหนดรายการสินค้าทั้งหมด
+product_names = df["ชื่อสินค้า"].tolist()
+
+# สร้าง cart ถ้ายังไม่มี
+if "cart" not in st.session_state:
+    st.session_state["cart"] = {}
+
+# แสดงช่องค้นหา + เลือกสินค้า
+selected = st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names)
+
+# แสดงสินค้าที่เลือก
+for pname in selected:
+    st.write(f"### {pname}")
+    qty = st.number_input(
+        f"จำนวนที่ต้องการขายสำหรับ {pname}",
+        min_value=0,
+        value=st.session_state["cart"].get(pname, 0),
+        step=1,
+        key=f"qty_{pname}"
+    )
+    st.session_state["cart"][pname] = qty
+
+# 🧾 แสดงตะกร้าสินค้า
+st.subheader("🧾 ตะกร้าสินค้า")
+total_sales = 0
+total_profit = 0
+for pname, qty in st.session_state["cart"].items():
+    if qty > 0:
+        price_row = df[df["ชื่อสินค้า"] == pname]
+        if not price_row.empty:
+            price = float(price_row["ราคาขาย"].values[0])
+            cost = float(price_row["ต้นทุน"].values[0])
+            profit = (price - cost) * qty
+            total_sales += price * qty
+            total_profit += profit
+            st.write(f"- {pname}: {qty} ชิ้น | ขาย {price} บาท | กำไร {profit:.2f} บาท")
+
+# แสดงยอดรวม
+st.markdown("---")
+st.success(f"💰 ยอดขายรวม: {total_sales:.2f} บาท")
+st.info(f"📈 กำไรรวม: {total_profit:.2f} บาท")
+
+# ✅ ปุ่มยืนยันขาย
+if st.button("✅ ยืนยันการขาย"):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for pname, qty in st.session_state["cart"].items():
+        if qty > 0:
+            df.loc[df["ชื่อสินค้า"] == pname, "ออก"] += qty
+            df.loc[df["ชื่อสินค้า"] == pname, "คงเหลือในตู้"] -= qty
+    st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
+    st.session_state["cart"] = {}
+    st.experimental_rerun()
