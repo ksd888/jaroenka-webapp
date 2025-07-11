@@ -68,11 +68,12 @@ selected = st.session_state.get("search_items", [])
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-    cols = st.columns([2, 1, 1])
-    with cols[0]: st.markdown(f"**{p}**")
-    with cols[1]:
+    cols = st.columns([1, 2, 1])
+    with cols[0]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
+    with cols[1]:
+        st.markdown(f"<div style='text-align: center; font-size: 18px;'>จำนวน: {st.session_state.quantities[p]}</div>", unsafe_allow_html=True)
     with cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
