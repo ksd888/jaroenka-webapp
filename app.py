@@ -8,34 +8,17 @@ from google.oauth2.service_account import Credentials
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🌓 toggle โหมดมืด/สว่าง
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-dark_mode = st.toggle("🌙 เปิดโหมดมืด", value=st.session_state.dark_mode)
-st.session_state.dark_mode = dark_mode
-
-# 🎨 ปรับสไตล์ตามธีม
-if dark_mode:
-    st.markdown("""
-        <style>
-        html, body, [class*="css"] {
-            background-color: #0e1117 !important;
-            color: white !important;
-            font-family: "Kanit", sans-serif;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        html, body, [class*="css"] {
-            background-color: #ffffff !important;
-            color: black !important;
-            font-family: "Kanit", sans-serif;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+# 🎨 ปรับสไตล์ให้รองรับโหมดมืด/สว่าง + ข้อความชัดเจน
+st.markdown('''
+    <style>
+    html, body, [class*="css"]  {
+        font-family: "Kanit", sans-serif;
+    }
+    .css-1v0mbdj, .css-1cypcdb {
+        color: white !important;
+    }
+    </style>
+''', unsafe_allow_html=True)
 
 # 🔐 เชื่อมต่อ Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
