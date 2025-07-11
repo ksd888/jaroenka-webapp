@@ -4,38 +4,41 @@ import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
-
-# ✅ Toggle Dark/Light Mode
-mode = st.radio("โหมดแสดงผล", ["🌙 โหมดมืด", "☀️ โหมดสว่าง"], horizontal=True)
-
-if mode == "🌙 โหมดมืด":
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #0e1117;
-            color: white;
-        }
-        .stButton>button {
-            background-color: #444;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #f5f5f5;
-            color: black;
-        }
-        .stButton>button {
-            background-color: #0071e3;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-
+# ✅ CSS Style รองรับ Dark/Light Mode
+st.markdown("""
+<style>
+html, body, [data-testid="stAppViewContainer"] {
+    color: var(--text-color, black);
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.card {
+    background-color: white;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 10px;
+}
+.stock-info {
+    font-size: 18px;
+    font-weight: bold;
+    color: #000000;
+}
+.stButton>button {
+    border-radius: 10px;
+    padding: 8px 20px;
+    background-color: #0071e3;
+    color: white;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #005bb5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ✅ ฟังก์ชันปลอดภัย
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
@@ -81,20 +84,19 @@ for p in st.session_state["search_items"]:
 
     row = df[df["ชื่อสินค้า"] == p]
     stock = safe_int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
-    color = "red" if stock < 3 else "white"
 
     cols = st.columns([3, 1, 1])
     with cols[0]:
-        st.markdown(f"**{p}**<br><span style='color:{color}'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
+        st.markdown(f"<div class='stock-info'>🧊 คงเหลือในตู้: {stock}</div>", unsafe_allow_html=True)
         st.write(f"🔢 จำนวน: **{st.session_state.quantities[p]}**")
     with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-            st.rerun()
+            st.experimental_rerun()
     with cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
-            st.rerun()
+            st.experimental_rerun()
 
 # ✅ เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
@@ -144,4 +146,4 @@ if st.session_state.cart:
             "drink"
         ])
         st.session_state.sale_complete = True
-        st.rerun()
+        st.experimental_rerun()
