@@ -8,42 +8,39 @@ from google.oauth2.service_account import Credentials
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🌗 Toggle Light/Dark Mode
-st.sidebar.markdown("## ⚙️ การตั้งค่า")
-st.sidebar.toggle("🌙 เปิดโหมดมืด", key="dark_mode", value=False)
-
-# 🎨 ใช้ CSS ตามโหมด
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-if st.session_state.dark_mode:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #0e1117;
-            color: white;
-        }
-        .stTextInput > div > div > input,
-        .stSelectbox > div > div > select {
-            background-color: #262730;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: white;
-            color: black;
-        }
-        .stTextInput > div > div > input,
-        .stSelectbox > div > div > select {
-            background-color: #f0f0f0;
-            color: black;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+# ✅ Apple-style Theme (ขาว-ฟอนต์ดำ)
+st.markdown('''
+    <style>
+    html, body, [class*="css"] {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: black;
+        background-color: #ffffff;
+    }
+    .stButton > button {
+        background-color: #0071e3;
+        color: white;
+        border-radius: 8px;
+        padding: 8px 16px;
+        transition: 0.3s;
+    }
+    .stButton > button:hover {
+        background-color: #005bb5;
+    }
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 16px;
+    }
+    .product-card {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        padding: 16px;
+        text-align: center;
+        font-size: 16px;
+    }
+    </style>
+''', unsafe_allow_html=True)
 
 # 🔐 เชื่อมต่อ Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -60,14 +57,7 @@ df = pd.DataFrame(data)
 # 🧠 ตั้งค่า session_state
 for key in ["cart", "search_items", "quantities", "paid_input", "sale_complete", "sale_trigger"]:
     if key not in st.session_state:
-        if key in ["cart", "search_items"]:
-            st.session_state[key] = []
-        elif key == "quantities":
-            st.session_state[key] = {}
-        elif key in ["paid_input"]:
-            st.session_state[key] = 0.0
-        else:
-            st.session_state[key] = False
+        st.session_state[key] = [] if key in ["cart", "search_items"] else {} if key == "quantities" else 0.0 if key == "paid_input" else False
 
 # 🔁 รีเซ็ตหลังขายเสร็จ
 if st.session_state.sale_complete:
@@ -85,27 +75,38 @@ st.subheader("🛒 เลือกสินค้า")
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=st.session_state["search_items"], key="search_items")
 
-# ➕➖ ปรับจำนวนพร้อมแสดงคงเหลือ
+# ➕➖ ปรับจำนวนพร้อมแสดงคงเหลือแบบ Grid
+grid_html = '<div class="card-grid">'
 for p in st.session_state["search_items"]:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-
     row = df[df["ชื่อสินค้า"] == p]
     stock = safe_int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
+    qty = st.session_state.quantities[p]
 
-    cols = st.columns([3, 1, 1])
+    grid_html += f'''
+    <div class="product-card">
+        <b>{p}</b><br>
+        คงเหลือ: {stock}<br>
+        จำนวน: {qty}<br>
+    </div>
+    '''
+grid_html += '</div>'
+st.markdown(grid_html, unsafe_allow_html=True)
+
+# ➖➕ ปุ่มควบคุม
+for p in st.session_state["search_items"]:
+    cols = st.columns([1, 1, 2])
     with cols[0]:
-        st.markdown(f"<b>{p}</b><br>🧊 คงเหลือในตู้: {stock}<br>🔢 จำนวน: {st.session_state.quantities[p]}", unsafe_allow_html=True)
-    with cols[1]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
             st.rerun()
-    with cols[2]:
+    with cols[1]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
             st.rerun()
 
-# ✅ เพิ่มตะกร้า
+# ✅ เพิ่มลงตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in st.session_state["search_items"]:
         qty = st.session_state.quantities[p]
@@ -136,7 +137,7 @@ if st.session_state.cart:
     if st.button("✅ ยืนยันการขาย"):
         st.session_state.sale_trigger = True
 
-# ✅ ดำเนินการขายจริง
+# ✅ บันทึกข้อมูล
 if st.session_state.sale_trigger:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item, qty in st.session_state.cart:
@@ -156,7 +157,6 @@ if st.session_state.sale_trigger:
         st.session_state.paid_input - total_price,
         "drink"
     ])
-
     st.session_state.sale_complete = True
     st.session_state.sale_trigger = False
     st.rerun()
