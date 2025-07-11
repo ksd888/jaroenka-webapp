@@ -216,6 +216,9 @@ for pname in selected:
 st.subheader("🧾 ตะกร้าสินค้า")
 total_sales = 0
 total_profit = 0
+if "cart" not in st.session_state:
+    st.session_state["cart"] = {}
+
 for pname, qty in st.session_state["cart"].items():
     if qty > 0:
         price_row = df[df["ชื่อสินค้า"] == pname]
@@ -235,7 +238,10 @@ st.info(f"📈 กำไรรวม: {total_profit:.2f} บาท")
 # ✅ ปุ่มยืนยันขาย
 if st.button("✅ ยืนยันการขาย"):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for pname, qty in st.session_state["cart"].items():
+    if "cart" not in st.session_state:
+    st.session_state["cart"] = {}
+
+for pname, qty in st.session_state["cart"].items():
         if qty > 0:
             df.loc[df["ชื่อสินค้า"] == pname, "ออก"] += qty
             df.loc[df["ชื่อสินค้า"] == pname, "คงเหลือในตู้"] -= qty
