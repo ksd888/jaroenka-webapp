@@ -9,14 +9,31 @@ def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
 # 🎨 ปรับสไตล์ให้รองรับโหมดมืด/สว่าง + ข้อความชัดเจน
-st.markdown('''
+# 🌙 Toggle Dark/Light Mode
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
+mode = st.toggle("🌗 เปิดโหมดมืด", value=st.session_state.dark_mode)
+st.session_state.dark_mode = mode
+
+# 🎨 CSS Theme Based on Mode
+if st.session_state.dark_mode:
+    bg_color = "#0e1117"
+    text_color = "#ffffff"
+else:
+    bg_color = "#ffffff"
+    text_color = "#000000"
+
+st.markdown(f'''
     <style>
-    html, body, [class*="css"]  {
+    html, body, [class*="css"] {{
         font-family: "Kanit", sans-serif;
-    }
-    .css-1v0mbdj, .css-1cypcdb {
-        color: white !important;
-    }
+        background-color: {bg_color};
+        color: {text_color};
+    }}
+    .stButton > button {{
+        font-weight: bold;
+    }}
     </style>
 ''', unsafe_allow_html=True)
 
