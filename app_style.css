@@ -1,0 +1,62 @@
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Kanit", sans-serif;
+}
+
+h1, h2, h3 {
+  text-align: center;
+  color: white;
+}
+
+.navbar {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  padding: 10px 0;
+  background-color: #111;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.navbar a {
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+}
+.navbar a:hover {
+  text-shadow: 0px 0px 5px #00ffff;
+}
+
+.card {
+  background-color: #1e1e1e;
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  margin-bottom: 20px;
+  transition: transform 0.2s ease-in-out;
+}
+.card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 20px rgba(255,255,255,0.2);
+}
+.card h4 {
+  margin: 10px 0 5px;
+  color: white;
+}
+.card p {
+  color: lightgray;
+}
+.card .btn {
+  background-color: #007aff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+.card .btn:hover {
+  background-color: #005fcc;
+}
+</style>
