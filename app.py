@@ -1,14 +1,37 @@
-
 import streamlit as st
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
+# ✅ Light Theme Style แบบ Apple
+st.markdown("""
+    <style>
+    body, .main, .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    .stButton>button {
+        color: white !important;
+        background-color: #007aff !important;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5em 1em;
+    }
+    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
+        background-color: #f5f5f5 !important;
+        color: #000 !important;
+    }
+    .st-expander, .st-expander>details {
+        background-color: #f8f8f8 !important;
+        color: #000000 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 
-# 🔐 เชื่อมต่อ Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(credentials)
@@ -16,11 +39,9 @@ sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 
-# 📦 โหลดข้อมูลสินค้า
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
 
-# 🧠 ฟังก์ชันช่วยอ่านค่าปลอดภัย
 def safe_safe_int(val): 
     try:
         return safe_int(safe_float(val))
@@ -33,7 +54,6 @@ def safe_safe_float(val):
     except (TypeError, ValueError):
         return 0.0
 
-# 🧊 ค่าเริ่มต้น session_state
 default_session = {
     "cart": [],
     "selected_products": [],
@@ -45,13 +65,11 @@ for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# 🔁 รีเซ็ตเมื่อขายเสร็จ
 if st.session_state.sale_complete:
     for key, default in default_session.items():
         st.session_state[key] = default
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
-# 🔍 ค้นหาและเพิ่มสินค้าเข้าตะกร้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.subheader("🛒 เลือกสินค้า")
 
@@ -85,7 +103,7 @@ for p in selected:
 
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
-    color = 'red' if stock < 3 else 'white'
+    color = 'red' if stock < 3 else 'black'
     st.markdown(
         f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
         unsafe_allow_html=True
@@ -118,8 +136,6 @@ if st.session_state.cart:
 
     if st.button("✅ ยืนยันการขาย"):
         st.session_state["reset_search_items"] = True
-        st.session_state["search_query"] = ""
-
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
@@ -142,7 +158,6 @@ if st.session_state.cart:
         st.session_state.sale_complete = True
         st.rerun()
 
-# 📥 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
     restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -156,7 +171,6 @@ with st.expander("📦 เติมสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
         st.success(f"✅ เติม {restock_item} แล้ว")
 
-# ✏️ แก้ไขสินค้า
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
     index = df[df["ชื่อสินค้า"] == edit_item].index[0]
