@@ -4,6 +4,47 @@ import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
+# ✅ CSS Style แบบ Apple
+st.markdown("""
+<style>
+body {
+    background-color: #f5f5f7;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+h1, h2 {
+    text-align: center;
+    color: #1d1d1f;
+}
+.stButton>button {
+    border-radius: 10px;
+    padding: 8px 20px;
+    background-color: #0071e3;
+    color: white;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #005bb5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+div[data-testid="stSidebar"] {
+    background-color: #f0f0f5;
+}
+.card {
+    background-color: white;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 10px;
+}
+.toggle-switch {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ✅ ฟังก์ชันปลอดภัย
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -16,43 +57,43 @@ sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 
-# 📦 โหลดข้อมูลสินค้า
+# 📦 โหลดข้อมูล
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
 
-# 🧠 ตั้งค่า session_state
+# 🔧 session_state
 for key in ["cart", "search_items", "quantities", "paid_input", "sale_complete"]:
     if key not in st.session_state:
         st.session_state[key] = [] if key in ["cart", "search_items"] else {} if key == "quantities" else 0.0 if key == "paid_input" else False
 
-# 🔁 รีเซ็ตหลังขายเสร็จ
+# ✅ รีเซ็ต
 if st.session_state.sale_complete:
     st.session_state["cart"] = []
     st.session_state["search_items"] = []
     st.session_state["quantities"] = {}
     st.session_state["paid_input"] = 0.0
     st.session_state["sale_complete"] = False
-    st.success("✅ รีเซ็ตหน้าหลังบันทึกแล้ว")
+    st.success("✅ รีเซ็ตเรียบร้อยแล้ว")
 
-# 🛍️ เริ่มหน้าจอ
-st.markdown("<h1 style='text-align: center;'>🧊 ร้านเจริญค้า</h1>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center;'>ระบบขายสินค้าปลีกตู้เย็น</h3>", unsafe_allow_html=True)
-st.divider()
+# 🧊 Header
+st.markdown("<h1>🧊 ร้านเจริญค้า</h1>", unsafe_allow_html=True)
+st.markdown("<h2>ระบบขายสินค้า | ปลีกตู้เย็น</h2>", unsafe_allow_html=True)
 
+# 🔍 เลือกสินค้า
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 ค้นหาสินค้า", product_names, default=st.session_state["search_items"], key="search_items")
 
-# ➕➖ ปรับจำนวนพร้อมแสดงคงเหลือใน Card
+# 🧾 รายการเลือก
 for p in st.session_state["search_items"]:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
 
     row = df[df["ชื่อสินค้า"] == p]
     stock = safe_int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
-    color = "#FF3333" if stock < 3 else "#000000"
+    color = "red" if stock < 3 else "green"
 
     st.markdown(f"""
-    <div style="background-color: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; color: #000000;">
+    <div class="card">
         <b>{p}</b><br>
         <span style='color:{color}'>🧊 คงเหลือในตู้: {stock}</span><br>
         🔢 จำนวน: <b>{st.session_state.quantities[p]}</b>
@@ -69,15 +110,15 @@ for p in st.session_state["search_items"]:
             st.session_state.quantities[p] += 1
             st.experimental_rerun()
 
-# ✅ เพิ่มตะกร้า
-if st.button("🛒 เพิ่มลงตะกร้า"):
+# ➕ เพิ่มลงตะกร้า
+if st.button("➕ เพิ่มลงตะกร้า"):
     for p in st.session_state["search_items"]:
         qty = st.session_state.quantities[p]
         if qty > 0:
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มลงตะกร้าแล้ว")
 
-# 🧾 แสดงตะกร้า
+# 🧾 ตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0.0, 0.0
@@ -90,8 +131,8 @@ if st.session_state.cart:
         st.write(f"- {item} x {qty} = {qty * price:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
-
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
