@@ -1,33 +1,9 @@
+
 import streamlit as st
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-
-# ✅ Light Theme Style แบบ Apple
-st.markdown("""
-    <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    .stButton>button {
-        color: white !important;
-        background-color: #007aff !important;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5em 1em;
-    }
-    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
-        background-color: #f5f5f5 !important;
-        color: #000 !important;
-    }
-    .st-expander, .st-expander>details {
-        background-color: #f8f8f8 !important;
-        color: #000000 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -87,27 +63,20 @@ selected = st.session_state.get("search_items", [])
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
+
     st.markdown(f"**{p}**")
-    qty_cols = st.columns([1, 1, 1])
-    with qty_cols[0]:
-        if st.button("➖", key=f"dec_{p}"):
-            st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    with qty_cols[1]:
-        st.markdown(
-            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
-            unsafe_allow_html=True
-        )
-    with qty_cols[2]:
-        if st.button("➕", key=f"inc_{p}"):
-            st.session_state.quantities[p] += 1
+    qty = st.number_input(
+        f"🔢 จำนวน - {p}",
+        min_value=1,
+        step=1,
+        value=st.session_state.quantities.get(p, 1),
+        key=f"qty_input_{p}"
+    )
+    st.session_state.quantities[p] = qty
 
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
-    color = 'red' if stock < 3 else 'black'
-    st.markdown(
-        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"🧊 คงเหลือในตู้: {stock}")
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
@@ -136,6 +105,8 @@ if st.session_state.cart:
 
     if st.button("✅ ยืนยันการขาย"):
         st.session_state["reset_search_items"] = True
+        st.session_state["search_query"] = ""
+
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
