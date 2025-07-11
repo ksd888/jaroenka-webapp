@@ -4,7 +4,37 @@ import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
 
-# ✅ CSS Style แบบ Apple
+# ✅ ฟังก์ชันปลอดภัย
+def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
+def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
+
+# 🔐 เชื่อมต่อ Google Sheet
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
+gc = gspread.authorize(credentials)
+sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+worksheet = sheet.worksheet("ตู้เย็น")
+summary_ws = sheet.worksheet("ยอดขาย")
+
+# 📦 โหลดข้อมูลสินค้า
+data = worksheet.get_all_records()
+df = pd.DataFrame(data)
+
+# 🧠 ตั้งค่า session_state
+for key in ["cart", "search_items", "quantities", "paid_input", "sale_complete"]:
+    if key not in st.session_state:
+        st.session_state[key] = [] if key in ["cart", "search_items"] else {} if key == "quantities" else 0.0 if key == "paid_input" else False
+
+# 🔁 รีเซ็ตหลังขายเสร็จ
+if st.session_state.sale_complete:
+    st.session_state["cart"] = []
+    st.session_state["search_items"] = []
+    st.session_state["quantities"] = {}
+    st.session_state["paid_input"] = 0.0
+    st.session_state["sale_complete"] = False
+    st.success("✅ รีเซ็ตหน้าหลังบันทึกแล้ว")
+
+# ✅ CSS แบบ Apple + สีดำชัดเจน
 st.markdown("""
 <style>
 body {
@@ -36,54 +66,20 @@ div[data-testid="stSidebar"] {
     padding: 15px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 10px;
-}
-.toggle-switch {
-    display: flex;
-    justify-content: center;
-    margin-top: 10px;
+    color: black;
 }
 </style>
 """, unsafe_allow_html=True)
-
-# ✅ ฟังก์ชันปลอดภัย
-def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
-def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
-
-# 🔐 เชื่อมต่อ Google Sheet
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
-gc = gspread.authorize(credentials)
-sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-worksheet = sheet.worksheet("ตู้เย็น")
-summary_ws = sheet.worksheet("ยอดขาย")
-
-# 📦 โหลดข้อมูล
-data = worksheet.get_all_records()
-df = pd.DataFrame(data)
-
-# 🔧 session_state
-for key in ["cart", "search_items", "quantities", "paid_input", "sale_complete"]:
-    if key not in st.session_state:
-        st.session_state[key] = [] if key in ["cart", "search_items"] else {} if key == "quantities" else 0.0 if key == "paid_input" else False
-
-# ✅ รีเซ็ต
-if st.session_state.sale_complete:
-    st.session_state["cart"] = []
-    st.session_state["search_items"] = []
-    st.session_state["quantities"] = {}
-    st.session_state["paid_input"] = 0.0
-    st.session_state["sale_complete"] = False
-    st.success("✅ รีเซ็ตเรียบร้อยแล้ว")
 
 # 🧊 Header
 st.markdown("<h1>🧊 ร้านเจริญค้า</h1>", unsafe_allow_html=True)
 st.markdown("<h2>ระบบขายสินค้า | ปลีกตู้เย็น</h2>", unsafe_allow_html=True)
 
-# 🔍 เลือกสินค้า
+# 🔍 ค้นหา
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 ค้นหาสินค้า", product_names, default=st.session_state["search_items"], key="search_items")
 
-# 🧾 รายการเลือก
+# ➕➖ แสดงสินค้า
 for p in st.session_state["search_items"]:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
@@ -93,9 +89,9 @@ for p in st.session_state["search_items"]:
     color = "red" if stock < 3 else "green"
 
     st.markdown(f"""
-    <div class="card">
-        <b>{p}</b><br>
-        <span style='color:{color}'>🧊 คงเหลือในตู้: {stock}</span><br>
+    <div class='card'>
+        <b style='font-size:18px;'>{p}</b><br>
+        <span style='color:{color};font-weight:bold'>🧊 คงเหลือในตู้: {stock}</span><br>
         🔢 จำนวน: <b>{st.session_state.quantities[p]}</b>
     </div>
     """, unsafe_allow_html=True)
@@ -110,7 +106,7 @@ for p in st.session_state["search_items"]:
             st.session_state.quantities[p] += 1
             st.experimental_rerun()
 
-# ➕ เพิ่มลงตะกร้า
+# ➕ เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in st.session_state["search_items"]:
         qty = st.session_state.quantities[p]
@@ -131,8 +127,8 @@ if st.session_state.cart:
         st.write(f"- {item} x {qty} = {qty * price:.2f} บาท")
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
+    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
