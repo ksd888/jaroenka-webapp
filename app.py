@@ -68,17 +68,20 @@ selected = st.session_state.get("search_items", [])
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-    cols = st.columns([1, 2, 1])
-    with cols[0]:
+    st.markdown(f"**{p}**")
+    qty_cols = st.columns([1, 1, 1])
+    with qty_cols[0]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    with cols[1]:
-        st.markdown(f"<div style='text-align: center; font-size: 18px;'>จำนวน: {st.session_state.quantities[p]}</div>", unsafe_allow_html=True)
-    with cols[2]:
+    with qty_cols[1]:
+        st.markdown(
+            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
+            unsafe_allow_html=True
+        )
+    with qty_cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
 
-    # ✅ แสดงคงเหลือในตู้ พร้อมสีแดงเมื่อเหลือน้อยกว่า 3
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'white'
@@ -94,7 +97,6 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0, 0
