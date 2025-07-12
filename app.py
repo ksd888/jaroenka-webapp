@@ -4,32 +4,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-
-st.markdown("""
-    <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    .stButton>button {
-        color: white !important;
-        background-color: #007aff !important;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5em 1em;
-    }
-    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
-        background-color: #f5f5f5 !important;
-        color: #000 !important;
-    }
-    .st-expander, .st-expander>details {
-        background-color: #f8f8f8 !important;
-        color: #000000 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-
 # ✅ Light Theme Style แบบ Apple
 st.markdown("""
     <style>
@@ -110,17 +84,19 @@ else:
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
 selected = st.session_state.get("search_items", [])
-for p in selected:
+
+for idx, p in enumerate(selected):
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-    st.markdown(f"**{p}**")
-    qty_cols = st.columns([1, 1, 1])
-    with qty_cols[0]:
-        if st.button("➖", key=f"dec_{p}"):
-            st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    with qty_cols[1]:
-        st.markdown(
-            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
+
+    cols = st.columns(3)
+    with cols[idx % 3]:
+        st.markdown(f"### 🧃 {p}")
+        st.session_state.quantities[p] = st.number_input(
+            f"จำนวน ({p})", min_value=1, step=1,
+            value=st.session_state.quantities[p],
+            key=f"qty_{p}"
+        )
             unsafe_allow_html=True
         )
     with qty_cols[2]:
