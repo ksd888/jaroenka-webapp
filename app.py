@@ -138,7 +138,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
         qty = safe_safe_int(st.session_state.quantities[p])
         if qty > 0:
-            st.session_state.cart.append((p, qty))
+            st.session_state.cart[p] = st.session_state.cart.get(p, 0) + qty
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
 if st.session_state.cart:
