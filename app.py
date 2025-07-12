@@ -4,6 +4,32 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
+
+st.markdown("""
+    <style>
+    body, .main, .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    .stButton>button {
+        color: white !important;
+        background-color: #007aff !important;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5em 1em;
+    }
+    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
+        background-color: #f5f5f5 !important;
+        color: #000 !important;
+    }
+    .st-expander, .st-expander>details {
+        background-color: #f8f8f8 !important;
+        color: #000000 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # ✅ Light Theme Style แบบ Apple
 st.markdown("""
     <style>
@@ -27,7 +53,7 @@ st.markdown("""
         color: #000000 !important;
     }
     </style>
-""")
+""", unsafe_allow_html=True)
 
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -95,7 +121,7 @@ for p in selected:
     with qty_cols[1]:
         st.markdown(
             f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
-
+            unsafe_allow_html=True
         )
     with qty_cols[2]:
         if st.button("➕", key=f"inc_{p}"):
@@ -106,7 +132,7 @@ for p in selected:
     color = 'red' if stock < 3 else 'black'
     st.markdown(
         f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-
+        unsafe_allow_html=True
     )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
