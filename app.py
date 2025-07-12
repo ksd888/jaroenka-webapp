@@ -105,7 +105,6 @@ with qty_cols[1]:
         label=" ", min_value=1,
         value=st.session_state.quantities.get(p, 1),
         step=1, key=f"qty_input_{p}"
-    )
 
     qty_cols = st.columns([1, 1, 1])
 
@@ -120,7 +119,6 @@ with qty_cols[1]:
     st.markdown(
         f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
         unsafe_allow_html=True
-    )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
@@ -197,4 +195,3 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
-)
