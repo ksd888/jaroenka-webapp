@@ -68,8 +68,8 @@ for key, default in default_session.items():
 
 st.markdown("### 🛒 ตะกร้าสินค้า")
 
-for product_name in st.session_state.cart:
-    quantity = st.session_state.cart[product_name]
+for product_name in list(st.session_state.cart.keys()):
+    quantity = st.session_state.cart.get(product_name, 0)
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         st.write(f"**{product_name}**")
