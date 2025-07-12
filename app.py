@@ -84,19 +84,17 @@ else:
 st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
 selected = st.session_state.get("search_items", [])
-
-for idx, p in enumerate(selected):
+for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
-
-    cols = st.columns(3)
-    with cols[idx % 3]:
-        st.markdown(f"### 🧃 {p}")
-        st.session_state.quantities[p] = st.number_input(
-            f"จำนวน ({p})", min_value=1, step=1,
-            value=st.session_state.quantities[p],
-            key=f"qty_{p}"
-        )
+    st.markdown(f"**{p}**")
+    qty_cols = st.columns([1, 1, 1])
+    with qty_cols[0]:
+        if st.button("➖", key=f"dec_{p}"):
+            st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
+    with qty_cols[1]:
+        st.markdown(
+            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
 
         )
     with qty_cols[2]:
