@@ -55,7 +55,7 @@ def safe_safe_float(val):
         return 0.0
 
 default_session = {
-    "cart": [],
+    "cart": {},
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
@@ -68,18 +68,26 @@ for key, default in default_session.items():
 
 st.markdown("### 🛒 ตะกร้าสินค้า")
 
-for product_name in list(st.session_state.cart.keys()):
-    quantity = st.session_state.cart.get(product_name, 0)
-    col1, col2, col3 = st.columns([3, 1, 1])
-    with col1:
-        st.write(f"**{product_name}**")
-    with col2:
-        if st.button("➖", key=f"remove_{product_name}"):
-            if st.session_state.cart[product_name] > 0:
-                st.session_state.cart[product_name] -= 1
-    with col3:
-        if st.button("➕", key=f"add_{product_name}"):
-            st.session_state.cart[product_name] += 1
+if not st.session_state.cart:
+    st.info("ยังไม่มีสินค้าถูกเพิ่มในตะกร้า")
+else:
+    for product_name, quantity in list(st.session_state.cart.items()):
+        col1, col2, col3 = st.columns([3, 1, 1])
+        with col1:
+            st.write(f"**{product_name}** (x{quantity})")
+        with col2:
+            if st.button("➖", key=f"remove_{product_name}"):
+                if st.session_state.cart[product_name] > 1:
+                    st.session_state.cart[product_name] -= 1
+                else:
+                    del st.session_state.cart[product_name]
+                st.rerun()
+        with col3:
+            if st.button("➕", key=f"add_{product_name}"):
+                st.session_state.cart[product_name] += 1
+                st.rerun()
+
+
 
 
 if st.session_state.sale_complete:
