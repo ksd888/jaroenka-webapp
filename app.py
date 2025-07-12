@@ -89,15 +89,14 @@ for idx, p in enumerate(selected):
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
 
-    if "grid_cols" not in locals():
-        grid_cols = st.columns(3)
-
-    with grid_cols[idx % 3]:
+    cols = st.columns(3)
+    with cols[idx % 3]:
         st.markdown(f"### 🧃 {p}")
         st.session_state.quantities[p] = st.number_input(
-            f"จำนวน ({p})", min_value=1, step=1, value=st.session_state.quantities[p], key=f"qty_{p}"
+            f"จำนวน ({p})", min_value=1, step=1,
+            value=st.session_state.quantities[p],
+            key=f"qty_{p}"
         )
-e='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
             unsafe_allow_html=True
         )
     with qty_cols[2]:
