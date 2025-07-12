@@ -2,31 +2,32 @@ import streamlit as st
 import pandas as pd
 import datetime
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
-# Setup Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["GCP_SERVICE_ACCOUNT"], scope)
+# Setup Google Sheets (ใช้ google-auth)
+scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(
+    st.secrets["GCP_SERVICE_ACCOUNT"],
+    scopes=scope
+)
 gc = gspread.authorize(credentials)
 spreadsheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-
 sheet = spreadsheet.worksheet("ตู้เย็น")
 df = pd.DataFrame(sheet.get_all_records())
 
-# Initialize session state
+# Session state
 if "cart" not in st.session_state:
     st.session_state.cart = {}
 if "timestamp" not in st.session_state:
     st.session_state.timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 st.title("🧊 ร้านเจริญค้า - ระบบขายสินค้า")
-
 st.subheader("🛒 เลือกสินค้า")
 
 for idx, row in df.iterrows():
     item = row["ชื่อสินค้า"]
     price = row["ราคาขาย"]
-    
+
     col1, col2, col3, col4 = st.columns([4, 1, 1, 2])
     with col1:
         st.markdown(f"**{item}** ({price}฿)")
@@ -41,7 +42,7 @@ for idx, row in df.iterrows():
         qty = st.session_state.cart.get(item, 0)
         st.markdown(f"**จำนวน:** {qty}")
 
-# แสดงตะกร้าสินค้า
+# แสดงตะกร้า
 st.subheader("🧾 ตะกร้าสินค้า")
 cart = st.session_state.cart
 if cart:
@@ -77,6 +78,5 @@ if cart:
         st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
         st.session_state.cart = {}  # Reset cart
         st.experimental_rerun()
-
 else:
     st.info("🛒 ยังไม่มีสินค้าถูกเลือกในตะกร้า")
