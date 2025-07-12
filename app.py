@@ -100,7 +100,10 @@ qty_cols = st.columns([1, 1, 1])
 
     
 with qty_cols[1]:
-    st.session_state.quantities[p] = st.number_input(
+    for p in product_names:
+    qty_cols = st.columns([1, 1, 1])
+    with qty_cols[1]:
+        st.session_state.quantities[p] = st.number_input(
         label=" ", min_value=1,
         value=st.session_state.quantities.get(p, 1),
         step=1, key=f"qty_input_{p}"
