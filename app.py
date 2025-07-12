@@ -195,4 +195,5 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
-        st.success(f"✅ อัปเดต {edit_item} แล้ว")
+        st.success(f"✅ อัปเดต {edit_item} แล้ว"product_names = df["ชื่อสินค้า"].tolist()
+)
