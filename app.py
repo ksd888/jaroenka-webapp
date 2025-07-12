@@ -92,11 +92,14 @@ for p in selected:
     with qty_cols[0]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    with qty_cols[1]:
-        st.markdown(
-            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
-            unsafe_allow_html=True
-        )
+    
+with qty_cols[1]:
+    st.session_state.quantities[p] = st.number_input(
+        label=" ", min_value=1,
+        value=st.session_state.quantities.get(p, 1),
+        step=1, key=f"qty_input_{p}"
+    )
+
     with qty_cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
