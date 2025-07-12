@@ -97,19 +97,15 @@ for p in selected:
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        if st.button("➖", key=f"dec_{safe_key({p})}"):
+        if st.button("➖", key=f"dec_{safe_key(p)}"):
             new_val = max(1, qty - 1)
             st.session_state.quantities[p] = new_val
     with col2:
         st.markdown(f"<div style='text-align: center; font-size: 24px;'>{st.session_state.quantities[p]}</div>", unsafe_allow_html=True)
     with col3:
-        if st.button("➕", key=f"inc_{safe_key({p})}"):
+        if st.button("➕", key=f"inc_{safe_key(p)}"):
             new_val = qty + 1
             st.session_state.quantities[p] = new_val
-
-        if st.button("➕", key=f"inc_{safe_key({p})}"):
-            st.session_state.quantities[p] += 1
-
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
