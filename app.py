@@ -41,6 +41,7 @@ summary_ws = sheet.worksheet("ยอดขาย")
 
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
+product_names = df["ชื่อสินค้า"].tolist()
 
 def safe_safe_int(val): 
     try:
@@ -195,5 +196,5 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
-        st.success(f"✅ อัปเดต {edit_item} แล้ว"product_names = df["ชื่อสินค้า"].tolist()
+        st.success(f"✅ อัปเดต {edit_item} แล้ว")
 )
