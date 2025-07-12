@@ -187,6 +187,9 @@ with st.expander("✏️ แก้ไขสินค้า"):
 
 
 
+if "cart" not in st.session_state:
+    st.session_state["cart"] = {}
+
 for pname in selected:
     st.write(f"### {pname}")
     qty = st.number_input(
