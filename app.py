@@ -27,7 +27,7 @@ st.markdown("""
         color: #000000 !important;
     }
     </style>
-""", unsafe_allow_html=True)
+""")
 
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -107,8 +107,7 @@ for idx, p in enumerate(selected):
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
     st.markdown(
-        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-        unsafe_allow_html=True
+        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>"
     )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
