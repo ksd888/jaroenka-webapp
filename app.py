@@ -97,7 +97,7 @@ for idx, p in enumerate(selected):
             value=st.session_state.quantities[p],
             key=f"qty_{p}"
         )
-            unsafe_allow_html=True
+
         )
     with qty_cols[2]:
         if st.button("➕", key=f"inc_{p}"):
@@ -108,7 +108,7 @@ for idx, p in enumerate(selected):
     color = 'red' if stock < 3 else 'black'
     st.markdown(
         f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-        unsafe_allow_html=True
+
     )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
