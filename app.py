@@ -41,7 +41,6 @@ summary_ws = sheet.worksheet("ยอดขาย")
 
 data = worksheet.get_all_records()
 df = pd.DataFrame(data)
-product_names = df["ชื่อสินค้า"].tolist()
 
 def safe_safe_int(val): 
     try:
@@ -90,25 +89,14 @@ for p in selected:
         st.session_state.quantities[p] = 1
     st.markdown(f"**{p}**")
     qty_cols = st.columns([1, 1, 1])
-    qty_cols = st.columns([1, 1, 1])
-    qty_cols = st.columns([1, 1, 1])
-
     with qty_cols[0]:
         if st.button("➖", key=f"dec_{p}"):
             st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
-    
-qty_cols = st.columns([1, 1, 1])
-
-    
-with qty_cols[1]:
-    st.session_state.quantities[p] = st.number_input()
-        label=" ", min_value=1,
-        value=st.session_state.quantities.get(p, 1),
-        step=1, key=f"qty_input_{p}")
-
-    qty_cols = st.columns([1, 1, 1])
-
-
+    with qty_cols[1]:
+        st.markdown(
+            f"<div style='text-align:center; font-size:20px; font-weight:bold'>{st.session_state.quantities[p]}</div>",
+            unsafe_allow_html=True
+        )
     with qty_cols[2]:
         if st.button("➕", key=f"inc_{p}"):
             st.session_state.quantities[p] += 1
@@ -119,6 +107,7 @@ with qty_cols[1]:
     st.markdown(
         f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
         unsafe_allow_html=True
+    )
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
@@ -195,3 +184,18 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
+
+
+
+product_names = df["ชื่อสินค้า"].tolist()
+
+st.subheader("🛒 เลือกสินค้าที่ต้องการขาย")
+for p in product_names:
+    st.markdown(f"**{p}**")
+    qty_cols = st.columns([1, 1, 1])
+    with qty_cols[1]:
+        st.session_state.quantities[p] = st.number_input(
+            label=" ", min_value=1,
+            value=st.session_state.quantities.get(p, 1),
+            step=1, key=f"qty_input_{p}"
+        )
