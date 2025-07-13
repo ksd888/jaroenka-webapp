@@ -1,6 +1,10 @@
 import streamlit as st
+import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+import pandas as pd
 
-# ✅ CSS Apple Style ต้องแทรกให้ถูกจุด + มี unsafe_allow_html=True
+# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     <style>
     body, .main, .block-container {
@@ -14,8 +18,6 @@ st.markdown("""
         border-radius: 10px;
         padding: 0.5em 1.2em;
         font-weight: bold;
-        font-size: 14px !important;
-        width: 100% !important;
     }
     .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
         background-color: #f2f2f7 !important;
@@ -47,15 +49,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-import streamlit as st
-import datetime
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
-
-# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
-
 
 def safe_key(text): return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
