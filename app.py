@@ -1,4 +1,4 @@
-mport streamlit as st
+import streamlit as st
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
@@ -149,13 +149,23 @@ if st.session_state.cart:
 
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
-    cols = st.columns([1,1,1,1,1])
-    amounts = [20, 50, 100, 500, 1000]
-    for i, col in enumerate(cols):
-        with col:
-            if st.button(f"{amounts[i]} บาท", key=f"quick_{amounts[i]}"):
-                st.session_state.paid_input += amounts[i]
-
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        if st.button("20"):
+            st.session_state.paid_input += 20
+    with col2:
+        if st.button("50"):
+            st.session_state.paid_input += 50
+    with col3:
+        if st.button("100"):
+            st.session_state.paid_input += 100
+    with col4:
+        if st.button("500"):
+            st.session_state.paid_input += 500
+    with col5:
+        if st.button("1000"):
+            st.session_state.paid_input += 1000
+    
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
