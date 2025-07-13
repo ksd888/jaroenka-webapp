@@ -1,4 +1,3 @@
-
 import streamlit as st
 import datetime
 import gspread
@@ -8,6 +7,49 @@ import pandas as pd
 # ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     <style>
+    body, .main, .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    .stButton>button {
+        color: white !important;
+        background-color: #007aff !important;
+        border: none;
+        border-radius: 10px;
+        padding: 0.4em 0.8em !important;
+        font-weight: bold;
+        font-size: 14px !important;
+        width: 100% !important;
+    }
+    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
+        background-color: #f2f2f7 !important;
+        color: #000 !important;
+        border-radius: 6px;
+        font-size: 18px;
+        font-weight: bold;
+    }
+    .st-expander, .st-expander>details {
+        background-color: #f9f9f9 !important;
+        color: #000000 !important;
+        border-radius: 8px;
+    }
+    .stAlert > div {
+        font-weight: bold;
+        color: #000 !important;
+    }
+    .stAlert[data-testid="stAlert-success"] {
+        background-color: #d4fcd4 !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-info"] {
+        background-color: #e6f0ff !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-warning"] {
+        background-color: #fff4d2 !important;
+        border: 1px solid #ff9500 !important;
+    }
+    </style>
     body, .main, .block-container {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -121,7 +163,10 @@ for p in selected:
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
-    st.markdown(f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
+    st.markdown(
+        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
+        unsafe_allow_html=True
+    )
 
 # 🧺 เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
@@ -145,18 +190,7 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    if "paid_input" not in st.session_state or not isinstance(st.session_state.paid_input, (int, float)):
-        st.session_state.paid_input = 0.0
-
-    st.number_input("💰 รับเงิน", key="paid_input", step=1.0)
-
-    cols = st.columns([1, 1, 1, 1, 1])
-    amounts = [20, 50, 100, 500, 1000]
-    for col, amt in zip(cols, amounts):
-        with col:
-            if st.button(f"{amt}฿", key=f"btn_{amt}"):
-                st.session_state.paid_input += amt
-
+    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
