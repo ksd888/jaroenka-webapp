@@ -32,10 +32,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ฟังก์ชันความปลอดภัย
-def safe_key(text):
-    return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
-
+def safe_key(text): return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
 def safe_safe_int(val): 
@@ -45,22 +42,18 @@ def safe_safe_float(val):
     try: return safe_float(val)
     except: return 0.0
 
-# ปุ่ม ➕➖ แบบลื่น
 def increase_quantity(p): st.session_state.quantities[p] += 1
 def decrease_quantity(p): st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
-# เชื่อม Google Sheets
+# 🔗 เชื่อม Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(credentials)
 sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
 worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
+df = pd.DataFrame(worksheet.get_all_records())
 
-data = worksheet.get_all_records()
-df = pd.DataFrame(data)
-
-# เซสชันเริ่มต้น
 default_session = {
     "cart": [],
     "selected_products": [],
@@ -77,18 +70,19 @@ if st.session_state.sale_complete:
         st.session_state[key] = default
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
-# 🧊 ส่วนขายสินค้า
+# 🛒 ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
-st.subheader("🛒 เลือกสินค้า")
+st.subheader("🔍 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
+default_selected = []
 if "reset_search_items" in st.session_state:
     default_selected = []
     del st.session_state["reset_search_items"]
 else:
     default_selected = st.session_state.get("search_items", [])
 
-st.multiselect("🔍 เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
+st.multiselect("เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
 selected = st.session_state.get("search_items", [])
 for p in selected:
@@ -104,7 +98,7 @@ for p in selected:
         st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", unsafe_allow_html=True)
     with col3:
         st.button("➕", key=f"inc_{safe_key(p)}", on_click=increase_quantity, args=(p,))
-    
+
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
@@ -113,7 +107,7 @@ for p in selected:
         unsafe_allow_html=True
     )
 
-# ปุ่มเพิ่มลงตะกร้า
+# 🧺 เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
         qty = safe_safe_int(st.session_state.quantities[p])
@@ -121,7 +115,7 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# แสดงตะกร้า
+# 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0, 0
@@ -165,7 +159,7 @@ if st.session_state.cart:
         st.session_state.sale_complete = True
         st.rerun()
 
-# เติมสินค้า
+# 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
     restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
@@ -179,7 +173,7 @@ with st.expander("📦 เติมสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
         st.success(f"✅ เติม {restock_item} แล้ว")
 
-# แก้ไขสินค้า
+# ✏️ แก้ไขสินค้า
 with st.expander("✏️ แก้ไขสินค้า"):
     edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
     index = df[df["ชื่อสินค้า"] == edit_item].index[0]
