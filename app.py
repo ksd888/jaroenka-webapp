@@ -4,7 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
+# ✅ Apple Style CSS
 st.markdown("""
     <style>
     body, .main, .block-container {
@@ -72,10 +72,18 @@ worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
+# 🔧 Session Defaults
 default_session = {
     "cart": [],
     "selected_products": [],
     "quantities": {},
+    "paid_input": 0.0,
+    "sale_complete": False
+}
+for key, default in default_session.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
+
 if st.session_state.sale_complete:
     for key, default in default_session.items():
         st.session_state[key] = default
@@ -140,32 +148,29 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # ✅ รับเงินพร้อมปุ่มเงินลัด
+    if "paid_input" not in st.session_state:
+        st.session_state.paid_input = 0.0
+
+    col1, col2 = st.columns([1, 4])
+    with col2:
+        st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
+
     with col1:
-        if st.button("20"):
+        st.markdown("### 💵 เงินลัด")
+        if st.button("➕ 20", key="btn_20"): st.session_state.paid_input += 20
+        if st.button("➕ 50", key="btn_50"): st.session_state.paid_input += 50
+        if st.button("➕ 100", key="btn_100"): st.session_state.paid_input += 100
+        if st.button("➕ 500", key="btn_500"): st.session_state.paid_input += 500
+        if st.button("➕ 1000", key="btn_1000"): st.session_state.paid_input += 1000
 
-# ✅ รับเงินพร้อมปุ่มเงินลัด (ใช้ paid_input อย่างเดียว)
-if "paid_input" not in st.session_state:
-    st.session_state.paid_input = 0.0
+    # 💵 เงินทอน
+    if st.session_state.paid_input >= total_price:
+        st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
+    else:
+        st.warning("💸 ยอดเงินไม่พอ")
 
-col1, col2 = st.columns([1, 4])
-with col2:
-    st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
-
-with col1:
-    st.markdown("### 💵 เงินลัด")
-    if st.button("➕ 20", key="btn_20"): st.session_state.paid_input += 20
-    if st.button("➕ 50", key="btn_50"): st.session_state.paid_input += 50
-    if st.button("➕ 100", key="btn_100"): st.session_state.paid_input += 100
-    if st.button("➕ 500", key="btn_500"): st.session_state.paid_input += 500
-    if st.button("➕ 1000", key="btn_1000"): st.session_state.paid_input += 1000
-
-# 💵 แสดงเงินทอน
-if st.session_state.paid_input >= total_price:
-    st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
-else:
-    st.warning("💸 ยอดเงินไม่พอ")
-
+    # ✅ ปุ่มยืนยันการขาย
     if st.button("✅ ยืนยันการขาย"):
         st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -183,6 +188,13 @@ else:
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
+            st.session_state.paid_input,
+            st.session_state.paid_input - total_price,
+            "drink"
+        ])
+        st.session_state.sale_complete = True
+        st.rerun()
+
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
@@ -212,7 +224,7 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
 
-# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออกประจำวัน (แบบเร็ว)
+# 🔁 รีเซ็ตยอดเข้า-ออกประจำวัน
 if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
     num_rows = len(df)
     worksheet.batch_update([
