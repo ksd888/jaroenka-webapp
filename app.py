@@ -4,7 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-# ✅ Apple Style CSS
+# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     <style>
     body, .main, .block-container {
@@ -23,23 +23,29 @@ st.markdown("""
         background-color: #f2f2f7 !important;
         color: #000 !important;
         border-radius: 6px;
+        font-size: 18px;
+        font-weight: bold;
     }
     .st-expander, .st-expander>details {
         background-color: #f9f9f9 !important;
         color: #000000 !important;
         border-radius: 8px;
     }
-    .stAlert {
-        border-radius: 10px !important;
-        padding: 0.5em 1em !important;
-        font-weight: 500 !important;
-        font-size: 16px !important;
-    }
     .stAlert > div {
-        padding: 0 !important;
+        font-weight: bold;
+        color: #000 !important;
     }
-    .stAlert p {
-        margin: 0 !important;
+    .stAlert[data-testid="stAlert-success"] {
+        background-color: #d4fcd4 !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-info"] {
+        background-color: #e6f0ff !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-warning"] {
+        background-color: #fff4d2 !important;
+        border: 1px solid #ff9500 !important;
     }
     </style>
 """, unsafe_allow_html=True)
