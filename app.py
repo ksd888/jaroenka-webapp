@@ -76,13 +76,6 @@ default_session = {
     "cart": [],
     "selected_products": [],
     "quantities": {},
-    "paid_input": 0.0,
-    "sale_complete": False
-}
-for key, default in default_session.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
-
 if st.session_state.sale_complete:
     for key, default in default_session.items():
         st.session_state[key] = default
@@ -147,29 +140,31 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
-
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if st.button("20"):
-            st.session_state.paid_input += 20
-    with col2:
-        if st.button("50"):
-            st.session_state.paid_input += 50
-    with col3:
-        if st.button("100"):
-            st.session_state.paid_input += 100
-    with col4:
-        if st.button("500"):
-            st.session_state.paid_input += 500
-    with col5:
-        if st.button("1000"):
-            st.session_state.paid_input += 1000
-    
-    if st.session_state.paid_input >= total_price:
-        st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
-    else:
-        st.warning("💸 ยอดเงินไม่พอ")
+
+# ✅ รับเงินพร้อมปุ่มเงินลัด (ใช้ paid_input อย่างเดียว)
+if "paid_input" not in st.session_state:
+    st.session_state.paid_input = 0.0
+
+col1, col2 = st.columns([1, 4])
+with col2:
+    st.number_input("💰 รับเงิน", min_value=0.0, step=1.0, key="paid_input")
+
+with col1:
+    st.markdown("### 💵 เงินลัด")
+    if st.button("➕ 20", key="btn_20"): st.session_state.paid_input += 20
+    if st.button("➕ 50", key="btn_50"): st.session_state.paid_input += 50
+    if st.button("➕ 100", key="btn_100"): st.session_state.paid_input += 100
+    if st.button("➕ 500", key="btn_500"): st.session_state.paid_input += 500
+    if st.button("➕ 1000", key="btn_1000"): st.session_state.paid_input += 1000
+
+# 💵 แสดงเงินทอน
+if st.session_state.paid_input >= total_price:
+    st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
+else:
+    st.warning("💸 ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
         st.session_state["reset_search_items"] = True
@@ -188,13 +183,6 @@ if st.session_state.cart:
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
-            st.session_state.paid_input,
-            st.session_state.paid_input - total_price,
-            "drink"
-        ])
-        st.session_state.sale_complete = True
-        st.rerun()
-
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
     restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
