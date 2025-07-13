@@ -30,13 +30,16 @@ st.markdown("""
         border-radius: 8px;
     }
     .stAlert {
-        font-weight: 600 !important;
+        border-radius: 10px !important;
+        padding: 0.5em 1em !important;
+        font-weight: 500 !important;
         font-size: 16px !important;
-        color: #000 !important;
     }
-    .stAlert div[role='alert'] {
-        padding: 10px 15px !important;
-        border-radius: 8px !important;
+    .stAlert > div {
+        padding: 0 !important;
+    }
+    .stAlert p {
+        margin: 0 !important;
     }
     </style>
 """, unsafe_allow_html=True)
