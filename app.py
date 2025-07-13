@@ -110,12 +110,13 @@ for p in selected:
 
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        st.button("➖", key=f"dec_{safe_key(p)}", on_click=decrease_quantity, args=(p,))
-    with col2:
-        st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", unsafe_allow_html=True)
-    with col3:
-        st.button("➕", key=f"inc_{safe_key(p)}", on_click=increase_quantity, args=(p,))
+        with col1:
+        st.markdown("### 💵 เงินลัด")
+        money_buttons = [20, 50, 100, 500, 1000]
+        for amount in money_buttons:
+            if st.button(f"➕ {amount}", key=f"btn_{amount}"):
+                st.session_state["paid_input"] = st.session_state.get("paid_input", 0.0) + amount
+                st.rerun()
 
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
