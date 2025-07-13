@@ -4,7 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-# ✅ Apple Style CSS
+# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     <style>
     body, .main, .block-container {
@@ -23,16 +23,33 @@ st.markdown("""
         background-color: #f2f2f7 !important;
         color: #000 !important;
         border-radius: 6px;
+        font-size: 18px;
+        font-weight: bold;
     }
     .st-expander, .st-expander>details {
         background-color: #f9f9f9 !important;
         color: #000000 !important;
         border-radius: 8px;
     }
+    .stAlert > div {
+        font-weight: bold;
+        color: #000 !important;
+    }
+    .stAlert[data-testid="stAlert-success"] {
+        background-color: #d4fcd4 !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-info"] {
+        background-color: #e6f0ff !important;
+        border: 1px solid #007aff !important;
+    }
+    .stAlert[data-testid="stAlert-warning"] {
+        background-color: #fff4d2 !important;
+        border: 1px solid #ff9500 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# 🔐 ฟังก์ชันช่วย
 def safe_key(text): return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -42,6 +59,7 @@ def safe_safe_int(val):
 def safe_safe_float(val): 
     try: return safe_float(val)
     except: return 0.0
+
 def increase_quantity(p): st.session_state.quantities[p] += 1
 def decrease_quantity(p): st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
@@ -54,7 +72,6 @@ worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
-# 🔄 ค่าดีฟอลต์ของ session
 default_session = {
     "cart": [],
     "selected_products": [],
@@ -71,7 +88,7 @@ if st.session_state.sale_complete:
         st.session_state[key] = default
     st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
 
-# 🛒 ระบบขาย
+# 🛒 ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 st.subheader("🔍 เลือกสินค้า")
 
@@ -128,9 +145,9 @@ if st.session_state.cart:
         total_profit += profit
         st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
 
-    st.info(f"💰 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
+    st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    st.session_state.paid_input = st.number_input("💵 รับเงิน", value=st.session_state.paid_input, step=1.0)
+    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
@@ -189,11 +206,11 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
 
-# 🔁 รีเซ็ตยอดเข้า/ออก (สำหรับวันใหม่)
-with st.expander("🔁 รีเซ็ตยอดเข้า/ออก"):
-    if st.button("🧹 ล้างค่า 'เข้า' และ 'ออก' ทั้งหมด"):
-        for index, row in df.iterrows():
-            idx_in_sheet = index + 2
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, 0)
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, 0)
-        st.success("✅ รีเซ็ตยอดเข้าและออกทั้งหมดแล้ว")
+# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออกประจำวัน (แบบเร็ว)
+if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
+    num_rows = len(df)
+    worksheet.batch_update([
+        {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
+        {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
+    ])
+    st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
