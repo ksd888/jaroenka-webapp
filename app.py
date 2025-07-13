@@ -154,14 +154,20 @@ if st.session_state.cart:
 with st.expander('💵 ปุ่มทางลัดรับเงินจากลูกค้า'):
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
+        if st.button("20"):
+            st.session_state.paid_input += 20
     with col2:
+        if st.button("50"):
+            st.session_state.paid_input += 50
     with col3:
+        if st.button("100"):
+            st.session_state.paid_input += 100
     with col4:
+        if st.button("500"):
+            st.session_state.paid_input += 500
     with col5:
-
-
-
-
+        if st.button("1000"):
+            st.session_state.paid_input += 1000
 
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
