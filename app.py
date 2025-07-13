@@ -29,6 +29,15 @@ st.markdown("""
         color: #000000 !important;
         border-radius: 8px;
     }
+    .stAlert {
+        font-weight: 600 !important;
+        font-size: 16px !important;
+        color: #000 !important;
+    }
+    .stAlert div[role='alert'] {
+        padding: 10px 15px !important;
+        border-radius: 8px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
