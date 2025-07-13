@@ -134,8 +134,6 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
 # 🧾 แสดงตะกร้า
-total_price = 0
-total_profit = 0
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0, 0
@@ -151,7 +149,6 @@ if st.session_state.cart:
 
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
-with st.expander('💵 ปุ่มทางลัดรับเงินจากลูกค้า'):
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if st.button("20"):
@@ -168,7 +165,7 @@ with st.expander('💵 ปุ่มทางลัดรับเงินจา
     with col5:
         if st.button("1000"):
             st.session_state.paid_input += 1000
-
+    
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
