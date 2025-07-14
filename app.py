@@ -133,6 +133,9 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
+if "money_updated" not in st.session_state:
+    st.session_state.money_updated = False
+
 # 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
