@@ -31,7 +31,7 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-ws_items = sheet.worksheet("ตู้เย็น")
+ws_items   = sheet.worksheet("ตู้เย็น")
 ws_summary = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(ws_items.get_all_records())
 
@@ -47,20 +47,22 @@ default_session = {
 for k, v in default_session.items():
     st.session_state.setdefault(k, v)
 
+# ✅ ดักไว้รีเซ็ตทันที แล้วหยุดแอป
 if st.session_state.sale_complete:
     for k, v in default_session.items():
         st.session_state[k] = v
     st.success("✅ บันทึกและรีเซ็ตหน้าสำเร็จแล้ว")
     st.stop()
 
-# ---------- 🧊 ขายสินค้า ----------
+# ---------- 🛒 เลือกสินค้า ----------
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
-st.session_state.search_items = st.multiselect("🔍 เลือกสินค้า", product_names, default=st.session_state.search_items)
+st.multiselect("🔍 เลือกสินค้า", product_names, key="search_items")
 
 for p in st.session_state.search_items:
     st.session_state.quantities.setdefault(p, 1)
     qty = st.session_state.quantities[p]
+
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1,1,1])
     with col1: st.button("➖", key=f"dec_{safe_key(p)}", on_click=dec, args=(p,))
@@ -94,6 +96,7 @@ if st.session_state.cart:
     # ---------- 💰 รับเงิน ----------
     st.number_input("💰 รับเงิน", key="paid_input", step=1.0, format="%.2f")
 
+    # ---------- 💸 ปุ่มเงินลัด ----------
     def add_money(amount: int):
         st.session_state.paid_input += amount
         st.session_state.last_paid_click = amount
@@ -105,12 +108,13 @@ if st.session_state.cart:
     with row2[0]: st.button("500", on_click=add_money, args=(500,))
     with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
 
+    # ปุ่ม Undo เงินลัด
     if st.session_state.last_paid_click:
         if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
             st.session_state.paid_input -= st.session_state.last_paid_click
             st.session_state.last_paid_click = 0
 
-    # ---------- เงินทอน ----------
+    # ---------- เงินทอน realtime ----------
     change = st.session_state.paid_input - total_price
     if change >= 0:
         st.success(f"เงินทอน: {change:.2f} บาท")
