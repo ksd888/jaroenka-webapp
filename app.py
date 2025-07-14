@@ -93,12 +93,7 @@ st.title("🧊 ระบบขายสินค้า - ร้านเจร�
 st.subheader("🔍 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-default_selected = []
-if "reset_search_items" in st.session_state:
-    default_selected = []
-    del st.session_state["reset_search_items"]
-else:
-    default_selected = st.session_state.get("search_items", [])
+default_selected = st.session_state.get("search_items", [])
 
 st.multiselect("เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
@@ -120,12 +115,8 @@ for p in selected:
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
-    st.markdown(
-        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
 
-# 🧺 เพิ่มตะกร้า
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
         qty = safe_safe_int(st.session_state.quantities[p])
@@ -133,7 +124,6 @@ if st.button("➕ เพิ่มลงตะกร้า"):
             st.session_state.cart.append((p, qty))
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
-# 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     total_price, total_profit = 0, 0
@@ -147,32 +137,31 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+    def add_paid(amount):
+        st.session_state.paid_input += amount
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    st.markdown(f"💰 รับเงินรวม: **{st.session_state.paid_input:.2f} บาท**")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        if st.button("20"):
-            st.session_state.paid_input += 20
+        st.button("20", on_click=add_paid, args=(20,))
     with col2:
-        if st.button("50"):
-            st.session_state.paid_input += 50
+        st.button("50", on_click=add_paid, args=(50,))
     with col3:
-        if st.button("100"):
-            st.session_state.paid_input += 100
+        st.button("100", on_click=add_paid, args=(100,))
     with col4:
-        if st.button("500"):
-            st.session_state.paid_input += 500
+        st.button("500", on_click=add_paid, args=(500,))
     with col5:
-        if st.button("1000"):
-            st.session_state.paid_input += 1000
-    
+        st.button("1000", on_click=add_paid, args=(1000,))
+    with col6:
+        if st.button("🧹 ล้างเงินที่รับ"):
+            st.session_state.paid_input = 0.0
+
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
         st.warning("💸 ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
-        st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
@@ -194,41 +183,3 @@ if st.session_state.cart:
         ])
         st.session_state.sale_complete = True
         st.rerun()
-
-# 📦 เติมสินค้า
-with st.expander("📦 เติมสินค้า"):
-    restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
-    restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
-    if st.button("📥 ยืนยันเติมสินค้า"):
-        index = df[df["ชื่อสินค้า"] == restock_item].index[0]
-        idx_in_sheet = index + 2
-        row = df.loc[index]
-        new_in = safe_safe_int(row["เข้า"]) + restock_qty
-        new_left = safe_safe_int(row["คงเหลือในตู้"]) + restock_qty
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, new_in)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-        st.success(f"✅ เติม {restock_item} แล้ว")
-
-# ✏️ แก้ไขสินค้า
-with st.expander("✏️ แก้ไขสินค้า"):
-    edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
-    index = df[df["ชื่อสินค้า"] == edit_item].index[0]
-    idx_in_sheet = index + 2
-    row = df.loc[index]
-    new_price = st.number_input("ราคาขาย", value=safe_safe_float(row["ราคาขาย"]), key="edit_price")
-    new_cost = st.number_input("ต้นทุน", value=safe_safe_float(row["ต้นทุน"]), key="edit_cost")
-    new_stock = st.number_input("คงเหลือในตู้", value=safe_safe_int(row["คงเหลือในตู้"]), key="edit_stock", step=1)
-    if st.button("💾 บันทึกการแก้ไข"):
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
-        st.success(f"✅ อัปเดต {edit_item} แล้ว")
-
-# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออกประจำวัน (แบบเร็ว)
-if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
-    num_rows = len(df)
-    worksheet.batch_update([
-        {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
-        {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
-    ])
-    st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
