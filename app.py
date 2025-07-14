@@ -83,9 +83,6 @@ for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-    if 'paid_input' not in st.session_state:
-        st.session_state.paid_input = 0.0
-
 if st.session_state.sale_complete:
     for key, default in default_session.items():
         st.session_state[key] = default
