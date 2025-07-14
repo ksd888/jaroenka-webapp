@@ -31,7 +31,7 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-ws_items   = sheet.worksheet("ตู้เย็น")
+ws_items = sheet.worksheet("ตู้เย็น")
 ws_summary = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(ws_items.get_all_records())
 
@@ -42,6 +42,7 @@ default_session = {
     "paid_input": 0.0,
     "last_paid_click": 0,
     "sale_complete": False,
+    "search_items": [],
 }
 for k, v in default_session.items():
     st.session_state.setdefault(k, v)
@@ -49,17 +50,17 @@ for k, v in default_session.items():
 if st.session_state.sale_complete:
     for k, v in default_session.items():
         st.session_state[k] = v
-    st.success("✅ บันทึกยอดขายและรีเซ็ตหน้าสำเร็จแล้ว")
+    st.success("✅ บันทึกและรีเซ็ตหน้าสำเร็จแล้ว")
+    st.stop()
 
-# ---------- 🛒 เลือกสินค้า ----------
+# ---------- 🧊 ขายสินค้า ----------
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
-st.multiselect("🔍 เลือกสินค้า", product_names, key="search_items")
+st.session_state.search_items = st.multiselect("🔍 เลือกสินค้า", product_names, default=st.session_state.search_items)
 
 for p in st.session_state.search_items:
     st.session_state.quantities.setdefault(p, 1)
     qty = st.session_state.quantities[p]
-
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1,1,1])
     with col1: st.button("➖", key=f"dec_{safe_key(p)}", on_click=dec, args=(p,))
@@ -90,10 +91,9 @@ if st.session_state.cart:
         st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
     st.info(f"💵 ยอดรวม: {total_price:.2f} | 🟢 กำไร: {total_profit:.2f}")
 
-    # ---------- 💰 รับเงิน (number_input ผูกกับ key) ----------
+    # ---------- 💰 รับเงิน ----------
     st.number_input("💰 รับเงิน", key="paid_input", step=1.0, format="%.2f")
 
-    # ---------- 💸 ปุ่มเงินลัด ----------
     def add_money(amount: int):
         st.session_state.paid_input += amount
         st.session_state.last_paid_click = amount
@@ -110,7 +110,7 @@ if st.session_state.cart:
             st.session_state.paid_input -= st.session_state.last_paid_click
             st.session_state.last_paid_click = 0
 
-    # ---------- เงินทอน realtime ----------
+    # ---------- เงินทอน ----------
     change = st.session_state.paid_input - total_price
     if change >= 0:
         st.success(f"เงินทอน: {change:.2f} บาท")
@@ -121,6 +121,22 @@ if st.session_state.cart:
     if change >= 0 and st.button("✅ ยืนยันการขาย"):
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
-            ws_summary.append_row([now, item, qty])
+            index = df[df["ชื่อสินค้า"] == item].index[0]
+            row = df.loc[index]
+            idx_in_sheet = index + 2
+            new_out = s_int(row["ออก"]) + qty
+            new_left = s_int(row["คงเหลือในตู้"]) - qty
+            ws_items.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+            ws_items.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+
+        ws_summary.append_row([
+            now,
+            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
+            total_price,
+            total_profit,
+            st.session_state.paid_input,
+            change,
+            "drink"
+        ])
         st.session_state.sale_complete = True
-        st.success("✅ บันทึกเรียบร้อยแล้ว กำลังรีเซ็ต...")
+        st.stop()
