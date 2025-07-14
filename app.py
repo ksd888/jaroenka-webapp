@@ -76,8 +76,7 @@ default_session = {
     "cart": [],
     "selected_products": [],
     "quantities": {},
-    "paid_buttons_total": 0.0,
-    "paid_manual_input": 0.0,
+    "paid_input": 0.0,
     "sale_complete": False
 }
 for key, default in default_session.items():
@@ -94,12 +93,7 @@ st.title("🧊 ระบบขายสินค้า - ร้านเจร�
 st.subheader("🔍 เลือกสินค้า")
 
 product_names = df["ชื่อสินค้า"].tolist()
-default_selected = []
-if "reset_search_items" in st.session_state:
-    default_selected = []
-    del st.session_state["reset_search_items"]
-else:
-    default_selected = st.session_state.get("search_items", [])
+default_selected = st.session_state.get("search_items", [])
 
 st.multiselect("เลือกสินค้าจากชื่อ", product_names, default=default_selected, key="search_items")
 
@@ -121,10 +115,7 @@ for p in selected:
     row = df[df['ชื่อสินค้า'] == p]
     stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
     color = 'red' if stock < 3 else 'black'
-    st.markdown(
-        f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<span style='color:{color}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
 
 if st.button("➕ เพิ่มลงตะกร้า"):
     for p in selected:
@@ -146,38 +137,37 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    paid_manual_input = st.number_input("💰 รับเงิน (พิมพ์จำนวน)", min_value=0.0, step=1.0, key="paid_manual_input")
+    def add_paid(amount):
+        st.session_state.paid_input += amount
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    st.markdown(f"💰 รับเงินรวม: **{st.session_state.paid_input:.2f} บาท**")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        if st.button("20"):
-            st.session_state.paid_buttons_total += 20
+        st.button("20", on_click=add_paid, args=(20,))
     with col2:
-        if st.button("50"):
-            st.session_state.paid_buttons_total += 50
+        st.button("50", on_click=add_paid, args=(50,))
     with col3:
-        if st.button("100"):
-            st.session_state.paid_buttons_total += 100
+        st.button("100", on_click=add_paid, args=(100,))
     with col4:
-        if st.button("500"):
-            st.session_state.paid_buttons_total += 500
+        st.button("500", on_click=add_paid, args=(500,))
     with col5:
-        if st.button("1000"):
-            st.session_state.paid_buttons_total += 1000
+        st.button("1000", on_click=add_paid, args=(1000,))
+    with col6:
+        if st.button("🧹 ล้างเงินที่รับ"):
+            st.session_state.paid_input = 0.0
 
-    paid_total = paid_manual_input + st.session_state.paid_buttons_total
+    
+    # ✅ เพิ่มปุ่มป้อนเงินเองแบบกำหนดค่า
+    custom_paid = st.number_input("📥 ป้อนจำนวนเงินที่รับเพิ่ม", min_value=0.0, step=1.0, key="custom_paid_input")
+    if st.button("➕ เพิ่มเงินที่รับ"):
+        st.session_state.paid_input += custom_paid
 
-    if paid_total >= total_price:
-        st.success(f"เงินทอน: {paid_total - total_price:.2f} บาท")
+    if st.session_state.paid_input >= total_price:
+        st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
         st.warning("💸 ยอดเงินไม่พอ")
 
-    if st.button("🧹 ล้างยอดเงิน"):
-        st.session_state.paid_buttons_total = 0.0
-        st.session_state.paid_manual_input = 0.0
-
     if st.button("✅ ยืนยันการขาย"):
-        st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
@@ -193,8 +183,8 @@ if st.session_state.cart:
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
-            paid_total,
-            paid_total - total_price,
+            st.session_state.paid_input,
+            st.session_state.paid_input - total_price,
             "drink"
         ])
         st.session_state.sale_complete = True
