@@ -50,7 +50,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 📦 ฟังก์ชันช่วย
+# ฟังก์ชันช่วย
 def safe_key(text): return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
 def safe_float(val): return float(pd.to_numeric(val, errors="coerce") or 0.0)
@@ -64,7 +64,7 @@ def safe_safe_float(val):
 def increase_quantity(p): st.session_state.quantities[p] += 1
 def decrease_quantity(p): st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
-# 🔗 เชื่อม Google Sheets
+# เชื่อม Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(credentials)
@@ -73,7 +73,7 @@ worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
-# 🔧 ค่าเริ่มต้น Session
+# Session เริ่มต้น
 default_session = {
     "cart": [],
     "selected_products": [],
@@ -144,13 +144,15 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    # ✅ ปุ่มเงินลัด
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+
+    # ✅ ปุ่มเงินลัด
     col1, col2, col3, col4, col5 = st.columns(5)
     for col, amount in zip([col1, col2, col3, col4, col5], [20, 50, 100, 500, 1000]):
         with col:
             if st.button(f"{amount} บาท", key=f"quickpay_{amount}"):
                 st.session_state.paid_input += amount
+                st.session_state.sale_complete = False
                 st.experimental_rerun()
 
     # 💸 เงินทอน
@@ -182,7 +184,7 @@ if st.session_state.cart:
             "drink"
         ])
         st.session_state.sale_complete = True
-        st.rerun()
+        st.experimental_rerun()
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
