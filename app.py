@@ -1,3 +1,4 @@
+
 import streamlit as st
 import datetime
 import gspread
@@ -31,9 +32,9 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(creds)
 sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-ws_items   = sheet.worksheet("ตู้เย็น")
-ws_summary = sheet.worksheet("ยอดขาย")
-df = pd.DataFrame(ws_items.get_all_records())
+worksheet = sheet.worksheet("ตู้เย็น")
+summary_ws = sheet.worksheet("ยอดขาย")
+df = pd.DataFrame(worksheet.get_all_records())
 
 # ---------- 💾 Session ----------
 default_session = {
@@ -42,24 +43,22 @@ default_session = {
     "paid_input": 0.0,
     "last_paid_click": 0,
     "sale_complete": False,
-    "search_items": [],
+    "reset_search_items": False
 }
 for k, v in default_session.items():
     st.session_state.setdefault(k, v)
 
-# ✅ ดักไว้รีเซ็ตทันที แล้วหยุดแอป
 if st.session_state.sale_complete:
     for k, v in default_session.items():
         st.session_state[k] = v
     st.success("✅ บันทึกและรีเซ็ตหน้าสำเร็จแล้ว")
-    st.stop()
 
 # ---------- 🛒 เลือกสินค้า ----------
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
-st.multiselect("🔍 เลือกสินค้า", product_names, key="search_items")
+search_items = st.multiselect("🔍 เลือกสินค้า", product_names, key="search_items")
 
-for p in st.session_state.search_items:
+for p in search_items:
     st.session_state.quantities.setdefault(p, 1)
     qty = st.session_state.quantities[p]
 
@@ -75,7 +74,7 @@ for p in st.session_state.search_items:
 
 # ---------- ➕ เพิ่มลงตะกร้า ----------
 if st.button("➕ เพิ่มลงตะกร้า"):
-    for p in st.session_state.search_items:
+    for p in search_items:
         qty = s_int(st.session_state.quantities[p])
         if qty > 0:
             st.session_state.cart.append((p, qty))
@@ -100,7 +99,6 @@ if st.session_state.cart:
     def add_money(amount: int):
         st.session_state.paid_input += amount
         st.session_state.last_paid_click = amount
-
     row1 = st.columns(3); row2 = st.columns(2)
     with row1[0]: st.button("20",  on_click=add_money, args=(20,))
     with row1[1]: st.button("50",  on_click=add_money, args=(50,))
@@ -108,7 +106,6 @@ if st.session_state.cart:
     with row2[0]: st.button("500", on_click=add_money, args=(500,))
     with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
 
-    # ปุ่ม Undo เงินลัด
     if st.session_state.last_paid_click:
         if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
             st.session_state.paid_input -= st.session_state.last_paid_click
@@ -123,24 +120,25 @@ if st.session_state.cart:
 
     # ---------- ✅ ยืนยันการขาย ----------
     if change >= 0 and st.button("✅ ยืนยันการขาย"):
+        st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
             idx_in_sheet = index + 2
-            new_out = s_int(row["ออก"]) + qty
-            new_left = s_int(row["คงเหลือในตู้"]) - qty
-            ws_items.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-            ws_items.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+            new_out = safe_int(row["ออก"]) + qty
+            new_left = safe_int(row["คงเหลือในตู้"]) - qty
+            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-        ws_summary.append_row([
+        summary_ws.append_row([
             now,
             ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
             st.session_state.paid_input,
-            change,
+            st.session_state.paid_input - total_price,
             "drink"
         ])
         st.session_state.sale_complete = True
-        st.stop()
+        st.rerun()
