@@ -140,8 +140,7 @@ if st.session_state.cart:
     def add_paid(amount):
         st.session_state.paid_input += amount
 
-    st.markdown(f"💰 รับเงินรวม: **{st.session_state.paid_input:.2f} บาท**")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.button("20", on_click=add_paid, args=(20,))
     with col2:
@@ -161,6 +160,15 @@ if st.session_state.cart:
     custom_paid = st.number_input("📥 ป้อนจำนวนเงินที่รับเพิ่ม", min_value=0.0, step=1.0, key="custom_paid_input")
     if st.button("➕ เพิ่มเงินที่รับ"):
         st.session_state.paid_input += custom_paid
+
+    
+    # ✅ เพิ่มปุ่มป้อนเงินเองแบบกำหนดค่า
+    custom_paid = st.number_input("📥 ป้อนจำนวนเงินที่รับเพิ่ม", min_value=0.0, step=1.0, key="custom_paid_input")
+    if st.button("➕ เพิ่มเงินที่รับ"):
+        st.session_state.paid_input += custom_paid
+
+    # ✅ แสดงผลรวมหลังจากเพิ่มเงิน
+    st.markdown(f"💰 รับเงินรวม: **{st.session_state.paid_input:.2f} บาท**")
 
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
