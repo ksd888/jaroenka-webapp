@@ -1,3 +1,4 @@
+
 import streamlit as st
 import datetime
 import gspread
@@ -17,10 +18,10 @@ body, .main, .block-container {background:#fff; color:#000;}
 def safe_key(txt): return txt.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(v):   return int(pd.to_numeric(v, errors="coerce") or 0)
 def safe_float(v): return float(pd.to_numeric(v, errors="coerce") or 0.0)
-def s_int(v):
+def s_int(v):      # safe_safe_int
     try: return safe_int(safe_float(v))
     except: return 0
-def s_float(v):
+def s_float(v):    # safe_safe_float
     try: return safe_float(v)
     except: return 0.0
 def inc(p): st.session_state.quantities[p] += 1
@@ -47,26 +48,28 @@ default_session = {
 for k, v in default_session.items():
     st.session_state.setdefault(k, v)
 
-if st.session_state.get("sale_complete", False):
-    st.success("✅ บันทึกและรีเซ็ตหน้าสำเร็จแล้ว")
+if st.session_state.sale_complete:
     for k in list(default_session):
         st.session_state[k] = default_session[k]
-    st.stop()
+    st.success("✅ บันทึกและรีเซ็ตหน้าสำเร็จแล้ว")
 
 # ---------- 🛒 เลือกสินค้า ----------
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("🔍 เลือกสินค้า", product_names, key="search_items")
 
+# ⏱ เพิ่มลงตะกร้าอัตโนมัติหลังเลือกสินค้า
 if st.session_state.search_items and not st.session_state.auto_add:
     for p in st.session_state.search_items:
         st.session_state.quantities.setdefault(p, 1)
-    st.session_state.cart = [(p, st.session_state.quantities[p]) for p in st.session_state.search_items]
+        qty = s_int(st.session_state.quantities.get(p, 1))
+        if qty > 0:
+            st.session_state.cart.append((p, qty))
     st.session_state.auto_add = True
     st.experimental_rerun()
 
 for p in st.session_state.search_items:
-    qty = st.session_state.quantities[p]
+    qty = st.session_state.quantities.get(p, 1)
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1,1,1])
     with col1: st.button("➖", key=f"dec_{safe_key(p)}", on_click=dec, args=(p,))
@@ -92,11 +95,8 @@ if st.session_state.cart:
     st.number_input("💰 รับเงิน", key="paid_input", step=1.0, format="%.2f")
 
     def add_money(amount: int):
-        if not isinstance(st.session_state.paid_input, (int, float)):
-            st.session_state.paid_input = 0.0
         st.session_state.paid_input += amount
         st.session_state.last_paid_click = amount
-
     row1 = st.columns(3); row2 = st.columns(2)
     with row1[0]: st.button("20",  on_click=add_money, args=(20,))
     with row1[1]: st.button("50",  on_click=add_money, args=(50,))
@@ -135,9 +135,6 @@ if st.session_state.cart:
             change,
             "drink"
         ])
-
-        # โหลดข้อมูลใหม่หลังอัปเดต
-        df = pd.DataFrame(ws_items.get_all_records())
         st.session_state.sale_complete = True
         st.session_state.auto_add = False
         st.experimental_rerun()
