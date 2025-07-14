@@ -148,6 +148,37 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
+# ---------- 💸 ปุ่มเงินลัด (callback ไม่ใช้ rerun) ----------
+def add_money(amount: int):
+    st.session_state.paid_input += amount
+    st.session_state.last_paid_click = amount
+
+st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+
+st.markdown("### 💵 รับเงิน (ลัด)")
+row1 = st.columns(3)
+row2 = st.columns(2)
+
+with row1[0]: st.button("20",  on_click=add_money, args=(20,))
+with row1[1]: st.button("50",  on_click=add_money, args=(50,))
+with row1[2]: st.button("100", on_click=add_money, args=(100,))
+with row2[0]: st.button("500", on_click=add_money, args=(500,))
+with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
+
+# ปุ่ม Undo เงินลัด
+if st.session_state.last_paid_click:
+    if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
+        st.session_state.paid_input -= st.session_state.last_paid_click
+        st.session_state.last_paid_click = 0
+
+# ---------- เงินทอน realtime ----------
+change = st.session_state.paid_input - total_price
+if change >= 0:
+    st.success(f"💸 เงินทอน: {change:.2f} บาท")
+else:
+    st.warning("💸 เงินรับยังไม่พอ")
+
+
     st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -173,6 +204,19 @@ if st.session_state.cart:
         st.warning("💸 ยอดเงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
+        change = st.session_state.paid_input - total_price
+        summary_ws.append_row([
+            now,
+            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
+            total_price,
+            total_profit,
+            st.session_state.paid_input,
+            change,
+            "drink"
+        ])
+        st.session_state.sale_complete = True
+        st.rerun()
+
         st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for item, qty in st.session_state.cart:
@@ -184,83 +228,21 @@ if st.session_state.cart:
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
             worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-        summary_ws.append_row([
-            now,
-            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
             total_price,
             total_profit,
             st.session_state.paid_input,
-            st.session_state.paid_input - 
+            st.session_state.paid_input - total_price,
 # ---------- 💸 ปุ่มเงินลัด (callback ไม่ใช้ rerun) ----------
-def add_money(amount: int):
-    st.session_state.paid_input += amount
-    st.session_state.last_paid_click = amount
 
-st.markdown("### 💵 รับเงิน")
-row1 = st.columns(3)
-row2 = st.columns(2)
-
-with row1[0]: st.button("20",  on_click=add_money, args=(20,))
-with row1[1]: st.button("50",  on_click=add_money, args=(50,))
-with row1[2]: st.button("100", on_click=add_money, args=(100,))
-with row2[0]: st.button("500", on_click=add_money, args=(500,))
-with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
-
-# ปุ่ม Undo เงินลัด
-if st.session_state.last_paid_click:
-    if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
-        st.session_state.paid_input -= st.session_state.last_paid_click
-        st.session_state.last_paid_click = 0
-
-# ---------- เงินทอน realtime ----------
-total_price = sum(item['quantity'] * item['price'] for item in st.session_state.cart)
-change = st.session_state.paid_input - total_price
-if change >= 0:
-    st.success(f"💸 เงินทอน: {change:.2f} บาท")
-else:
-    st.warning("💸 เงินรับยังไม่พอ")
-
-
-total_price,
-            "drink"
-        ])
-        st.session_state.sale_complete = True
-        st.rerun()
-
-# 📦 เติมสินค้า
-with st.expander("📦 เติมสินค้า"):
-    restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
-    restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
-    if st.button("📥 ยืนยันเติมสินค้า"):
-        index = df[df["ชื่อสินค้า"] == restock_item].index[0]
-        idx_in_sheet = index + 2
-        row = df.loc[index]
-        new_in = safe_safe_int(row["เข้า"]) + restock_qty
-        new_left = safe_safe_int(row["คงเหลือในตู้"]) + restock_qty
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, new_in)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-        st.success(f"✅ เติม {restock_item} แล้ว")
-
-# ✏️ แก้ไขสินค้า
-with st.expander("✏️ แก้ไขสินค้า"):
-    edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
-    index = df[df["ชื่อสินค้า"] == edit_item].index[0]
-    idx_in_sheet = index + 2
-    row = df.loc[index]
-    new_price = st.number_input("ราคาขาย", value=safe_safe_float(row["ราคาขาย"]), key="edit_price")
-    new_cost = st.number_input("ต้นทุน", value=safe_safe_float(row["ต้นทุน"]), key="edit_cost")
-    new_stock = st.number_input("คงเหลือในตู้", value=safe_safe_int(row["คงเหลือในตู้"]), key="edit_stock", step=1)
-    if st.button("💾 บันทึกการแก้ไข"):
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
-        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
-        st.success(f"✅ อัปเดต {edit_item} แล้ว")
-
-# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออกประจำวัน (แบบเร็ว)
-if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
-    num_rows = len(df)
-    worksheet.batch_update([
-        {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
-        {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
+    change = st.session_state.paid_input - total_price
+    summary_ws.append_row([
+        now,
+        ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
+        total_price,
+        total_profit,
+        st.session_state.paid_input,
+        change,
+        "drink"
     ])
-    st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
+    st.session_state.sale_complete = True
+    st.rerun()
