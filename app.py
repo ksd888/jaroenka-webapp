@@ -232,3 +232,8 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
         {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
     ])
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
+
+# ✅ รีเฟรชหน้าทันทีหลังเงินลัดเปลี่ยนค่า เพื่อให้แสดงเงินทอนถูกต้อง
+if st.session_state.money_updated:
+    st.session_state.money_updated = False
+    st.rerun()
