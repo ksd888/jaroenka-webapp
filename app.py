@@ -147,29 +147,26 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+    input_val = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+if input_val != st.session_state.paid_input:
+    st.session_state.paid_input = input_val
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if st.button("20"):
             st.session_state.paid_input += 20
-        st.session_state.need_rerun = True
     with col2:
         if st.button("50"):
             st.session_state.paid_input += 50
-        st.session_state.need_rerun = True
     with col3:
         if st.button("100"):
             st.session_state.paid_input += 100
-        st.session_state.need_rerun = True
     with col4:
         if st.button("500"):
             st.session_state.paid_input += 500
-        st.session_state.need_rerun = True
     with col5:
         if st.button("1000"):
             st.session_state.paid_input += 1000
-        st.session_state.need_rerun = True
     
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
@@ -241,4 +238,4 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
 # ✅ ตรวจสอบว่าต้อง rerun หรือไม่ (ปลอดภัยกว่า experimental_rerun)
 if st.session_state.get("need_rerun", False):
     st.session_state.need_rerun = False
-    st.stop()
+    st.
