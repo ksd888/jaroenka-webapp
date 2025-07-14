@@ -1,4 +1,3 @@
-
 import streamlit as st
 import datetime
 import gspread
@@ -41,7 +40,6 @@ default_session = {
     "cart": [],
     "quantities": {},
     "paid_input": 0.0,
-    "paid_input_str": "0.00",
     "last_paid_click": 0,
     "sale_complete": False,
 }
@@ -92,17 +90,12 @@ if st.session_state.cart:
         st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
     st.info(f"💵 ยอดรวม: {total_price:.2f} | 🟢 กำไร: {total_profit:.2f}")
 
-    # ---------- 💰 รับเงิน (text_input เพื่อให้ปุ่มเงินลัดเปลี่ยนทันที) ----------
-    paid = st.text_input("💰 รับเงิน", value=st.session_state.paid_input_str, key="paid_input_str")
-    try:
-        st.session_state.paid_input = float(paid)
-    except:
-        st.session_state.paid_input = 0.0
+    # ---------- 💰 รับเงิน (number_input ผูกกับ key) ----------
+    st.number_input("💰 รับเงิน", key="paid_input", step=1.0, format="%.2f")
 
     # ---------- 💸 ปุ่มเงินลัด ----------
     def add_money(amount: int):
         st.session_state.paid_input += amount
-        st.session_state.paid_input_str = f"{st.session_state.paid_input:.2f}"
         st.session_state.last_paid_click = amount
 
     row1 = st.columns(3); row2 = st.columns(2)
@@ -112,11 +105,9 @@ if st.session_state.cart:
     with row2[0]: st.button("500", on_click=add_money, args=(500,))
     with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
 
-    # ปุ่ม Undo เงินลัด
     if st.session_state.last_paid_click:
         if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
             st.session_state.paid_input -= st.session_state.last_paid_click
-            st.session_state.paid_input_str = f"{st.session_state.paid_input:.2f}"
             st.session_state.last_paid_click = 0
 
     # ---------- เงินทอน realtime ----------
@@ -132,4 +123,4 @@ if st.session_state.cart:
         for item, qty in st.session_state.cart:
             ws_summary.append_row([now, item, qty])
         st.session_state.sale_complete = True
-        st.experimental_rerun()
+        st.success("✅ บันทึกเรียบร้อยแล้ว กำลังรีเซ็ต...")
