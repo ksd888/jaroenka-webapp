@@ -148,16 +148,14 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-# ---------- 💸 ปุ่มเงินลัด (callback ไม่ใช้ rerun) ----------
+# ---------- 💸 ปุ่มเงินลัด ----------
 def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
 
-
 st.markdown("### 💵 รับเงิน (ลัด)")
 row1 = st.columns(3)
 row2 = st.columns(2)
-
 with row1[0]: st.button("20",  on_click=add_money, args=(20,))
 with row1[1]: st.button("50",  on_click=add_money, args=(50,))
 with row1[2]: st.button("100", on_click=add_money, args=(100,))
@@ -177,31 +175,7 @@ if change >= 0:
 else:
     st.warning("💸 เงินรับยังไม่พอ")
 
-
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        if st.button("20"):
-            st.session_state.paid_input += 20
-    with col2:
-        if st.button("50"):
-            st.session_state.paid_input += 50
-    with col3:
-        if st.button("100"):
-            st.session_state.paid_input += 100
-    with col4:
-        if st.button("500"):
-            st.session_state.paid_input += 500
-    with col5:
-        if st.button("1000"):
-            st.session_state.paid_input += 1000
-    
-    if st.session_state.paid_input >= total_price:
-        st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
-    else:
-        st.warning("💸 ยอดเงินไม่พอ")
-
-    
+# ✅ ยืนยันการขาย
 if st.button("✅ ยืนยันการขาย"):
     st.session_state["reset_search_items"] = True
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
