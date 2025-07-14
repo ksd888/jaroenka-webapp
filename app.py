@@ -153,7 +153,6 @@ def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
 
-st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
 st.markdown("### 💵 รับเงิน (ลัด)")
 row1 = st.columns(3)
@@ -179,7 +178,6 @@ else:
     st.warning("💸 เงินรับยังไม่พอ")
 
 
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -203,38 +201,12 @@ else:
     else:
         st.warning("💸 ยอดเงินไม่พอ")
 
-    if st.button("✅ ยืนยันการขาย"):
-        change = st.session_state.paid_input - total_price
-        summary_ws.append_row([
-            now,
-            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
-            total_price,
-            total_profit,
-            st.session_state.paid_input,
-            change,
-            "drink"
-        ])
-        st.session_state.sale_complete = True
-        st.rerun()
-
-        st.session_state["reset_search_items"] = True
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for item, qty in st.session_state.cart:
-            index = df[df["ชื่อสินค้า"] == item].index[0]
-            row = df.loc[index]
-            idx_in_sheet = index + 2
-            new_out = safe_safe_int(row["ออก"]) + qty
-            new_left = safe_safe_int(row["คงเหลือในตู้"]) - qty
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-
-            total_price,
-            total_profit,
-            st.session_state.paid_input,
-            st.session_state.paid_input - total_price,
-# ---------- 💸 ปุ่มเงินลัด (callback ไม่ใช้ rerun) ----------
-
+    
+if st.button("✅ ยืนยันการขาย"):
+    st.session_state["reset_search_items"] = True
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     change = st.session_state.paid_input - total_price
+
     summary_ws.append_row([
         now,
         ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
@@ -244,5 +216,15 @@ else:
         change,
         "drink"
     ])
+
+    for item, qty in st.session_state.cart:
+        index = df[df["ชื่อสินค้า"] == item].index[0]
+        row = df.loc[index]
+        idx_in_sheet = index + 2
+        new_out = safe_safe_int(row["ออก"]) + qty
+        new_left = safe_safe_int(row["คงเหลือในตู้"]) - qty
+        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+
     st.session_state.sale_complete = True
     st.rerun()
