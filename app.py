@@ -153,23 +153,18 @@ if st.session_state.cart:
     with col1:
         if st.button("20"):
             st.session_state.paid_input += 20
-        st.session_state.need_rerun = True
     with col2:
         if st.button("50"):
             st.session_state.paid_input += 50
-        st.session_state.need_rerun = True
     with col3:
         if st.button("100"):
             st.session_state.paid_input += 100
-        st.session_state.need_rerun = True
     with col4:
         if st.button("500"):
             st.session_state.paid_input += 500
-        st.session_state.need_rerun = True
     with col5:
         if st.button("1000"):
             st.session_state.paid_input += 1000
-        st.session_state.need_rerun = True
     
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
@@ -237,7 +232,3 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
         {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
     ])
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
-# ✅ รีเฟรชทันทีเมื่อมีการกดปุ่มเงินลัด
-if st.session_state.get("need_rerun", False):
-    st.session_state.need_rerun = False
-    st.stop()
