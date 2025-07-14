@@ -147,7 +147,9 @@ if st.session_state.cart:
 
     st.info(f"💵 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 
-    st.session_state.paid_input = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+    input_val = st.number_input("💰 รับเงิน", value=st.session_state.paid_input, step=1.0)
+    if input_val != st.session_state.paid_input:
+        st.session_state.paid_input = input_val
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
@@ -165,7 +167,7 @@ if st.session_state.cart:
     with col5:
         if st.button("1000"):
             st.session_state.paid_input += 1000
-    
+
     if st.session_state.paid_input >= total_price:
         st.success(f"เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
     else:
