@@ -145,7 +145,7 @@ st.subheader("📋 รายการขาย")
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
 total_price, total_profit = 0, 0
-    for item, qty in st.session_state.cart:
+for item, qty in st.session_state.cart:
         row = df[df["ชื่อสินค้า"] == item].iloc[0]
         price, cost = safe_safe_float(row["ราคาขาย"]), safe_safe_float(row["ต้นทุน"])
         subtotal, profit = qty * price, qty * (price - cost)
@@ -200,7 +200,7 @@ if st.session_state.last_paid_click:
     if st.button("✅ ยืนยันการขาย"):
         st.session_state["reset_search_items"] = True
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for item, qty in st.session_state.cart:
+for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
             idx_in_sheet = index + 2
