@@ -77,6 +77,7 @@ default_session = {
     "selected_products": [],
     "quantities": {},
     "paid_input": 0.0,
+    "last_paid_click": 0,
     "last_paid_click": 0,  # 🆕 สำหรับ undo เงินลัด
     "sale_complete": False
 }
@@ -137,6 +138,30 @@ if st.button("➕ เพิ่มลงตะกร้า"):
 # 🧾 แสดงตะกร้า
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
+
+# ---------- 💰 แสดงปุ่มเงินลัดเมื่อมีสินค้าในตะกร้า ----------
+if st.session_state.cart:
+    st.markdown("### 💵 รับเงินจากลูกค้า")
+    st.session_state.paid_input = st.number_input("ระบุจำนวนเงินที่รับมา", value=st.session_state.paid_input, step=1.0)
+
+    def add_money(amount: int):
+        st.session_state.paid_input += amount
+        st.session_state.last_paid_click = amount
+
+    row1 = st.columns(3)
+    row2 = st.columns(2)
+
+    with row1[0]: st.button("💸 20", key="money_20", on_click=add_money, args=(20,))
+    with row1[1]: st.button("💸 50", key="money_50", on_click=add_money, args=(50,))
+    with row1[2]: st.button("💸 100", key="money_100", on_click=add_money, args=(100,))
+    with row2[0]: st.button("💸 500", key="money_500", on_click=add_money, args=(500,))
+    with row2[1]: st.button("💸 1000", key="money_1000", on_click=add_money, args=(1000,))
+
+    if st.session_state.last_paid_click:
+        if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click} บาท", key="undo_money"):
+            st.session_state.paid_input -= st.session_state.last_paid_click
+            st.session_state.last_paid_click = 0
+
     total_price, total_profit = 0, 0
     for item, qty in st.session_state.cart:
         row = df[df["ชื่อสินค้า"] == item].iloc[0]
