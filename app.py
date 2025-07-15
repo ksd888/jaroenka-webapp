@@ -144,7 +144,7 @@ paid_input_key = f"paid_input_{uuid.uuid4().hex}"
 st.subheader("📋 รายการขาย")
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
-    total_price, total_profit = 0, 0
+total_price, total_profit = 0, 0
     for item, qty in st.session_state.cart:
         row = df[df["ชื่อสินค้า"] == item].iloc[0]
         price, cost = safe_safe_float(row["ราคาขาย"]), safe_safe_float(row["ต้นทุน"])
