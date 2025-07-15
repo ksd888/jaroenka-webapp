@@ -141,8 +141,8 @@ import time
 suffix = str(int(time.time() * 1000))  # ✅ ประกาศก่อนใช้งาน
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
-    st.session_state.paid_input = st.number_input("ระบุจำนวนเงินที่รับมา", value=st.session_state.paid_input, step=1.0, key=f"paid_input_{suffix}")
-    st.session_state.paid_input = st.number_input("ระบุจำนวนเงินที่รับมา", value=st.session_state.paid_input, step=1.0, key=f"paid_input_{suffix}")
+    st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key="paid_input_field")
+    st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key="paid_input_field")
     total_price, total_profit = 0, 0
     for item, qty in st.session_state.cart:
         row = df[df["ชื่อสินค้า"] == item].iloc[0]
