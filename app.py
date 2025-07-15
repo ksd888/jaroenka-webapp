@@ -137,6 +137,8 @@ if st.button("➕ เพิ่มลงตะกร้า"):
     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
 
 # 🧾 แสดงตะกร้า
+import time
+suffix = str(int(time.time() * 1000))  # ✅ ประกาศก่อนใช้งาน
 if st.session_state.cart:
     st.subheader("📋 รายการขาย")
     st.session_state.paid_input = st.number_input("ระบุจำนวนเงินที่รับมา", value=st.session_state.paid_input, step=1.0, key=f"paid_input_{suffix}")
