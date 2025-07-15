@@ -142,6 +142,24 @@ if st.button("➕ เพิ่มลงตะกร้า"):
 suffix = str(int(time.time() * 1000))
 paid_input_key = f"paid_input_{uuid.uuid4().hex}"
 st.subheader("📋 รายการขาย")
+
+# ---------- 💸 ปุ่มเงินลัด (callback ไม่ใช้ rerun) ----------
+def add_money(amount: int):
+    st.session_state.paid_input += amount
+    st.session_state.last_paid_click = amount
+
+row1 = st.columns(3); row2 = st.columns(2)
+with row1[0]: st.button("20",  on_click=add_money, args=(20,))
+with row1[1]: st.button("50",  on_click=add_money, args=(50,))
+with row1[2]: st.button("100", on_click=add_money, args=(100,))
+with row2[0]: st.button("500", on_click=add_money, args=(500,))
+with row2[1]: st.button("1000",on_click=add_money, args=(1000,))
+
+# ปุ่ม Undo เงินลัด
+if st.session_state.last_paid_click:
+    if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
+        st.session_state.paid_input -= st.session_state.last_paid_click
+        st.session_state.last_paid_click = 0
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
 
 total_price, total_profit = 0, 0
