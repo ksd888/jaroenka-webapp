@@ -151,7 +151,7 @@ if st.session_state.cart:
     row1 = st.columns(3)
     row2 = st.columns(2)
 
-    with row1[0]: st.button("💸 20", key="money_20", on_click=add_money, args=(20,))
+    with row1[0]: st.button("💸 20", key="money_20_cart", on_click=add_money, args=(20,))
     with row1[1]: st.button("💸 50", key="money_50", on_click=add_money, args=(50,))
     with row1[2]: st.button("💸 100", key="money_100", on_click=add_money, args=(100,))
     with row2[0]: st.button("💸 500", key="money_500", on_click=add_money, args=(500,))
@@ -181,7 +181,7 @@ def add_money(amount: int):
 row1 = st.columns(3)
 row2 = st.columns(2)
 
-with row1[0]: st.button("20", key="money_20", on_click=add_money, args=(20,))
+with row1[0]: st.button("20", key="money_20_cart", on_click=add_money, args=(20,))
 with row1[1]: st.button("50", key="money_50", on_click=add_money, args=(50,))
 with row1[2]: st.button("100", key="money_100", on_click=add_money, args=(100,))
 with row2[0]: st.button("500", key="money_500", on_click=add_money, args=(500,))
