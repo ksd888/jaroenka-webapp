@@ -141,7 +141,7 @@ import time
 suffix = str(int(time.time() * 1000))  # ✅ ประกาศก่อนใช้งาน
 import uuid
 paid_input_key = f"paid_input_{uuid.uuid4().hex}"
-    st.subheader("📋 รายการขาย")
+st.subheader("📋 รายการขาย")
     st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
     st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า (พิมพ์เอง)", value=st.session_state.paid_input, step=1.0, key=paid_input_key)
     total_price, total_profit = 0, 0
