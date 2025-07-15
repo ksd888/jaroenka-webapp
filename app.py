@@ -182,4 +182,4 @@ if st.button("✅ ยืนยันการขาย"):
         "drink"
     ])
     st.session_state.reset_search_items = True
-    st.experimental_rerun()
+    st.rerun()
