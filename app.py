@@ -4,13 +4,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 
-# ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
+# ✅ Apple Style CSS
 st.markdown("""
     <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
+    body, .main, .block-container { background-color: #ffffff !important; color: #000000 !important; }
     .stButton>button {
         color: white !important;
         background-color: #007aff !important;
@@ -31,22 +28,10 @@ st.markdown("""
         color: #000000 !important;
         border-radius: 8px;
     }
-    .stAlert > div {
-        font-weight: bold;
-        color: #000 !important;
-    }
-    .stAlert[data-testid="stAlert-success"] {
-        background-color: #d4fcd4 !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-info"] {
-        background-color: #e6f0ff !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-warning"] {
-        background-color: #fff4d2 !important;
-        border: 1px solid #ff9500 !important;
-    }
+    .stAlert > div { font-weight: bold; color: #000 !important; }
+    .stAlert[data-testid="stAlert-success"] { background-color: #d4fcd4 !important; border: 1px solid #007aff !important; }
+    .stAlert[data-testid="stAlert-info"] { background-color: #e6f0ff !important; border: 1px solid #007aff !important; }
+    .stAlert[data-testid="stAlert-warning"] { background-color: #fff4d2 !important; border: 1px solid #ff9500 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -214,7 +199,7 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
 
-# 🔁 รีเซ็ตยอดเข้า-ออก
+# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออก
 if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
     num_rows = len(df)
     worksheet.batch_update([
@@ -222,3 +207,14 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
         {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
     ])
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
+
+# 📊 Dashboard
+with st.expander("📊 Dashboard รายวัน"):
+    sales_data = summary_ws.get_all_records()
+    df_sales = pd.DataFrame(sales_data)
+    df_sales["timestamp"] = pd.to_datetime(df_sales["timestamp"], errors="coerce")
+    df_daily = df_sales.groupby(df_sales["timestamp"].dt.date).agg({
+        "total_price": "sum",
+        "total_profit": "sum"
+    }).reset_index()
+    st.line_chart(df_daily.rename(columns={"timestamp": "วันที่"}).set_index("วันที่"))
