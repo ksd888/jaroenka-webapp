@@ -3,52 +3,54 @@ import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
+from pytz import timezone
+import matplotlib.pyplot as plt
 
 # ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
-    <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    .stButton>button {
-        color: white !important;
-        background-color: #007aff !important;
-        border: none;
-        border-radius: 10px;
-        padding: 0.5em 1.2em;
-        font-weight: bold;
-    }
-    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
-        background-color: #f2f2f7 !important;
-        color: #000 !important;
-        border-radius: 6px;
-        font-size: 18px;
-        font-weight: bold;
-    }
-    .st-expander, .st-expander>details {
-        background-color: #f9f9f9 !important;
-        color: #000000 !important;
-        border-radius: 8px;
-    }
-    .stAlert > div {
-        font-weight: bold;
-        color: #000 !important;
-    }
-    .stAlert[data-testid="stAlert-success"] {
-        background-color: #d4fcd4 !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-info"] {
-        background-color: #e6f0ff !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-warning"] {
-        background-color: #fff4d2 !important;
-        border: 1px solid #ff9500 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+<style>
+body, .main, .block-container {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+.stButton>button {
+    color: white !important;
+    background-color: #007aff !important;
+    border: none;
+    border-radius: 10px;
+    padding: 0.5em 1.2em;
+    font-weight: bold;
+}
+.stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
+    background-color: #f2f2f7 !important;
+    color: #000 !important;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: bold;
+}
+.st-expander, .st-expander>details {
+    background-color: #f9f9f9 !important;
+    color: #000000 !important;
+    border-radius: 8px;
+}
+.stAlert > div {
+    font-weight: bold;
+    color: #000 !important;
+}
+.stAlert[data-testid="stAlert-success"] {
+    background-color: #d4fcd4 !important;
+    border: 1px solid #007aff !important;
+}
+.stAlert[data-testid="stAlert-info"] {
+    background-color: #e6f0ff !important;
+    border: 1px solid #007aff !important;
+}
+.stAlert[data-testid="stAlert-warning"] {
+    background-color: #fff4d2 !important;
+    border: 1px solid #ff9500 !important;
+}
+</style>
+"", unsafe_allow_html=True)
 
 def safe_key(text): return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 def safe_int(val): return int(pd.to_numeric(val, errors="coerce") or 0)
@@ -94,7 +96,6 @@ for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("เลือกสินค้าจากชื่อ", product_names, key="search_items")
@@ -136,7 +137,6 @@ for item, qty in st.session_state.cart:
 # 💰 ช่องใส่เงิน
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า", value=st.session_state.paid_input, step=1.0)
 
-# 💸 ปุ่มเงินลัด
 def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
@@ -154,7 +154,6 @@ if st.session_state.last_paid_click:
         st.session_state.paid_input -= st.session_state.last_paid_click
         st.session_state.last_paid_click = 0
 
-# 💵 แสดงยอดรวม
 st.info(f"📦 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 if st.session_state.paid_input >= total_price:
     st.success(f"💰 เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
@@ -163,7 +162,7 @@ else:
 
 # ✅ ยืนยันการขาย
 if st.button("✅ ยืนยันการขาย"):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
     for item, qty in st.session_state.cart:
         index = df[df["ชื่อสินค้า"] == item].index[0]
         row = df.loc[index]
@@ -184,8 +183,6 @@ if st.button("✅ ยืนยันการขาย"):
     ])
     st.session_state.reset_search_items = True
     st.rerun()
-
-
 
 # 📦 เติมสินค้า
 with st.expander("📦 เติมสินค้า"):
@@ -226,46 +223,33 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
 
 # 📊 Dashboard รายวัน
-st.markdown("---")
-st.header("📊 Dashboard รายวัน")
-
+st.subheader("📊 Dashboard รายวัน")
 try:
-    sales_data = summary_ws.get_all_records()
-    df_sales = pd.DataFrame(sales_data)
+    sales_df = pd.DataFrame(summary_ws.get_all_records())
+    sales_df["timestamp"] = pd.to_datetime(sales_df["timestamp"])
+    today = datetime.datetime.now(timezone("Asia/Bangkok")).date()
+    today_sales = sales_df[sales_df["timestamp"].dt.date == today]
 
-    # แปลง timestamp เป็น datetime
-    df_sales["timestamp"] = pd.to_datetime(df_sales["timestamp"], errors="coerce")
+    total_today = today_sales["total_price"].sum()
+    profit_today = today_sales["total_profit"].sum()
+    st.success(f"💵 ยอดขายวันนี้: {total_today:.2f} บาท | 🟢 กำไรวันนี้: {profit_today:.2f} บาท")
 
-    # กรองข้อมูลวันนี้
-    today = pd.Timestamp.now().normalize()
-    df_today = df_sales[df_sales["timestamp"].dt.normalize() == today]
+    top_items = today_sales["Items"].str.split(", ").explode().value_counts().head(5)
+    st.markdown("🔥 สินค้าขายดีวันนี้:")
+    for item, count in top_items.items():
+        st.write(f"- {item} จำนวน {count} ชิ้น")
 
-    total_today_sales = df_today["total_price"].sum()
-    total_today_profit = df_today["total_profit"].sum()
+    st.markdown("📈 แนวโน้มยอดขาย")
+    sales_df["date"] = sales_df["timestamp"].dt.date
+    daily = sales_df.groupby("date").agg({"total_price": "sum", "total_profit": "sum"}).reset_index()
 
-    st.subheader(f"🟢 ยอดขายวันนี้: {total_today_sales:.2f} บาท")
-    st.subheader(f"💰 กำไรวันนี้: {total_today_profit:.2f} บาท")
+    fig, ax = plt.subplots()
+    ax.plot(daily["date"], daily["total_price"], label="ยอดขาย")
+    ax.plot(daily["date"], daily["total_profit"], label="กำไร")
+    ax.set_xlabel("วันที่")
+    ax.set_ylabel("ยอดเงิน (บาท)")
+    ax.legend()
+    st.pyplot(fig)
 
-    # สินค้าขายดี
-    from collections import Counter
-    all_items = ", ".join(df_today["Items"].dropna().astype(str)).split(", ")
-    counted = Counter()
-    for i in all_items:
-        parts = i.split(" x ")
-        name = parts[0].strip()
-        qty = int(parts[1]) if len(parts) == 2 else 1
-        counted[name] += qty
-
-    top_items = counted.most_common(5)
-    st.markdown("### 🏆 สินค้าขายดี")
-    for name, count in top_items:
-        st.write(f"• {name} ขายได้ {count} ชิ้น")
-
-    # กราฟยอดขาย 7 วัน
-    df_sales["date"] = df_sales["timestamp"].dt.date
-    recent = df_sales[df_sales["date"] >= (today - pd.Timedelta(days=6)).date()]
-    daily = recent.groupby("date")[["total_price", "total_profit"]].sum().reset_index()
-
-    st.line_chart(daily.set_index("date"))
 except Exception as e:
-    st.warning("⚠️ ไม่สามารถโหลด Dashboard ได้: " + str(e))
+    st.warning(f"⚠️ ไม่สามารถโหลด Dashboard ได้: {e}")
