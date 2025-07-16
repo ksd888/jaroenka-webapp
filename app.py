@@ -100,25 +100,34 @@ for key, default in default_session.items():
 # 📊 Dashboard รายวัน
 st.title("📊 Dashboard ร้านเจริญค้า")
 
-# ดึงข้อมูลจากชีทยอดขาย
-sales_data = pd.DataFrame(summary_ws.get_all_records())
-if not sales_data.empty:
-    sales_data["timestamp"] = pd.to_datetime(sales_data["timestamp"], errors="coerce")
-    today = datetime.now(timezone("Asia/Bangkok")).date()
-    today_sales = sales_data[sales_data["timestamp"].dt.date == today]
+# ✅ โหลดข้อมูลจากชีท 'ยอดขาย'
+sales_ws = sheet.worksheet("ยอดขาย")
+sales_data = pd.DataFrame(sales_ws.get_all_records())
 
-    if not today_sales.empty:
-        total_today_price = today_sales["total_price"].sum()
-        total_today_profit = today_sales["total_profit"].sum()
-        top_items = today_sales["Items"].value_counts().idxmax()
-
-        st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
-        st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
-        st.warning(f"🔥 สินค้าขายดี: {top_items}")
-    else:
-        st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
+# ✅ เปลี่ยนชื่อคอลัมน์ 'เวลา' เป็น 'timestamp'
+if "เวลา" in sales_data.columns:
+    sales_data = sales_data.rename(columns={"เวลา": "timestamp"})
 else:
-    st.warning("⚠️ ยังไม่มีข้อมูลยอดขายในระบบเลย")
+    st.warning("❌ ไม่พบคอลัมน์ 'เวลา' ในชีทยอดขาย")
+    sales_data["timestamp"] = pd.NaT  # ป้องกัน error ภายหลัง
+
+# ✅ แปลง timestamp เป็น datetime
+sales_data["timestamp"] = pd.to_datetime(sales_data["timestamp"], errors="coerce")
+
+# ✅ หาเฉพาะยอดขายของวันนี้
+today = datetime.datetime.now(timezone("Asia/Bangkok")).date()
+today_sales = sales_data[sales_data["timestamp"].dt.date == today]
+
+if not today_sales.empty:
+    total_today_price = today_sales["total_price"].sum()
+    total_today_profit = today_sales["total_profit"].sum()
+    top_items = today_sales["Items"].value_counts().idxmax()
+
+    st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
+    st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
+    st.warning(f"🔥 สินค้าขายดี: {top_items}")
+else:
+    st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
