@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+from pytz import timezone
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
@@ -59,11 +60,13 @@ def safe_safe_int(val):
 def safe_safe_float(val): 
     try: return safe_float(val)
     except: return 0.0
-
 def increase_quantity(p): st.session_state.quantities[p] += 1
 def decrease_quantity(p): st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
-# 🔗 เชื่อม Google Sheets
+# ✅ ตั้งเวลา
+now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
+
+# ✅ เชื่อม Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
 gc = gspread.authorize(credentials)
@@ -72,7 +75,7 @@ worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
-# ✅ รีเซ็ตค่าหลังยืนยัน
+# ✅ รีเซ็ต Session
 if st.session_state.get("reset_search_items"):
     st.session_state["search_items"] = []
     st.session_state["quantities"] = {}
@@ -81,7 +84,7 @@ if st.session_state.get("reset_search_items"):
     st.session_state["last_paid_click"] = 0
     del st.session_state["reset_search_items"]
 
-# ✅ ตั้งค่าตั้งต้น
+# ✅ ค่าเริ่มต้น
 default_session = {
     "cart": [],
     "search_items": [],
@@ -94,25 +97,42 @@ for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
+# ✅ Dashboard
+st.title("📊 Dashboard ร้านเจริญค้า")
+try:
+    sales_data = pd.DataFrame(summary_ws.get_all_records())
+    sales_data["เวลา"] = pd.to_datetime(sales_data["เวลา"])
+    today = datetime.datetime.now(timezone("Asia/Bangkok")).date()
+    today_sales = sales_data[sales_data["เวลา"].dt.date == today]
+    top_items = today_sales["รายการ"].str.extractall(r'([^,]+) x (\d+)')
+    top_items.columns = ["สินค้า", "จำนวน"]
+    top_items["จำนวน"] = top_items["จำนวน"].astype(int)
+    top_summary = top_items.groupby("สินค้า").sum().sort_values("จำนวน", ascending=False).head(5)
+
+    st.metric("ยอดขายวันนี้", f'{today_sales["ยอดขาย"].sum():,.2f} บาท')
+    st.metric("กำไรวันนี้", f'{today_sales["กำไร"].sum():,.2f} บาท')
+    st.write("สินค้าขายดีวันนี้ 🥇")
+    st.dataframe(top_summary)
+except Exception as e:
+    st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
+
+# ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
 product_names = df["ชื่อสินค้า"].tolist()
 st.multiselect("เลือกสินค้าจากชื่อ", product_names, key="search_items")
-
 selected = st.session_state["search_items"]
+
 for p in selected:
     if p not in st.session_state.quantities:
         st.session_state.quantities[p] = 1
     qty = st.session_state.quantities[p]
     st.markdown(f"**{p}**")
     col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        st.button("➖", key=f"dec_{safe_key(p)}", on_click=decrease_quantity, args=(p,))
-    with col2:
-        st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", unsafe_allow_html=True)
-    with col3:
-        st.button("➕", key=f"inc_{safe_key(p)}", on_click=increase_quantity, args=(p,))
-    row = df[df['ชื่อสินค้า'] == p]
-    stock = int(row['คงเหลือในตู้'].values[0]) if not row.empty else 0
+    with col1: st.button("➖", key=f"dec_{safe_key(p)}", on_click=decrease_quantity, args=(p,))
+    with col2: st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", unsafe_allow_html=True)
+    with col3: st.button("➕", key=f"inc_{safe_key(p)}", on_click=increase_quantity, args=(p,))
+    row = df[df["ชื่อสินค้า"] == p]
+    stock = int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
     st.markdown(f"<span style='color:{'red' if stock < 3 else 'black'}; font-size:18px'>🧊 คงเหลือในตู้: {stock}</span>", unsafe_allow_html=True)
 
 if st.button("➕ เพิ่มลงตะกร้า"):
@@ -132,13 +152,11 @@ for item, qty in st.session_state.cart:
     total_profit += profit
     st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
 
-# 💰 ช่องใส่เงิน
+# 💰 ช่องรับเงิน
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า", value=st.session_state.paid_input, step=1.0)
-
 def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
-
 col1, col2, col3 = st.columns(3)
 with col1: st.button("20", on_click=add_money, args=(20,))
 with col2: st.button("50", on_click=add_money, args=(50,))
@@ -146,12 +164,12 @@ with col3: st.button("100", on_click=add_money, args=(100,))
 col4, col5 = st.columns(2)
 with col4: st.button("500", on_click=add_money, args=(500,))
 with col5: st.button("1000", on_click=add_money, args=(1000,))
-
 if st.session_state.last_paid_click:
     if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
         st.session_state.paid_input -= st.session_state.last_paid_click
         st.session_state.last_paid_click = 0
 
+# 💸 แสดงยอดรวม
 st.info(f"📦 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
 if st.session_state.paid_input >= total_price:
     st.success(f"💰 เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
@@ -160,7 +178,6 @@ else:
 
 # ✅ ยืนยันการขาย
 if st.button("✅ ยืนยันการขาย"):
-    now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
     for item, qty in st.session_state.cart:
         index = df[df["ชื่อสินค้า"] == item].index[0]
         row = df.loc[index]
@@ -211,7 +228,7 @@ with st.expander("✏️ แก้ไขสินค้า"):
         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
         st.success(f"✅ อัปเดต {edit_item} แล้ว")
 
-# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออกประจำวัน (แบบเร็ว)
+# 🔁 ปุ่มรีเซ็ตยอดเข้า-ออก
 if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", key="reset_io"):
     num_rows = len(df)
     worksheet.batch_update([
@@ -219,35 +236,3 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
         {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
     ])
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
-
-# 📊 Dashboard รายวัน
-st.subheader("📊 Dashboard รายวัน")
-try:
-    sales_df = pd.DataFrame(summary_ws.get_all_records())
-    sales_df["timestamp"] = pd.to_datetime(sales_df["timestamp"])
-    today = datetime.datetime.now(timezone("Asia/Bangkok")).date()
-    today_sales = sales_df[sales_df["timestamp"].dt.date == today]
-
-    total_today = today_sales["total_price"].sum()
-    profit_today = today_sales["total_profit"].sum()
-    st.success(f"💵 ยอดขายวันนี้: {total_today:.2f} บาท | 🟢 กำไรวันนี้: {profit_today:.2f} บาท")
-
-    top_items = today_sales["Items"].str.split(", ").explode().value_counts().head(5)
-    st.markdown("🔥 สินค้าขายดีวันนี้:")
-    for item, count in top_items.items():
-        st.write(f"- {item} จำนวน {count} ชิ้น")
-
-    st.markdown("📈 แนวโน้มยอดขาย")
-    sales_df["date"] = sales_df["timestamp"].dt.date
-    daily = sales_df.groupby("date").agg({"total_price": "sum", "total_profit": "sum"}).reset_index()
-
-    fig, ax = plt.subplots()
-    ax.plot(daily["date"], daily["total_price"], label="ยอดขาย")
-    ax.plot(daily["date"], daily["total_profit"], label="กำไร")
-    ax.set_xlabel("วันที่")
-    ax.set_ylabel("ยอดเงิน (บาท)")
-    ax.legend()
-    st.pyplot(fig)
-
-except Exception as e:
-    st.warning(f"⚠️ ไม่สามารถโหลด Dashboard ได้: {e}")
