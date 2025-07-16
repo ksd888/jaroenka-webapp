@@ -72,7 +72,7 @@ worksheet = sheet.worksheet("ตู้เย็น")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
-# ✅ รีเซ็ตค่าถ้าตั้ง flag ไว้
+# ✅ รีเซ็ตค่าหลังยืนยัน
 if st.session_state.get("reset_search_items"):
     st.session_state["search_items"] = []
     st.session_state["quantities"] = {}
@@ -81,7 +81,7 @@ if st.session_state.get("reset_search_items"):
     st.session_state["last_paid_click"] = 0
     del st.session_state["reset_search_items"]
 
-# ✅ ค่าตั้งต้น
+# ✅ ตั้งค่าตั้งต้น
 default_session = {
     "cart": [],
     "search_items": [],
@@ -133,8 +133,10 @@ for item, qty in st.session_state.cart:
     total_profit += profit
     st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
 
-# 💰 ช่องใส่เงิน + ปุ่มลัด
+# 💰 ช่องใส่เงิน
 st.session_state.paid_input = st.number_input("💰 รับเงินจากลูกค้า", value=st.session_state.paid_input, step=1.0)
+
+# 💸 ปุ่มเงินลัด
 def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
