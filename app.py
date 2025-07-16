@@ -226,33 +226,46 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
 
 # 📊 Dashboard รายวัน
-with st.expander("📊 Dashboard รายวัน"):
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
+st.markdown("---")
+st.header("📊 Dashboard รายวัน")
+
+try:
     sales_data = summary_ws.get_all_records()
-    df_summary = pd.DataFrame(sales_data)
-    df_today = df_summary[df_summary["timestamp"].str.startswith(today)]
-    df_today = df_today[df_today["type"] == "drink"]
+    df_sales = pd.DataFrame(sales_data)
 
-    if df_today.empty:
-        st.info("วันนี้ยังไม่มีการขาย")
-    else:
-        total_sales = df_today["total_price"].sum()
-        total_profit = df_today["total_profit"].sum()
-        st.metric("ยอดขายวันนี้ (บาท)", f"{total_sales:,.2f}")
-        st.metric("กำไรสุทธิวันนี้ (บาท)", f"{total_profit:,.2f}")
+    # แปลง timestamp เป็น datetime
+    df_sales["timestamp"] = pd.to_datetime(df_sales["timestamp"], errors="coerce")
 
-        # วิเคราะห์สินค้าขายดี
-        from collections import Counter
-        item_counter = Counter()
-        for items in df_today["items"]:
-            for part in items.split(","):
-                try:
-                    name, qty = part.strip().rsplit(" x ", 1)
-                    item_counter[name.strip()] += int(qty.strip())
-                except:
-                    continue
+    # กรองข้อมูลวันนี้
+    today = pd.Timestamp.now().normalize()
+    df_today = df_sales[df_sales["timestamp"].dt.normalize() == today]
 
-        top_items = sorted(item_counter.items(), key=lambda x: x[1], reverse=True)
-        st.subheader("📈 สินค้าขายดีวันนี้")
-        for name, qty in top_items[:10]:
-            st.write(f"• {name} - {qty} ชิ้น")
+    total_today_sales = df_today["total_price"].sum()
+    total_today_profit = df_today["total_profit"].sum()
+
+    st.subheader(f"🟢 ยอดขายวันนี้: {total_today_sales:.2f} บาท")
+    st.subheader(f"💰 กำไรวันนี้: {total_today_profit:.2f} บาท")
+
+    # สินค้าขายดี
+    from collections import Counter
+    all_items = ", ".join(df_today["Items"].dropna().astype(str)).split(", ")
+    counted = Counter()
+    for i in all_items:
+        parts = i.split(" x ")
+        name = parts[0].strip()
+        qty = int(parts[1]) if len(parts) == 2 else 1
+        counted[name] += qty
+
+    top_items = counted.most_common(5)
+    st.markdown("### 🏆 สินค้าขายดี")
+    for name, count in top_items:
+        st.write(f"• {name} ขายได้ {count} ชิ้น")
+
+    # กราฟยอดขาย 7 วัน
+    df_sales["date"] = df_sales["timestamp"].dt.date
+    recent = df_sales[df_sales["date"] >= (today - pd.Timedelta(days=6)).date()]
+    daily = recent.groupby("date")[["total_price", "total_profit"]].sum().reset_index()
+
+    st.line_chart(daily.set_index("date"))
+except Exception as e:
+    st.warning("⚠️ ไม่สามารถโหลด Dashboard ได้: " + str(e))
