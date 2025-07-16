@@ -97,24 +97,28 @@ for key, default in default_session.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ✅ Dashboard
+# 📊 Dashboard รายวัน
 st.title("📊 Dashboard ร้านเจริญค้า")
-try:
-    sales_data = pd.DataFrame(summary_ws.get_all_records())
-    sales_data["เวลา"] = pd.to_datetime(sales_data["เวลา"])
-    today = datetime.datetime.now(timezone("Asia/Bangkok")).date()
-    today_sales = sales_data[sales_data["เวลา"].dt.date == today]
-    top_items = today_sales["รายการ"].str.extractall(r'([^,]+) x (\d+)')
-    top_items.columns = ["สินค้า", "จำนวน"]
-    top_items["จำนวน"] = top_items["จำนวน"].astype(int)
-    top_summary = top_items.groupby("สินค้า").sum().sort_values("จำนวน", ascending=False).head(5)
 
-    st.metric("ยอดขายวันนี้", f'{today_sales["ยอดขาย"].sum():,.2f} บาท')
-    st.metric("กำไรวันนี้", f'{today_sales["กำไร"].sum():,.2f} บาท')
-    st.write("สินค้าขายดีวันนี้ 🥇")
-    st.dataframe(top_summary)
-except Exception as e:
-    st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
+# ดึงข้อมูลจากชีทยอดขาย
+sales_data = pd.DataFrame(summary_ws.get_all_records())
+if not sales_data.empty:
+    sales_data["timestamp"] = pd.to_datetime(sales_data["timestamp"], errors="coerce")
+    today = datetime.now(timezone("Asia/Bangkok")).date()
+    today_sales = sales_data[sales_data["timestamp"].dt.date == today]
+
+    if not today_sales.empty:
+        total_today_price = today_sales["total_price"].sum()
+        total_today_profit = today_sales["total_profit"].sum()
+        top_items = today_sales["Items"].value_counts().idxmax()
+
+        st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
+        st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
+        st.warning(f"🔥 สินค้าขายดี: {top_items}")
+    else:
+        st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
+else:
+    st.warning("⚠️ ยังไม่มีข้อมูลยอดขายในระบบเลย")
 
 # ✅ UI ขายสินค้า
 st.title("🧊 ระบบขายสินค้า - ร้านเจริญค้า")
