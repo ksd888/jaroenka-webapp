@@ -336,3 +336,42 @@ if page == "ขายสินค้า":
 
 elif page == "ขายน้ำแข็ง":
     show_ice_sale_page()
+
+# -------------------------------
+# 📊 Dashboard
+# -------------------------------
+elif st.session_state.page == "Dashboard":
+    st.title("📊 Dashboard รายวัน")
+    try:
+        sales_sheet = sheet.worksheet("ยอดขาย")
+        sales_df = pd.DataFrame(sales_sheet.get_all_records())
+
+        # แปลงคอลัมน์วันที่เป็น datetime
+        sales_df["วันที่"] = pd.to_datetime(sales_df["วันที่"], errors="coerce")
+        sales_df = sales_df.dropna(subset=["วันที่"])
+        sales_df["วันที่"] = sales_df["วันที่"].dt.date
+
+        # กรองเฉพาะ 14 วันล่าสุด
+        recent_df = sales_df.sort_values("วันที่", ascending=False).head(14)
+        daily_summary = recent_df.groupby("วันที่").agg({"กำไรสุทธิ": "sum", "ยอดขาย": "sum"}).sort_index()
+
+        st.subheader("📈 กราฟกำไรสุทธิรายวัน")
+        import matplotlib.pyplot as plt
+        fig1, ax1 = plt.subplots()
+        ax1.plot(daily_summary.index, daily_summary["กำไรสุทธิ"], marker='o')
+        ax1.set_ylabel("กำไรสุทธิ (บาท)")
+        ax1.set_xlabel("วันที่")
+        ax1.grid(True)
+        st.pyplot(fig1)
+
+        st.subheader("💰 ยอดขายรวมและกำไรรวม 14 วันล่าสุด")
+        st.metric("ยอดขายรวม", f"{daily_summary['ยอดขาย'].sum():,.0f} บาท")
+        st.metric("กำไรสุทธิรวม", f"{daily_summary['กำไรสุทธิ'].sum():,.0f} บาท")
+
+        st.subheader("🔥 วันที่ขายดีสุด")
+        top_day = daily_summary["ยอดขาย"].idxmax()
+        top_sales = daily_summary["ยอดขาย"].max()
+        st.success(f"วันที่ {top_day} มียอดขายสูงสุด {top_sales:,.0f} บาท")
+
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลด Dashboard: {e}")
