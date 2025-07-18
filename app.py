@@ -8,48 +8,28 @@ import matplotlib.pyplot as plt
 
 # ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
+    
     <style>
-    body, .main, .block-container {
-        background-color: #ffffff !important;
+    *, body, .main, .block-container, .stText, .stMarkdown, .stAlert, label, span {
         color: #000000 !important;
     }
     .stButton>button {
         color: white !important;
         background-color: #007aff !important;
-        border: none;
-        border-radius: 10px;
-        padding: 0.5em 1.2em;
         font-weight: bold;
     }
-    .stTextInput>div>div>input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
+    .stTextInput>div>div>input,
+    .stNumberInput input,
+    .stSelectbox div,
+    .stMultiSelect div {
         background-color: #f2f2f7 !important;
-        color: #000 !important;
+        color: #000000 !important;
         border-radius: 6px;
         font-size: 18px;
         font-weight: bold;
     }
-    .st-expander, .st-expander>details {
-        background-color: #f9f9f9 !important;
-        color: #000000 !important;
-        border-radius: 8px;
-    }
-    .stAlert > div {
-        font-weight: bold;
-        color: #000 !important;
-    }
-    .stAlert[data-testid="stAlert-success"] {
-        background-color: #d4fcd4 !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-info"] {
-        background-color: #e6f0ff !important;
-        border: 1px solid #007aff !important;
-    }
-    .stAlert[data-testid="stAlert-warning"] {
-        background-color: #fff4d2 !important;
-        border: 1px solid #ff9500 !important;
-    }
     </style>
+
 """, unsafe_allow_html=True)
 
 # ✅ ปุ่มเมนูด้านบนแทน Sidebar
