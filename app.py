@@ -374,4 +374,20 @@ elif st.session_state.page == "Dashboard":
         st.success(f"วันที่ {top_day} มียอดขายสูงสุด {top_sales:,.0f} บาท")
 
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลด Dashboard: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการโหลด Dashboard: {e}"
+
+
+# ✅ ปุ่มเมนูด้านบนแทน Sidebar
+st.markdown("### 🚀 เมนูหลัก")
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("🏪 ขายสินค้า"):
+        st.session_state.page = "ตู้เย็น"
+with col2:
+    if st.button("🧊 ขายน้ำแข็ง"):
+        st.session_state.page = "น้ำแข็ง"
+with col3:
+    if st.button("📊 Dashboard"):
+        st.session_state.page = "Dashboard"
+
+)
