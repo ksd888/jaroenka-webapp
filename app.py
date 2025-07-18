@@ -9,14 +9,17 @@ import matplotlib.pyplot as plt
 # ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     
+    
     <style>
     *, body, .main, .block-container, .stText, .stMarkdown, .stAlert, label, span {
-        color: #000000 !important;
+        color: #ffffff !important;
     }
     .stButton>button {
-        color: white !important;
+        color: #ffffff !important;
         background-color: #007aff !important;
         font-weight: bold;
+        border-radius: 10px;
+        padding: 0.5em 1.2em;
     }
     .stTextInput>div>div>input,
     .stNumberInput input,
@@ -29,6 +32,7 @@ st.markdown("""
         font-weight: bold;
     }
     </style>
+
 
 """, unsafe_allow_html=True)
 
