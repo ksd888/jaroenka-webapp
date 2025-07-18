@@ -286,8 +286,8 @@ def show_ice_sale_page():
 
     for i, row in df_ice.iterrows():
         name = row["ชนิดน้ำแข็ง"]
-        price = row["ราคาขายต่อหน่วย"]
-        cost = row["ต้นทุนต่อหน่วย"]
+        price = float(row["ราคาขายต่อหน่วย"])
+        cost = float(row["ต้นทุนต่อหน่วย"])
         unit_profit = price - cost
 
         st.subheader(f"💼 {name}")
