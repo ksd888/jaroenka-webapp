@@ -388,6 +388,4 @@ with col2:
         st.session_state.page = "น้ำแข็ง"
 with col3:
     if st.button("📊 Dashboard"):
-        st.session_state.page = "Dashboard"
-
-)
+        st.session_state.page = "Dashboard")
