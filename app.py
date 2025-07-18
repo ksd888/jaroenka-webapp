@@ -250,30 +250,16 @@ if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ�
     ])
     st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
 
-import streamlit as st
-import datetime
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
-
-# 🔐 ใช้ secrets สำหรับ Google Sheets
-creds = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
-gc = gspread.authorize(creds)
-sh = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-sheet_sales = sh.worksheet("ยอดขาย")
-
 def show_ice_sale_page():
     st.title("🧊 ขายน้ำแข็ง (แยกหน้า)")
-    iceflow_sheet = sh.worksheet("iceflow")
+    iceflow_sheet = sheet.worksheet("iceflow")
     df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
-    # แปลงราคาขายและต้นทุนให้เป็น float อย่างปลอดภัย
+
     df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
     df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
     df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
 
     today_str = datetime.datetime.now().strftime("%-d/%-m/%Y")
-
-    # ถ้าวันเปลี่ยน รีเซ็ตยอด
     if df_ice["วันที่"].iloc[0] != today_str:
         df_ice["วันที่"] = today_str
         df_ice["รับเข้า"] = 0
@@ -325,9 +311,8 @@ def show_ice_sale_page():
 
     if st.button("✅ บันทึกการขายน้ำแข็ง"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-
         for item in updates:
-            sheet_sales.append_row([
+            summary_ws.append_row([
                 today_str,
                 item["name"],
                 item["qty"],
@@ -340,5 +325,11 @@ def show_ice_sale_page():
             ])
         st.success(f"✅ บันทึกเรียบร้อย | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
 
-# รันฟังก์ชัน
-show_ice_sale_page()
+page = st.sidebar.selectbox("📒 เลือกหน้า", ["ขายสินค้า", "ขายน้ำแข็ง"])
+
+if page == "ขายสินค้า":
+    # ระบบขายสินค้าตู้เย็นเดิมยังคงทำงานได้ตามปกติ
+    pass  # หรือลิงก์ไปยังโค้ดขายสินค้าเดิม
+
+elif page == "ขายน้ำแข็ง":
+    show_ice_sale_page()
