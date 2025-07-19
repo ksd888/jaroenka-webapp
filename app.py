@@ -295,6 +295,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     iceflow_sheet = sheet.worksheet("iceflow")
     df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
     df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
     df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
     df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
@@ -311,10 +312,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
 
+    ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
     in_values = {}
     col1, col2, col3, col4 = st.columns(4)
-    for i, k in enumerate(["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]):
+    for i, k in enumerate(ice_types):
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
         if not row.empty:
             idx = row.index[0]
@@ -322,11 +324,13 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             with [col1, col2, col3, col4][i]:
                 in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"in_{k}")
                 df_ice.at[idx, "รับเข้า"] = in_values[k]
+        else:
+            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}' ในชีท iceflow")
 
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
     total_profit = 0
-    for k in ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]:
+    for k in ice_types:
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
         if not row.empty:
             idx = row.index[0]
@@ -346,6 +350,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
             total_income += income
             total_profit += profit
+        else:
+            st.warning(f"❌ ไม่สามารถขายออกน้ำแข็ง '{k}' ได้ เพราะไม่มีข้อมูลในชีท")
 
     if st.button("✅ บันทึกการขายน้ำแข็ง"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
