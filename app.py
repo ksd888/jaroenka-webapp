@@ -353,6 +353,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         else:
             st.warning(f"❌ ไม่สามารถขายออกน้ำแข็ง '{k}' ได้ เพราะไม่มีข้อมูลในชีท")
 
+    if st.button("📥 บันทึกยอดเติมน้ำแข็ง"):
+        for k in ice_types:
+            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
+            if not row.empty:
+                idx = row.index[0]
+                df_ice.at[idx, "วันที่"] = today_str
+        iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+        st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+        st.experimental_rerun()
+
     if st.button("✅ บันทึกการขายน้ำแข็ง"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         for _, row in df_ice.iterrows():
@@ -368,3 +378,4 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 "ice"
             ])
         st.success(f"✅ บันทึกแล้ว | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
+        st.experimental_rerun()
