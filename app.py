@@ -387,6 +387,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
         # รีเซ็ตค่าช่องกรอกออก
         for k in ice_types:
+            if f"out_{k}" in st.session_state:
             st.session_state[f"out_{k}"] = 0
 
         st.session_state["force_rerun"] = True
