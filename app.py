@@ -1,3 +1,8 @@
+if "force_rerun" in st.session_state and st.session_state.force_rerun:
+    st.session_state.force_rerun = False
+    st.session_state["force_rerun"] = True
+    st.stop()
+
 import streamlit as st
 import datetime
 from pytz import timezone
@@ -291,11 +296,9 @@ elif st.session_state.page == "ขายสินค้า":
 
 # ✅ หน้า "ขายน้ำแข็ง"
 elif st.session_state.page == "ขายน้ำแข็ง":
-    st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
-
+    st.title("🧊 ขายน้ำแข็ง (แยกหน้า)")
     iceflow_sheet = sheet.worksheet("iceflow")
     df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
-    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
     df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
     df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
     df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
@@ -312,70 +315,50 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
 
-    ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
-    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
-    in_values = {}
-    col1, col2, col3, col4 = st.columns(4)
-    for i, k in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
-        if not row.empty:
-            idx = row.index[0]
-            old_val = int(df_ice.at[idx, "รับเข้า"])
-            with [col1, col2, col3, col4][i]:
-                in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"in_{k}")
-                df_ice.at[idx, "รับเข้า"] = in_values[k]
-        else:
-            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}' ในชีท iceflow")
-
-    st.markdown("### 💸 โซนขายออกน้ำแข็ง")
+    updates = []
     total_income = 0
     total_profit = 0
-    for k in ice_types:
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
-        if not row.empty:
-            idx = row.index[0]
-            price = float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
-            cost = float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
-            profit_unit = price - cost
-            old_out = int(df_ice.at[idx, "ขายออก"])
-            out_val = st.number_input(f"🧊 ขายออก {k}", min_value=0, value=old_out, key=f"out_{k}")
-            income = out_val * price
-            profit = out_val * profit_unit
-
-            df_ice.at[idx, "ขายออก"] = out_val
-            df_ice.at[idx, "คงเหลือตอนเย็น"] = int(df_ice.at[idx, "รับเข้า"]) - out_val
-            df_ice.at[idx, "กำไรรวม"] = profit
-            df_ice.at[idx, "กำไรสุทธิ"] = profit
-            df_ice.at[idx, "วันที่"] = today_str
-
-            total_income += income
-            total_profit += profit
-        else:
-            st.warning(f"❌ ไม่สามารถขายออกน้ำแข็ง '{k}' ได้ เพราะไม่มีข้อมูลในชีท")
-
-    if st.button("📥 บันทึกยอดเติมน้ำแข็ง"):
-        for k in ice_types:
-            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
-            if not row.empty:
-                idx = row.index[0]
-                df_ice.at[idx, "วันที่"] = today_str
-        iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-        st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
-        st.experimental_rerun()
+    for i, row in df_ice.iterrows():
+        name = row["ชนิดน้ำแข็ง"]
+        price = float(row["ราคาขายต่อหน่วย"])
+        cost = float(row["ต้นทุนต่อหน่วย"])
+        unit_profit = price - cost
+        st.subheader(f"💼 {name}")
+        in_qty = st.number_input(f"📥 รับเข้า {name}", min_value=0, value=int(row["รับเข้า"]), key=f"in_{i}")
+        out_qty = st.number_input(f"🧊 ขายออก {name}", min_value=0, value=int(row["ขายออก"]), key=f"out_{i}")
+        balance = in_qty - out_qty
+        total = out_qty * price
+        profit = out_qty * unit_profit
+        df_ice.at[i, "วันที่"] = today_str
+        df_ice.at[i, "รับเข้า"] = in_qty
+        df_ice.at[i, "ขายออก"] = out_qty
+        df_ice.at[i, "คงเหลือตอนเย็น"] = balance
+        df_ice.at[i, "กำไรรวม"] = profit
+        df_ice.at[i, "กำไรสุทธิ"] = profit
+        updates.append({
+            "name": name,
+            "qty": out_qty,
+            "price": price,
+            "cost": cost,
+            "unit_profit": unit_profit,
+            "total_profit": profit,
+            "total_income": total
+        })
+        total_income += total
+        total_profit += profit
 
     if st.button("✅ บันทึกการขายน้ำแข็ง"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-        for _, row in df_ice.iterrows():
+        for item in updates:
             summary_ws.append_row([
                 today_str,
-                row["ชนิดน้ำแข็ง"],
-                int(row["ขายออก"]),
-                row["ราคาขายต่อหน่วย"],
-                row["ต้นทุนต่อหน่วย"],
-                row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"],
-                int(row["ขายออก"]) * row["ราคาขายต่อหน่วย"],
-                int(row["ขายออก"]) * (row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"]),
+                item["name"],
+                item["qty"],
+                item["price"],
+                item["cost"],
+                item["unit_profit"],
+                item["total_income"],
+                item["total_profit"],
                 "ice"
             ])
-        st.success(f"✅ บันทึกแล้ว | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
-        st.experimental_rerun()
+        st.success(f"✅ บันทึกเรียบร้อย | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
