@@ -1,4 +1,4 @@
- streamlit as st
+import streamlit as st
 if "force_rerun" in st.session_state and st.session_state.force_rerun:
     st.session_state.force_rerun = False
     st.experimental_rerun()
