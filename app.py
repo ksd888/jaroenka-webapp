@@ -1,4 +1,4 @@
-import streamlit as st
+ streamlit as st
 if "force_rerun" in st.session_state and st.session_state.force_rerun:
     st.session_state.force_rerun = False
     st.experimental_rerun()
@@ -385,10 +385,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             ])
         st.success(f"✅ บันทึกแล้ว | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
 
-        # รีเซ็ตค่าช่องกรอกออก
+                # รีเซ็ตค่าช่องกรอกออก
         for k in ice_types:
             if f"out_{k}" in st.session_state:
-            st.session_state[f"out_{k}"] = 0
+                st.session_state[f"out_{k}"] = 0
 
         st.session_state["force_rerun"] = True
         st.stop()
