@@ -112,7 +112,7 @@ if st.session_state.page == "Dashboard":
 
         if "เวลา" in sales_data.columns:
             sales_data = sales_data.rename(columns={"เวลา": "timestamp"})
-        # else clause removed due to indentation issue
+        else:
             st.warning("❌ ไม่พบคอลัมน์ 'เวลา' ในชีทยอดขาย")
             sales_data["timestamp"] = pd.NaT
 
@@ -128,7 +128,7 @@ if st.session_state.page == "Dashboard":
             st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
             st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
             st.warning(f"🔥 สินค้าขายดี: {top_items}")
-        # else clause removed due to indentation issue
+        else:
             st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
 
         # กราฟ 14 วัน
@@ -329,21 +329,18 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             with [col1, col2, col3, col4][i]:
                 in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"in_{k}")
                 df_ice.at[idx, "รับเข้า"] = in_values[k]
-        # else clause removed due to indentation issue
+
+    # 👁 แสดงคงเหลือใต้ input (แบบในภาพ)
+    received = safe_safe_int(df_ice.at[idx, "รับเข้า"])
+    sold = safe_safe_int(df_ice.at[idx, "ขายออก"])
+    melted = safe_safe_int(df_ice.at[idx, "จำนวนละลาย"])
+    remaining = received - sold - melted
+    st.caption(f"🧊 คงเหลือ: {remaining} ถุง")
+
+        else:
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
 
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
-    st.markdown("### ❄️ คงเหลือน้ำแข็งแต่ละชนิด")
-    for k in ice_types:
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
-        if not row.empty:
-            idx = row.index[0]
-            received = safe_safe_int(df_ice.at[idx, "รับเข้า"])
-            sold = safe_safe_int(df_ice.at[idx, "ขายออก"])
-            melted = safe_safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            remaining = received - sold - melted
-            st.info(f"{k.capitalize()} ➜ คงเหลือ: {remaining} ถุง")
-
     total_income = 0
     total_profit = 0
     for k in ice_types:
@@ -366,7 +363,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
             total_income += income
             total_profit += profit
-        # else clause removed due to indentation issue
+        else:
             st.warning(f"❌ ไม่สามารถขายออก '{k}' ได้")
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง"):
