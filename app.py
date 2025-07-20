@@ -329,6 +329,14 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             with [col1, col2, col3, col4][i]:
                 in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"in_{k}")
                 df_ice.at[idx, "รับเข้า"] = in_values[k]
+
+    # 👉 แสดงคงเหลือน้ำแข็ง
+    received = safe_safe_int(df_ice.at[idx, "รับเข้า"])
+    sold = safe_safe_int(df_ice.at[idx, "ขายออก"])
+    melted = safe_safe_int(df_ice.at[idx, "จำนวนละลาย"])
+    remaining = received - sold - melted
+    st.markdown(f"🧊 <b>คงเหลือ:</b> {remaining} ถุง", unsafe_allow_html=True)
+
         else:
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
 
