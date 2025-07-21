@@ -494,7 +494,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             
             # บังคับให้รีเฟรชหน้า
             st.session_state["force_rerun"] = True
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
@@ -569,6 +569,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             
             # บังคับให้รีเฟรชหน้า
             st.session_state["force_rerun"] = True
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
