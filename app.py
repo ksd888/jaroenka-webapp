@@ -1,4 +1,4 @@
-import streamlit as st
+ฃimport streamlit as st
 
 st.markdown("""
 <style>
@@ -27,26 +27,45 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     font-size: 18px;
 }
 
-/* Checkbox Custom */
+/* Custom Checkbox UI */
 .stCheckbox > div {
     display: flex;
     align-items: center;
 }
 .stCheckbox input[type="checkbox"] {
-    width: 22px;
-    height: 22px;
-    border: 2px solid #000 !important;
-    background-color: white !important;
-    margin-right: 10px;
-    transform: scale(1.3);
-}
-.stCheckbox input[type="checkbox"]:checked {
-    background-color: #007aff !important;
+    display: none;
 }
 .stCheckbox > div > label {
-    color: #000000 !important;
-    font-weight: bold !important;
+    position: relative;
+    padding-left: 28px;
+    cursor: pointer;
     font-size: 18px;
+    color: #000000 !important;
+    font-weight: bold;
+}
+.stCheckbox > div > label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #000;
+    background-color: white;
+    border-radius: 4px;
+}
+.stCheckbox input[type="checkbox"]:checked + label::before {
+    background-color: #007aff;
+    border-color: #007aff;
+}
+.stCheckbox input[type="checkbox"]:checked + label::after {
+    content: "✓";
+    position: absolute;
+    left: 5px;
+    top: 0px;
+    font-size: 16px;
+    color: white;
+    font-weight: bold;
 }
 
 /* Label ทั่วไป */
