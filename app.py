@@ -136,6 +136,10 @@ def increase_quantity(p):
 def decrease_quantity(p): 
     st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
+def add_money(amount: int):
+    st.session_state.paid_input += amount
+    st.session_state.last_paid_click = amount
+
 # ระบบจัดการ Session
 if st.session_state.get("reset_search_items"):
     st.session_state["search_items"] = []
@@ -430,11 +434,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             old_val = safe_int(df_ice.at[idx, "รับเข้า"])
             
             with cols[i]:
+                # ใช้ key ใน session_state เพื่อจัดการค่า
+                if f"in_{ice_type}_value" not in st.session_state:
+                    st.session_state[f"in_{ice_type}_value"] = old_val
+                    
                 in_values[ice_type] = st.number_input(
                     f"📥 {ice_type}", 
                     min_value=0, 
-                    value=old_val, 
-                    key=f"in_{ice_type}"
+                    value=st.session_state[f"in_{ice_type}_value"], 
+                    key=f"in_{ice_type}_input"
                 )
                 df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
                 
@@ -451,12 +459,12 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+        
+        # รีเซ็ตค่าที่ป้อนไว้ทั้งหมด
         for ice_type in ice_types:
-            key_variants = [f"in_{ice_type}", f"in_{ice_type}_input"]
-            for key in key_variants:
-                if key in st.session_state:
-                    del st.session_state[key]
-        st.rerun()
+            st.session_state[f"in_{ice_type}_value"] = 0
+            st.session_state[f"in_{ice_type}_input"] = 0
+        
         st.session_state["force_rerun"] = True
         st.rerun()
     
@@ -521,12 +529,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             ])
         
         st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
+        
+        # รีเซ็ตค่าที่ป้อนไว้ทั้งหมดหลังบันทึก
         for ice_type in ice_types:
-            key_variants = [f"sell_out_{ice_type}", f"sell_out_{ice_type}_input"]
-            for key in key_variants:
-                if key in st.session_state:
-                    del st.session_state[key]
-        st.rerun()
+            st.session_state[f"sell_out_{ice_type}"] = 0
+        
         st.session_state["force_rerun"] = True
         st.rerun()
     
@@ -537,7 +544,3 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 st.session_state[f"sell_out_{k}"] = 0
         st.session_state["force_rerun"] = True
         st.rerun()
-
-def add_money(amount: int):
-    st.session_state.paid_input += amount
-    st.session_state.last_paid_click = amount
