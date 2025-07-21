@@ -1,4 +1,44 @@
 import streamlit as st
+
+st.markdown("""
+<style>
+/* พื้นหลังขาว ตัวหนังสือเข้ม */
+body, .main, .block-container {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* ปุ่ม */
+.stButton > button {
+    color: white !important;
+    background-color: #007aff !important;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    padding: 0.5em 1.2em;
+    font-size: 16px;
+}
+
+/* Input */
+.stTextInput > div > div > input,
+.stNumberInput input,
+.stSelectbox div,
+.stMultiSelect div {
+    background-color: #f2f2f7 !important;
+    color: #000000 !important;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Label, ป้ายชื่อ */
+label, span, .stMarkdown, .stText, .stCaption {
+    color: #000000 !important;
+    font-weight: bold;
+}
+</style>
+""", unsafe_allow_html=True)
+
 if "force_rerun" in st.session_state and st.session_state.force_rerun:
     st.session_state.force_rerun = False
     st.experimental_rerun()
