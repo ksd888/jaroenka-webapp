@@ -351,7 +351,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             cost = float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             profit_unit = price - cost
             old_out = int(df_ice.at[idx, "ขายออก"])
-            out_val = st.number_input(f"🧊 ขายออก {k}", min_value=0, value=old_out, key=f"out_{k}")
+            out_val = st.number_input(f"🧊 ขายออก {k}", min_value=0, value=old_out, key=f"sell_out_{k}")
             income = out_val * price
             profit = out_val * profit_unit
 
