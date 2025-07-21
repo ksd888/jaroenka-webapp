@@ -117,6 +117,8 @@ def connect_google_sheets():
 
 sheet = connect_google_sheets()
 worksheet = sheet.worksheet("iceflow")
+worksheet_fridge = sheet.worksheet("ตู้เย็น")
+df_fridge = pd.DataFrame(worksheet_fridge.get_all_records())
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
@@ -241,7 +243,7 @@ if st.session_state.page == "Dashboard":
 # หน้าขายสินค้า
 elif st.session_state.page == "ขายสินค้า":
     st.title("🧃 ขายสินค้าตู้เย็น")
-    product_names = df["ชื่อสินค้า"].tolist()
+    product_names = df_fridge["ชื่อสินค้า"].tolist()
     
     # ระบบค้นหาสินค้า
     search_term = st.text_input("🔍 ค้นหาสินค้า", help="พิมพ์ชื่อสินค้าเพื่อค้นหา")
@@ -254,7 +256,7 @@ elif st.session_state.page == "ขายสินค้า":
             st.session_state.quantities[p] = 1
         
         qty = st.session_state.quantities[p]
-        row = df[df["ชื่อสินค้า"] == p]
+        row = df[df_fridge["ชื่อสินค้า"] == p]
         stock = int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
         
         st.markdown(f"**{p}**")
@@ -284,7 +286,7 @@ elif st.session_state.page == "ขายสินค้า":
         st.info("ℹ️ ยังไม่มีสินค้าในตะกร้า")
     else:
         for item, qty in st.session_state.cart:
-            row = df[df["ชื่อสินค้า"] == item].iloc[0]
+            row = df[df_fridge["ชื่อสินค้า"] == item].iloc[0]
             price, cost = safe_float(row["ราคาขาย"]), safe_float(row["ต้นทุน"])
             subtotal, profit = qty * price, qty * (price - cost)
             total_price += subtotal
@@ -323,7 +325,7 @@ elif st.session_state.page == "ขายสินค้า":
     # ยืนยันการขาย
     if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart):
         for item, qty in st.session_state.cart:
-            index = df[df["ชื่อสินค้า"] == item].index[0]
+            index = df[df_fridge["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
             idx_in_sheet = index + 2
             new_out = safe_int(row["ออก"]) + qty
@@ -351,7 +353,7 @@ elif st.session_state.page == "ขายสินค้า":
             restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
             restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
             if st.button("📥 ยืนยันเติมสินค้า"):
-                index = df[df["ชื่อสินค้า"] == restock_item].index[0]
+                index = df[df_fridge["ชื่อสินค้า"] == restock_item].index[0]
                 idx_in_sheet = index + 2
                 row = df.loc[index]
                 new_in = safe_int(row["เข้า"]) + restock_qty
@@ -363,7 +365,7 @@ elif st.session_state.page == "ขายสินค้า":
         
         with tab2:
             edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
-            index = df[df["ชื่อสินค้า"] == edit_item].index[0]
+            index = df[df_fridge["ชื่อสินค้า"] == edit_item].index[0]
             idx_in_sheet = index + 2
             row = df.loc[index]
             
