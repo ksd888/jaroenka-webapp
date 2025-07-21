@@ -116,7 +116,7 @@ def connect_google_sheets():
     return sheet
 
 sheet = connect_google_sheets()
-worksheet = sheet.worksheet("ตู้เย็น")
+worksheet = sheet.worksheet("iceflow")
 summary_ws = sheet.worksheet("ยอดขาย")
 df = pd.DataFrame(worksheet.get_all_records())
 
@@ -140,17 +140,15 @@ def add_money(amount: int):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
 
-def reset_session_state():
-    """รีเซ็ต session state ทั้งหมด"""
-    st.session_state.cart = []
-    st.session_state.search_items = []
-    st.session_state.quantities = {}
-    st.session_state.paid_input = 0.0
-    st.session_state.last_paid_click = 0
-    st.session_state.sale_complete = False
-    st.session_state.force_rerun = True
-
 # ระบบจัดการ Session
+if st.session_state.get("reset_search_items"):
+    st.session_state["search_items"] = []
+    st.session_state["quantities"] = {}
+    st.session_state["cart"] = []
+    st.session_state["paid_input"] = 0.0
+    st.session_state["last_paid_click"] = 0
+    del st.session_state["reset_search_items"]
+
 default_session = {
     "cart": [],
     "search_items": [],
@@ -171,15 +169,12 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🏪 ขายสินค้า"):
         st.session_state.page = "ขายสินค้า"
-        reset_session_state()
 with col2:
     if st.button("🧊 ขายน้ำแข็ง"):
         st.session_state.page = "ขายน้ำแข็ง"
-        reset_session_state()
 with col3:
     if st.button("📊 Dashboard"):
         st.session_state.page = "Dashboard"
-        reset_session_state()
 
 now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -345,7 +340,7 @@ elif st.session_state.page == "ขายสินค้า":
             st.session_state.paid_input - total_price,
             "drink"
         ])
-        reset_session_state()
+        st.session_state.reset_search_items = True
         st.rerun()
 
     # ระบบจัดการสินค้า
