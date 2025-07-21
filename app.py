@@ -2,7 +2,7 @@ import streamlit as st
 
 st.markdown("""
 <style>
-/* พื้นหลังขาว ตัวหนังสือเข้ม */
+/* พื้นหลังขาว ตัวหนังสือดำเข้ม */
 body, .main, .block-container {
     background-color: #ffffff !important;
     color: #000000 !important;
@@ -19,20 +19,30 @@ body, .main, .block-container {
     font-size: 16px;
 }
 
-/* Input */
-.stTextInput > div > div > input,
-.stNumberInput input,
-.stSelectbox div,
-.stMultiSelect div {
+/* Input ทั้งหมด */
+input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     background-color: #f2f2f7 !important;
     color: #000000 !important;
-    border-radius: 6px;
+    font-weight: bold !important;
     font-size: 18px;
-    font-weight: bold;
 }
 
-/* Label, ป้ายชื่อ */
-label, span, .stMarkdown, .stText, .stCaption {
+/* Checkbox + label */
+label, .stCheckbox > div > label {
+    color: #000000 !important;
+    font-weight: bold !important;
+    font-size: 16px;
+}
+
+/* ตัวหนังสือทั่วไป */
+.stMarkdown, .stText, .stCaption, span, div, .stMetric, .element-container {
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+/* สำหรับกรอบ input ข้างๆ เช่น กล่องตัวเลขหลายช่อง */
+.css-1kyxreq {
+    background-color: #f9f9f9 !important;
     color: #000000 !important;
     font-weight: bold;
 }
