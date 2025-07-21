@@ -406,8 +406,11 @@ elif st.session_state.page == "ขายสินค้า":
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
+    # ✅ เพิ่ม pass เพื่อให้ elif มี block ก่อนเริ่ม
+    pass
     # กำหนดฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็งไว้ด้านบนสุดของส่วนนี้
     
+
 def reset_ice_session_state():
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     for ice_type in ice_types:
