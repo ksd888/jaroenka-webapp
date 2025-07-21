@@ -441,7 +441,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 in_values[ice_type] = st.number_input(
                     f"📥 {ice_type}", 
                     min_value=0, 
-                    value=st.session_state[f"in_{ice_type}_value"], 
+                    value=st.session_state.get(f"in_{ice_type}_value", old_val), 
                     key=f"in_{ice_type}_input"
                 )
                 df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
@@ -497,7 +497,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 out_val = st.number_input(
                     f"🧊 ขายออก {ice_type}", 
                     min_value=0, 
-                    value=st.session_state[f"sell_out_{ice_type}_value"], 
+                    value=st.session_state.get(f"sell_out_{ice_type}_value", old_out), 
                     key=f"sell_out_{ice_type}_input"
                 )
                 
