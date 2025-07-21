@@ -112,7 +112,7 @@ if st.session_state.page == "Dashboard":
 
         if "เวลา" in sales_data.columns:
             sales_data = sales_data.rename(columns={"เวลา": "timestamp"})
-else:
+        else:
             st.warning("❌ ไม่พบคอลัมน์ 'เวลา' ในชีทยอดขาย")
             sales_data["timestamp"] = pd.NaT
 
@@ -128,7 +128,7 @@ else:
             st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
             st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
             st.warning(f"🔥 สินค้าขายดี: {top_items}")
-else:
+        else:
             st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
 
         # กราฟ 14 วัน
@@ -214,7 +214,7 @@ elif st.session_state.page == "ขายสินค้า":
     st.info(f"📦 ยอดรวม: {total_price:.2f} บาท | 🟢 กำไร: {total_profit:.2f} บาท")
     if st.session_state.paid_input >= total_price:
         st.success(f"💰 เงินทอน: {st.session_state.paid_input - total_price:.2f} บาท")
-else:
+    else:
         st.warning("💸 เงินไม่พอ")
 
     if st.button("✅ ยืนยันการขาย"):
@@ -337,7 +337,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     remaining = received - sold - melted
     st.caption(f"🧊 คงเหลือ: {remaining} ถุง")
 
-else:
+        st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
 
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
