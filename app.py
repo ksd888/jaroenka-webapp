@@ -406,14 +406,12 @@ elif st.session_state.page == "ขายสินค้า":
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
-    def reset_ice_session_state():
-        ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
-        for ice_type in ice_types:
-            for prefix in ["in_", "sell_out_"]:
-                for suffix in ["_value", "_input"]:
-                    key = f"{prefix}{ice_type}{suffix}"
-                    st.session_state[key] = 0  # รีเซ็ตเป็น 0 ทันที
-        st.session_state["force_rerun"] = True
+    
+def reset_ice_session_state():
+    st.session_state.clear()  # ล้างทุกค่าใน session
+    st.session_state["page"] = "ขายน้ำแข็ง"
+    st.experimental_rerun()
+
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
