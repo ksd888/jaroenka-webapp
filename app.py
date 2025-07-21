@@ -393,9 +393,11 @@ elif st.session_state.page == "ขายสินค้า":
                 st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
                 st.rerun()
 
+# แก้ไขส่วนหน้าขายน้ำแข็งดังนี้:
+
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
-    # กำหนดฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็งไว้ด้านบนสุดของส่วนนี้
+    # กำหนดฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็ง
     def reset_ice_session_state():
         ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
         for ice_type in ice_types:
@@ -405,6 +407,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     key = f"{prefix}{ice_type}{suffix}"
                     if key in st.session_state:
                         del st.session_state[key]
+        
+        # รีเซ็ตค่าใน DataFrame ด้วย
+        if 'df_ice' in globals():
+            for ice_type in ice_types:
+                row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+                if not row.empty:
+                    idx = row.index[0]
+                    df_ice.at[idx, "รับเข้า"] = 0
+                    df_ice.at[idx, "ขายออก"] = 0
+        
         st.session_state["force_rerun"] = True
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
@@ -431,6 +443,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         df_ice["กำไรสุทธิ"] = 0
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
+        reset_ice_session_state()  # เพิ่มการรีเซ็ต session state เมื่อเริ่มวันใหม่
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
@@ -446,14 +459,18 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             old_val = safe_int(df_ice.at[idx, "รับเข้า"])
             
             with cols[i]:
-                # ใช้ key ใน session_state เพื่อจัดการค่า
-                if f"in_{ice_type}_value" not in st.session_state:
-                    st.session_state[f"in_{ice_type}_value"] = old_val
-                    
+                # กำหนดค่าเริ่มต้นจาก session state หรือจากข้อมูลเดิม
+                current_value = st.session_state.get(f"in_{ice_type}_value", old_val)
+                
+                # อัปเดตค่าใน session state หากมีการเปลี่ยนแปลง
+                if f"in_{ice_type}_input" in st.session_state:
+                    current_value = st.session_state[f"in_{ice_type}_input"]
+                    st.session_state[f"in_{ice_type}_value"] = current_value
+                
                 in_values[ice_type] = st.number_input(
                     f"📥 {ice_type}", 
                     min_value=0, 
-                    value=st.session_state.get(f"in_{ice_type}_value", old_val), 
+                    value=current_value, 
                     key=f"in_{ice_type}_input"
                 )
                 df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
@@ -500,14 +517,18 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             old_out = safe_int(df_ice.at[idx, "ขายออก"])
             
             with cols[i]:
-                # ใช้ session_state เพื่อจัดการค่าที่ป้อน
-                if f"sell_out_{ice_type}_value" not in st.session_state:
-                    st.session_state[f"sell_out_{ice_type}_value"] = old_out
-                    
+                # กำหนดค่าเริ่มต้นจาก session state หรือจากข้อมูลเดิม
+                current_value = st.session_state.get(f"sell_out_{ice_type}_value", old_out)
+                
+                # อัปเดตค่าใน session state หากมีการเปลี่ยนแปลง
+                if f"sell_out_{ice_type}_input" in st.session_state:
+                    current_value = st.session_state[f"sell_out_{ice_type}_input"]
+                    st.session_state[f"sell_out_{ice_type}_value"] = current_value
+                
                 out_val = st.number_input(
                     f"🧊 ขายออก {ice_type}", 
                     min_value=0, 
-                    value=st.session_state.get(f"sell_out_{ice_type}_value", old_out), 
+                    value=current_value, 
                     key=f"sell_out_{ice_type}_input"
                 )
                 
@@ -554,11 +575,3 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-        
-    # สรุปยอดขาย
-    st.markdown("### 📊 สรุปยอดขาย")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
-    with col2:
-        st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
