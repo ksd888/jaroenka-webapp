@@ -2,7 +2,6 @@ import streamlit as st
 
 st.markdown("""
 <style>
-/* พื้นหลังขาว ตัวหนังสือดำเข้ม */
 body, .main, .block-container {
     background-color: #ffffff !important;
     color: #000000 !important;
@@ -13,9 +12,6 @@ body, .main, .block-container {
     color: white !important;
     background-color: #007aff !important;
     font-weight: bold;
-    border: none;
-    border-radius: 10px;
-    padding: 0.5em 1.2em;
     font-size: 16px;
 }
 
@@ -27,7 +23,15 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     font-size: 18px;
 }
 
-/* Custom Checkbox UI */
+/* บังคับทุก span, div, p ให้เป็นสีดำ */
+html, body, div, span, p, label, section, h1, h2, h3, h4, h5, h6,
+.stText, .stMarkdown, .stCaption, .element-container, .css-1c7y2kd,
+.css-10trblm, .st-emotion-cache *, .css-1offfwp, .css-1v0mbdj {
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+/* Custom checkbox */
 .stCheckbox > div {
     display: flex;
     align-items: center;
@@ -65,31 +69,6 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     top: 0px;
     font-size: 16px;
     color: white;
-    font-weight: bold;
-}
-
-/* Label ทั่วไป */
-label, .stLabel, .css-1r6slb0, .css-16idsys {
-    color: #000000 !important;
-    font-weight: bold !important;
-}
-
-/* ตัวหนังสือทั่วไป */
-.stMarkdown, .stText, .stCaption, span, div, .stMetric, .element-container {
-    color: #000000 !important;
-    font-weight: bold !important;
-}
-
-/* ลบจุดแดงจาก span ว่าง */
-span:empty::before {
-    content: "" !important;
-    visibility: hidden !important;
-}
-
-/* กล่อง input */
-.css-1kyxreq {
-    background-color: #f9f9f9 !important;
-    color: #000000 !important;
     font-weight: bold;
 }
 </style>
