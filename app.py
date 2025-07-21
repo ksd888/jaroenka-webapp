@@ -422,41 +422,43 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
-    # ส่วนรับเข้าน้ำแข็ง
-    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
-    in_values = {}
-    cols = st.columns(4)
-    
-    for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-        if not row.empty:
-            idx = row.index[0]
-            old_val = safe_int(df_ice.at[idx, "รับเข้า"])
+# ส่วนรับเข้าน้ำแข็ง
+st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
+in_values = {}
+cols = st.columns(4)
+
+for i, ice_type in enumerate(ice_types):
+    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+    if not row.empty:
+        idx = row.index[0]
+        old_val = safe_int(df_ice.at[idx, "รับเข้า"])
+        
+        with cols[i]:
+            # ใช้ key ใน session_state เพื่อจัดการค่า
+            if f"in_{ice_type}_value" not in st.session_state:
+                st.session_state[f"in_{ice_type}_value"] = old_val
+                
+            in_values[ice_type] = st.number_input(
+                f"📥 {ice_type}", 
+                min_value=0, 
+                value=st.session_state[f"in_{ice_type}_value"], 
+                key=f"in_{ice_type}_input"
+            )
+            df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
             
-            with cols[i]:
-                # ใช้ key ใน session_state เพื่อจัดการค่า
-                if f"in_{ice_type}_value" not in st.session_state:
-                    st.session_state[f"in_{ice_type}_value"] = old_val
-                    
-                in_values[ice_type] = st.number_input(
-                    f"📥 {ice_type}", 
-                    min_value=0, 
-                    value=st.session_state[f"in_{ice_type}_value"], 
-                    key=f"in_{ice_type}_input"
-                )
-                df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
-                
-                # แสดงยอดคงเหลือ
-                received = safe_int(df_ice.at[idx, "รับเข้า"])
-                sold = safe_int(df_ice.at[idx, "ขายออก"])
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                remaining = received - sold - melted
-                
-                st.metric("คงเหลือ", f"{remaining} ถุง")
-        else:
-            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
-    
-    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
+            # แสดงยอดคงเหลือ
+            received = safe_int(df_ice.at[idx, "รับเข้า"])
+            sold = safe_int(df_ice.at[idx, "ขายออก"])
+            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            remaining = received - sold - melted
+            
+            st.metric("คงเหลือ", f"{remaining} ถุง")
+    else:
+        st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
+
+# ปุ่มบันทึกยอดเติมน้ำแข็ง
+if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
+    try:
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
         
@@ -465,54 +467,56 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.session_state[f"in_{ice_type}_value"] = 0
             st.session_state[f"in_{ice_type}_input"] = 0
         
+        # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
+        df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+        
         st.session_state["force_rerun"] = True
         st.rerun()
-    
-    # ส่วนขายออกน้ำแข็ง
-    st.markdown("### 💸 โซนขายออกน้ำแข็ง")
-    total_income = 0
-    total_profit = 0
-    
-    cols = st.columns(4)
-    for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-        if not row.empty:
-            idx = row.index[0]
-            price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
-            cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
-            old_out = safe_int(df_ice.at[idx, "ขายออก"])
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
+
+# ส่วนขายออกน้ำแข็ง
+st.markdown("### 💸 โซนขายออกน้ำแข็ง")
+total_income = 0
+total_profit = 0
+
+cols = st.columns(4)
+for i, ice_type in enumerate(ice_types):
+    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+    if not row.empty:
+        idx = row.index[0]
+        price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
+        cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
+        old_out = safe_int(df_ice.at[idx, "ขายออก"])
+        
+        with cols[i]:
+            # ใช้ session_state เพื่อจัดการค่าที่ป้อน
+            if f"sell_out_{ice_type}_value" not in st.session_state:
+                st.session_state[f"sell_out_{ice_type}_value"] = old_out
+                
+            out_val = st.number_input(
+                f"🧊 ขายออก {ice_type}", 
+                min_value=0, 
+                value=st.session_state[f"sell_out_{ice_type}_value"], 
+                key=f"sell_out_{ice_type}_input"
+            )
             
-            with cols[i]:
-                out_val = st.number_input(
-                    f"🧊 ขายออก {ice_type}", 
-                    min_value=0, 
-                    value=old_out, 
-                    key=f"sell_out_{ice_type}"
-                )
-                
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                income = out_val * price
-                profit = (out_val * (price - cost)) - (melted * cost)  # คำนึงถึงน้ำแข็งที่ละลาย
-                
-                df_ice.at[idx, "ขายออก"] = out_val
-                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - out_val - melted
-                df_ice.at[idx, "กำไรรวม"] = income
-                df_ice.at[idx, "กำไรสุทธิ"] = profit
-                df_ice.at[idx, "วันที่"] = today_str
-                
-                total_income += income
-                total_profit += profit
-    
-    # สรุปยอดขาย
-    st.markdown("### 📊 สรุปยอดขาย")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
-    with col2:
-        st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
-    
-    # ปุ่มบันทึกการขาย
-    if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary"):
+            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            income = out_val * price
+            profit = (out_val * (price - cost)) - (melted * cost)
+            
+            df_ice.at[idx, "ขายออก"] = out_val
+            df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - out_val - melted
+            df_ice.at[idx, "กำไรรวม"] = income
+            df_ice.at[idx, "กำไรสุทธิ"] = profit
+            df_ice.at[idx, "วันที่"] = today_str
+            
+            total_income += income
+            total_profit += profit
+
+# ปุ่มบันทึกการขาย
+if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary"):
+    try:
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         
         for _, row in df_ice.iterrows():
@@ -532,10 +536,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         
         # รีเซ็ตค่าที่ป้อนไว้ทั้งหมดหลังบันทึก
         for ice_type in ice_types:
-            st.session_state[f"sell_out_{ice_type}"] = 0
+            st.session_state[f"sell_out_{ice_type}_value"] = 0
+            st.session_state[f"sell_out_{ice_type}_input"] = 0
+        
+        # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
+        df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
         
         st.session_state["force_rerun"] = True
         st.rerun()
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
     
     # ปุ่มรีเซ็ต
     if st.button("🧹 รีเซตยอดขายน้ำแข็ง", type="secondary"):
@@ -544,3 +554,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 st.session_state[f"sell_out_{k}"] = 0
         st.session_state["force_rerun"] = True
         st.rerun()
+        
+        # สรุปยอดขาย
+    st.markdown("### 📊 สรุปยอดขาย")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
+    with col2:
+        st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
