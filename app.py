@@ -464,8 +464,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             
             # รีเซ็ตค่าที่ป้อนไว้ทั้งหมด
             for ice_type in ice_types:
-                if f"in_{ice_type}_value" in st.session_state: del st.session_state[f"in_{ice_type}_value"]
-                if f"in_{ice_type}_input" in st.session_state: del st.session_state[f"in_{ice_type}_input"]
+                st.session_state[f"in_{ice_type}_value"] = 0
+                st.session_state[f"in_{ice_type}_input"] = 0
             
             # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
             df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
@@ -536,8 +536,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             
             # รีเซ็ตค่าที่ป้อนไว้ทั้งหมดหลังบันทึก
             for ice_type in ice_types:
-                if f"sell_out_{ice_type}_value" in st.session_state: del st.session_state[f"sell_out_{ice_type}_value"]
-                if f"sell_out_{ice_type}_input" in st.session_state: del st.session_state[f"sell_out_{ice_type}_input"]
+                st.session_state[f"sell_out_{ice_type}_value"] = 0
+                st.session_state[f"sell_out_{ice_type}_input"] = 0
             
             # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
             df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
@@ -546,14 +546,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-        
-        # ปุ่มรีเซ็ต
-        if st.button("🧹 รีเซตยอดขายน้ำแข็ง", type="secondary"):
-            for k in ice_types:
-                if f"sell_out_{k}" in st.session_state:
-                    st.session_state[f"sell_out_{k}"] = 0
-            st.session_state["force_rerun"] = True
-            st.rerun()
+
+    # ปุ่มรีเซ็ต
+    if st.button("🧹 รีเซตยอดขายน้ำแข็ง", type="secondary"):
+        for ice_type in ice_types:
+            if f"sell_out_{ice_type}_value" in st.session_state:
+                st.session_state[f"sell_out_{ice_type}_value"] = 0
+            if f"sell_out_{ice_type}_input" in st.session_state:
+                st.session_state[f"sell_out_{ice_type}_input"] = 0
+        st.session_state["force_rerun"] = True
+        st.rerun()
             
     # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
