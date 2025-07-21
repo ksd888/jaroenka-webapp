@@ -117,7 +117,18 @@ def connect_google_sheets():
 
 sheet = connect_google_sheets()
 worksheet = sheet.worksheet("ตู้เย็น")
-summary_ws = sheet.worksheet("ยอดขาย")
+
+# 🔍 ฟังก์ชันค้นหา worksheet อย่างปลอดภัย
+def get_worksheet_by_name(sheet, name):
+    for ws in sheet.worksheets():
+        if ws.title.strip() == name.strip():
+            return ws
+    return None
+
+summary_ws = get_worksheet_by_name(sheet, "ยอดขาย")
+if not summary_ws:
+    st.error("❌ ไม่พบชีทชื่อ 'ยอดขาย'")
+    st.stop()
 df = pd.DataFrame(worksheet.get_all_records())
 
 # Helper functions
