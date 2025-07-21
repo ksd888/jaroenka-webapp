@@ -391,12 +391,12 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 int(row["ขายออก"]) * (row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"]),
                 "ice"
             ])
-        st.success(f"✅ บันทึกแล้ว | ขายรวม {total_income:.0f} บาท | กำไร {total_profit:.0f} บาท")
+        if st.button("🧹 รีเซตยอดขายน้ำแข็ง"):
+            # รีเซตค่าช่องกรอกออก
+            for k in ice_types:
+                if f"out_{k}" in st.session_state:
+                    st.session_state[f"out_{k}"] = 0
+            st.session_state["force_rerun"] = True
+            st.experimental_rerun()
 
-                # รีเซ็ตค่าช่องกรอกออก
-        for k in ice_types:
-            if f"out_{k}" in st.session_state:
-                st.session_state[f"out_{k}"] = 0
-
-        st.session_state["force_rerun"] = True
         st.stop()
