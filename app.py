@@ -395,6 +395,18 @@ elif st.session_state.page == "ขายสินค้า":
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
+    # กำหนดฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็งไว้ด้านบนสุดของส่วนนี้
+    def reset_ice_session_state():
+        ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
+        for ice_type in ice_types:
+            # ลบค่า session state ทั้งหมดที่เกี่ยวข้อง
+            for prefix in ["in_", "sell_out_"]:
+                for suffix in ["_value", "_input"]:
+                    key = f"{prefix}{ice_type}{suffix}"
+                    if key in st.session_state:
+                        del st.session_state[key]
+        st.session_state["force_rerun"] = True
+
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
     iceflow_sheet = sheet.worksheet("iceflow")
@@ -550,15 +562,3 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
-
-# เพิ่มฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็ง
-def reset_ice_session_state():
-    ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
-    for ice_type in ice_types:
-        # ลบค่า session state ทั้งหมดที่เกี่ยวข้อง
-        for prefix in ["in_", "sell_out_"]:
-            for suffix in ["_value", "_input"]:
-                key = f"{prefix}{ice_type}{suffix}"
-                if key in st.session_state:
-                    del st.session_state[key]
-    st.session_state["force_rerun"] = True
