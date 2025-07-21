@@ -327,7 +327,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             idx = row.index[0]
             old_val = int(df_ice.at[idx, "รับเข้า"])
             with [col1, col2, col3, col4][i]:
-                in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"in_{k}")
+                in_values[k] = st.number_input(f"📥 {k}", min_value=0, value=old_val, key=f"receive_in_{k}")
                 df_ice.at[idx, "รับเข้า"] = in_values[k]
 
     # 👁 แสดงคงเหลือใต้ input (แบบในภาพ)
@@ -351,7 +351,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             cost = float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             profit_unit = price - cost
             old_out = int(df_ice.at[idx, "ขายออก"])
-            out_val = st.number_input(f"🧊 ขายออก {k}", min_value=0, value=old_out, key=f"out_{k}")
+            out_val = st.number_input(f"🧊 ขายออก {k}", min_value=0, value=old_out, key=f"sell_out_{k}")
             income = out_val * price
             profit = out_val * profit_unit
 
@@ -432,9 +432,9 @@ st.markdown("### 🧊 ระบบขายน้ำแข็งเจริญ�
 for k in ice_types:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col1:
-        st.number_input(f"ขายออก {k}", key=f"out_{k}", min_value=0, step=1)
+        st.number_input(f"ขายออก {k}", key=f"sell_out_{k}", min_value=0, step=1)
     with col3:
-        st.number_input(f"รับเข้า {k}", key=f"in_{k}", min_value=0, step=1)
+        st.number_input(f"รับเข้า {k}", key=f"receive_in_{k}", min_value=0, step=1)
 
 # ✅ ปุ่มยืนยันการขาย พร้อมบันทึกลง Google Sheet
 if st.button("📤 ยืนยันการขายน้ำแข็ง"):
