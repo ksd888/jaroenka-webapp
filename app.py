@@ -19,7 +19,7 @@ body, .main, .block-container {
     font-size: 16px;
 }
 
-/* Input ทั้งหมด */
+/* Input */
 input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     background-color: #f2f2f7 !important;
     color: #000000 !important;
@@ -27,11 +27,21 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     font-size: 18px;
 }
 
-/* Checkbox + label */
-label, .stCheckbox > div > label {
+/* Checkbox */
+input[type="checkbox"], .stCheckbox {
+    accent-color: #007aff !important;
+    transform: scale(1.5);
+}
+.stCheckbox > div > label {
     color: #000000 !important;
     font-weight: bold !important;
     font-size: 16px;
+}
+
+/* Label */
+label, .stLabel, .css-1r6slb0, .css-16idsys {
+    color: #000000 !important;
+    font-weight: bold !important;
 }
 
 /* ตัวหนังสือทั่วไป */
@@ -40,7 +50,13 @@ label, .stCheckbox > div > label {
     font-weight: bold !important;
 }
 
-/* สำหรับกรอบ input ข้างๆ เช่น กล่องตัวเลขหลายช่อง */
+/* ลบจุดแดงที่อาจเกิดจาก span ว่าง */
+span:empty::before {
+    content: "" !important;
+    visibility: hidden !important;
+}
+
+/* กรอบ input */
 .css-1kyxreq {
     background-color: #f9f9f9 !important;
     color: #000000 !important;
