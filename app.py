@@ -406,20 +406,14 @@ elif st.session_state.page == "ขายสินค้า":
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
-    # ✅ เพิ่ม pass เพื่อให้ elif มี block ก่อนเริ่ม
-    pass
-    # กำหนดฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็งไว้ด้านบนสุดของส่วนนี้
-    
-
-def reset_ice_session_state():
-    ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
-    for ice_type in ice_types:
-        for prefix in ["in_", "sell_out_"]:
-            for suffix in ["_value", "_input"]:
-                key = f"{prefix}{ice_type}{suffix}"
-                st.session_state[key] = 0  # รีเซ็ตเป็น 0 ทันที
-    st.session_state["force_rerun"] = True
-
+    def reset_ice_session_state():
+        ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
+        for ice_type in ice_types:
+            for prefix in ["in_", "sell_out_"]:
+                for suffix in ["_value", "_input"]:
+                    key = f"{prefix}{ice_type}{suffix}"
+                    st.session_state[key] = 0  # รีเซ็ตเป็น 0 ทันที
+        st.session_state["force_rerun"] = True
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
@@ -427,11 +421,7 @@ def reset_ice_session_state():
     df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
     
     # ปรับรูปแบบข้อมูล
-    
-    # ✅ DEBUG: แสดงข้อมูลจากชีท iceflow
-    st.write("✅ iceflow columns:", df_ice.columns.tolist())
-    st.write("✅ iceflow preview:", df_ice.head())
-df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
+    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
     df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
     df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
     df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
