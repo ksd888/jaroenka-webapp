@@ -400,3 +400,58 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.experimental_rerun()
 
         st.stop()
+
+# === เพิ่มระบบน้ำแข็งก้อน ===
+# ✅ ส่วนเพิ่มน้ำแข็งก้อนในระบบ Streamlit
+
+import streamlit as st
+import datetime
+from pytz import timezone
+import gspread
+from google.oauth2.service_account import Credentials
+
+# ✅ ตั้งค่าการเชื่อมต่อ Google Sheets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(
+    st.secrets["GCP_SERVICE_ACCOUNT"],
+    scopes=scope,
+)
+gc = gspread.authorize(credentials)
+sh = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+
+# กำหนดข้อมูลชนิดน้ำแข็ง
+ice_types = {
+    "โม่": {"cost": 18, "price": 30},
+    "หลอดใหญ่": {"cost": 35, "price": 55},
+    "หลอดเล็ก": {"cost": 35, "price": 60},
+    "ก้อน": {"cost": 22, "price": 45},  # ✅ เพิ่มน้ำแข็งก้อน
+}
+
+# 🔄 วนลูปสร้าง UI สำหรับแต่ละชนิดน้ำแข็ง รวม 'ก้อน'
+st.markdown("### 🧊 ระบบขายน้ำแข็งเจริญค้า")
+for k in ice_types:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col1:
+        st.number_input(f"ขายออก {k}", key=f"out_{k}", min_value=0, step=1)
+    with col3:
+        st.number_input(f"รับเข้า {k}", key=f"in_{k}", min_value=0, step=1)
+
+# ✅ ปุ่มยืนยันการขาย พร้อมบันทึกลง Google Sheet
+if st.button("📤 ยืนยันการขายน้ำแข็ง"):
+    now = datetime.datetime.now(timezone("Asia/Bangkok"))
+    today = now.strftime("%-d/%-m/%Y")
+
+    for k, info in ice_types.items():
+        out_qty = st.session_state.get(f"out_{k}", 0)
+        in_qty = st.session_state.get(f"in_{k}", 0)
+        if out_qty > 0 or in_qty > 0:
+            cost = info["cost"] * out_qty
+            revenue = info["price"] * out_qty
+            profit = revenue - cost
+
+            worksheet = sh.worksheet("iceflow")
+            worksheet.append_row([
+                today, f"ร้านเจริญค้า", k, in_qty, 0, 0, 0, out_qty,
+                info["price"], info["cost"], profit, 0, 0, 0
+            ])
+    st.success("✅ บันทึกข้อมูลการขายเรียบร้อยแล้ว")
