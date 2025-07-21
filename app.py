@@ -463,9 +463,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
             
             # รีเซ็ตค่าที่ป้อนไว้ทั้งหมด
-            for ice_type in ice_types:
-                if f"in_{ice_type}_value" in st.session_state: del st.session_state[f"in_{ice_type}_value"]
-                if f"in_{ice_type}_input" in st.session_state: del st.session_state[f"in_{ice_type}_input"]
+            reset_ice_session_state()
             
             # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
             df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
@@ -532,12 +530,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     "ice"
                 ])
             
-            st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
+            st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย และรีเซ็ตค่าฟอร์มแล้ว")
             
             # รีเซ็ตค่าที่ป้อนไว้ทั้งหมดหลังบันทึก
-            for ice_type in ice_types:
-                if f"sell_out_{ice_type}_value" in st.session_state: del st.session_state[f"sell_out_{ice_type}_value"]
-                if f"sell_out_{ice_type}_input" in st.session_state: del st.session_state[f"sell_out_{ice_type}_input"]
+            reset_ice_session_state()
             
             # รีเซ็ต DataFrame เพื่อโหลดข้อมูลใหม่
             df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
@@ -547,14 +543,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
         
-        # ปุ่มรีเซ็ต
-        if st.button("🧹 รีเซตยอดขายน้ำแข็ง", type="secondary"):
-            for k in ice_types:
-                if f"sell_out_{k}" in st.session_state:
-                    st.session_state[f"sell_out_{k}"] = 0
-            st.session_state["force_rerun"] = True
-            st.rerun()
-            
     # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
@@ -562,3 +550,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
+
+# เพิ่มฟังก์ชันรีเซ็ต session state สำหรับน้ำแข็ง
+def reset_ice_session_state():
+    ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
+    for ice_type in ice_types:
+        # ลบค่า session state ทั้งหมดที่เกี่ยวข้อง
+        for prefix in ["in_", "sell_out_"]:
+            for suffix in ["_value", "_input"]:
+                key = f"{prefix}{ice_type}{suffix}"
+                if key in st.session_state:
+                    del st.session_state[key]
+    st.session_state["force_rerun"] = True
