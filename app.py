@@ -27,18 +27,29 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     font-size: 18px;
 }
 
-/* Checkbox */
-input[type="checkbox"], .stCheckbox {
-    accent-color: #007aff !important;
-    transform: scale(1.5);
+/* Checkbox Custom */
+.stCheckbox > div {
+    display: flex;
+    align-items: center;
+}
+.stCheckbox input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    border: 2px solid #000 !important;
+    background-color: white !important;
+    margin-right: 10px;
+    transform: scale(1.3);
+}
+.stCheckbox input[type="checkbox"]:checked {
+    background-color: #007aff !important;
 }
 .stCheckbox > div > label {
     color: #000000 !important;
     font-weight: bold !important;
-    font-size: 16px;
+    font-size: 18px;
 }
 
-/* Label */
+/* Label ทั่วไป */
 label, .stLabel, .css-1r6slb0, .css-16idsys {
     color: #000000 !important;
     font-weight: bold !important;
@@ -50,13 +61,13 @@ label, .stLabel, .css-1r6slb0, .css-16idsys {
     font-weight: bold !important;
 }
 
-/* ลบจุดแดงที่อาจเกิดจาก span ว่าง */
+/* ลบจุดแดงจาก span ว่าง */
 span:empty::before {
     content: "" !important;
     visibility: hidden !important;
 }
 
-/* กรอบ input */
+/* กล่อง input */
 .css-1kyxreq {
     background-color: #f9f9f9 !important;
     color: #000000 !important;
