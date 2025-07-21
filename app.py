@@ -322,7 +322,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     in_values = {}
     col1, col2, col3, col4 = st.columns(4)
     for i, k in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == k.lower()]
         if not row.empty:
             idx = row.index[0]
             old_val = int(df_ice.at[idx, "รับเข้า"])
@@ -337,15 +337,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     remaining = received - sold - melted
     st.caption(f"🧊 คงเหลือ: {remaining} ถุง")
 
+    st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
 
 
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
     total_profit = 0
     for k in ice_types:
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == k.lower()]
         if not row.empty:
-        idx = row.index[0]
             idx = row.index[0]
             price = float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost = float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
@@ -368,9 +368,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง"):
         for k in ice_types:
-            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(k)]
+            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == k.lower()]
             if not row.empty:
-        idx = row.index[0]
                 idx = row.index[0]
                 df_ice.at[idx, "วันที่"] = today_str
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
@@ -392,3 +391,13 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 int(row["ขายออก"]) * (row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"]),
                 "ice"
             ])
+        if st.button("🧹 รีเซตยอดขายน้ำแข็ง"):
+            # รีเซตค่าช่องกรอกออก
+            for k in ice_types:
+                if f"out_{k}" in st.session_state:
+                    st.session_state[f"out_{k}"] = 0
+            st.session_state["force_rerun"] = True
+            st.experimental_rerun()
+
+        st.stop()
+
