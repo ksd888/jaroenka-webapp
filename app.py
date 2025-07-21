@@ -127,7 +127,7 @@ if st.session_state.page == "Dashboard":
 
         if "เวลา" in sales_data.columns:
             sales_data = sales_data.rename(columns={"เวลา": "timestamp"})
-else:
+        else:
             st.warning("❌ ไม่พบคอลัมน์ 'เวลา' ในชีทยอดขาย")
             sales_data["timestamp"] = pd.NaT
 
