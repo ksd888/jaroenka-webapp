@@ -451,6 +451,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+        for ice_type in ice_types:
+            st.session_state[f"in_{ice_type}"] = 0
         st.session_state["force_rerun"] = True
         st.rerun()
     
@@ -515,6 +517,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             ])
         
         st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
+        for ice_type in ice_types:
+            st.session_state[f"sell_out_{ice_type}"] = 0
         st.session_state["force_rerun"] = True
         st.rerun()
     
