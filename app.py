@@ -136,6 +136,10 @@ def increase_quantity(p):
 def decrease_quantity(p): 
     st.session_state.quantities[p] = max(1, st.session_state.quantities[p] - 1)
 
+def add_money(amount: int):
+    st.session_state.paid_input += amount
+    st.session_state.last_paid_click = amount
+
 # ระบบจัดการ Session
 if st.session_state.get("reset_search_items"):
     st.session_state["search_items"] = []
@@ -165,12 +169,15 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🏪 ขายสินค้า"):
         st.session_state.page = "ขายสินค้า"
+        st.rerun()
 with col2:
     if st.button("🧊 ขายน้ำแข็ง"):
         st.session_state.page = "ขายน้ำแข็ง"
+        st.rerun()
 with col3:
     if st.button("📊 Dashboard"):
         st.session_state.page = "Dashboard"
+        st.rerun()
 
 now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -271,6 +278,7 @@ elif st.session_state.page == "ขายสินค้า":
             if qty > 0:
                 st.session_state.cart.append((p, qty))
         st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
+        st.rerun()
 
     # แสดงรายการในตะกร้า
     st.subheader("📋 รายการขาย")
@@ -308,6 +316,7 @@ elif st.session_state.page == "ขายสินค้า":
         if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
             st.session_state.paid_input -= st.session_state.last_paid_click
             st.session_state.last_paid_click = 0
+            st.rerun()
 
     # สรุปยอด
     st.info(f"📦 ยอดรวม: {total_price:,.2f} บาท | 🟢 กำไร: {total_profit:,.2f} บาท")
@@ -525,7 +534,3 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 st.session_state[f"sell_out_{k}"] = 0
         st.session_state["force_rerun"] = True
         st.rerun()
-
-def add_money(amount: int):
-    st.session_state.paid_input += amount
-    st.session_state.last_paid_click = amount
