@@ -427,7 +427,11 @@ def reset_ice_session_state():
     df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
     
     # ปรับรูปแบบข้อมูล
-    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
+    
+    # ✅ DEBUG: แสดงข้อมูลจากชีท iceflow
+    st.write("✅ iceflow columns:", df_ice.columns.tolist())
+    st.write("✅ iceflow preview:", df_ice.head())
+df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
     df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
     df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
     df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
