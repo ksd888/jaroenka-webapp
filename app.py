@@ -116,7 +116,11 @@ def connect_google_sheets():
     return sheet
 
 sheet = connect_google_sheets()
+
+sheets = sheet.worksheets()
+st.write("🧾 มีชีททั้งหมดใน Google Sheet:", [ws.title for ws in sheets])
 worksheet = sheet.worksheet("iceflow")
+
 worksheet_fridge = sheet.worksheet("ตู้เย็น")
 df_fridge = pd.DataFrame(worksheet_fridge.get_all_records())
 summary_ws = sheet.worksheet("ยอดขาย")
