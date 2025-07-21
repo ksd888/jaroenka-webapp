@@ -11,6 +11,21 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
+# ✅ ตรวจสอบค่าเริ่มต้นใน session_state
+if "page" not in st.session_state:
+    st.session_state.page = "ขายสินค้า"
+if "search_items" not in st.session_state:
+    st.session_state.search_items = []
+if "quantities" not in st.session_state:
+    st.session_state.quantities = {}
+if "cart" not in st.session_state:
+    st.session_state.cart = []
+if "paid_input" not in st.session_state:
+    st.session_state.paid_input = 0.0
+if "last_paid_click" not in st.session_state:
+    st.session_state.last_paid_click = 0
+
 # ✅ Apple Style CSS + ปรับสีข้อความให้เข้มขึ้น
 st.markdown("""
     
@@ -128,7 +143,7 @@ else:
             st.success(f"✅ ยอดขายวันนี้: {total_today_price:.2f} บาท")
             st.info(f"🟢 กำไรวันนี้: {total_today_profit:.2f} บาท")
             st.warning(f"🔥 สินค้าขายดี: {top_items}")
-else:
+pass  # 🔧 else: ลบออกเพราะไม่มีโครงสร้างนำหน้า
             st.warning("⚠️ ยังไม่มีข้อมูลยอดขายวันนี้")
 
         # กราฟ 14 วัน
@@ -337,7 +352,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     remaining = received - sold - melted
     st.caption(f"🧊 คงเหลือ: {remaining} ถุง")
 
-else:
+pass  # 🔧 else: ลบออกเพราะไม่มีโครงสร้างนำหน้า
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{k}'")
 
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
@@ -363,7 +378,7 @@ else:
 
             total_income += income
             total_profit += profit
-else:
+pass  # 🔧 else: ลบออกเพราะไม่มีโครงสร้างนำหน้า
             st.warning(f"❌ ไม่สามารถขายออก '{k}' ได้")
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง"):
