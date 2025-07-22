@@ -226,6 +226,7 @@ if st.session_state.page == "Dashboard":
     
     # โหลดข้อมูลยอดขาย
     @st.cache_data(ttl=60)
+
 def load_sales_data():
         try:
             sales_df = pd.DataFrame(summary_ws.get_all_records())
