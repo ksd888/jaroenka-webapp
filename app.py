@@ -9,7 +9,6 @@ import time
 
 # ตั้งค่าพื้นฐาน CSS
 
-
 # ✅ ฟังก์ชันรีเซ็ตค่าเข้าออกละลายหลังบันทึก
 def reset_ice_input_states():
     for key in list(st.session_state.keys()):
@@ -226,7 +225,6 @@ if st.session_state.page == "Dashboard":
     
     # โหลดข้อมูลยอดขาย
     @st.cache_data(ttl=60)
-    @st.cache_data(ttl=60)
     def load_sales_data():
         try:
             sales_df = pd.DataFrame(summary_ws.get_all_records())
@@ -275,7 +273,7 @@ if st.session_state.page == "Dashboard":
     else:
         st.warning("ไม่มีข้อมูลยอดขาย")
 
-    # หน้าขายสินค้า
+# หน้าขายสินค้า
 elif st.session_state.page == "ขายสินค้า":
     st.title("🧃 ขายสินค้าตู้เย็น")
     product_names = df["ชื่อสินค้า"].tolist()
@@ -485,8 +483,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
     @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
-    @st.cache_data(ttl=60)
-    @st.cache_data(ttl=60)
     def load_ice_data():
         try:
             # โหลดข้อมูลจากชีท iceflow
@@ -540,35 +536,34 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
-    
     # ส่วนรับเข้าน้ำแข็ง
     st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
     cols = st.columns(4)
 
     for i, ice_type in enumerate(ice_types):
-    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-    if not row.empty:
-        idx = row.index[0]
-        default_val = safe_int(df_ice.at[idx, "รับเข้า"])
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+        if not row.empty:
+            idx = row.index[0]
+            default_val = safe_int(df_ice.at[idx, "รับเข้า"])
 
-        with cols[i]:
-            st.markdown(f"ยอดก่อนหน้า: **{default_val}** ถุง")
-            added_value = st.number_input(f"➕ เพิ่มเข้า {ice_type}", min_value=0, step=1, key=f"increase_{ice_type}")
+            with cols[i]:
+                st.markdown(f"ยอดก่อนหน้า: **{default_val}** ถุง")
+                added_value = st.number_input(f"➕ เพิ่มเข้า {ice_type}", min_value=0, step=1, key=f"increase_{ice_type}")
 
-            if added_value > 0:
-                new_total = default_val + added_value
-                df_ice.at[idx, "รับเข้า"] = new_total
-                st.success(f"✅ รวมเป็น {new_total} ถุง")
-            else:
-                df_ice.at[idx, "รับเข้า"] = default_val
+                if added_value > 0:
+                    new_total = default_val + added_value
+                    df_ice.at[idx, "รับเข้า"] = new_total
+                    st.success(f"✅ รวมเป็น {new_total} ถุง")
+                else:
+                    df_ice.at[idx, "รับเข้า"] = default_val
 
-        received = safe_int(df_ice.at[idx, "รับเข้า"])
-        sold = safe_int(df_ice.at[idx, "ขายออก"])
-        melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-        remaining = received - sold - melted
-        st.metric("คงเหลือ", f"{remaining} ถุง")
-    else:
-        st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
+            received = safe_int(df_ice.at[idx, "รับเข้า"])
+            sold = safe_int(df_ice.at[idx, "ขายออก"])
+            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            remaining = received - sold - melted
+            st.metric("คงเหลือ", f"{remaining} ถุง")
+        else:
+            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
         try:
@@ -587,7 +582,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
-    
     # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
@@ -595,37 +589,37 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     cols = st.columns(4)
     for i, ice_type in enumerate(ice_types):
-    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-    if not row.empty:
-        idx = row.index[0]
-        price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
-        cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
-        default_val = safe_int(df_ice.at[idx, "ขายออก"])
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+        if not row.empty:
+            idx = row.index[0]
+            price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
+            cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
+            default_val = safe_int(df_ice.at[idx, "ขายออก"])
 
-        with cols[i]:
-            st.markdown(f"ยอดขายก่อนหน้า: **{default_val}** ถุง")
-            added_sold = st.number_input(f"🧊 เพิ่มขายออก {ice_type}", min_value=0, step=1, key=f"add_sell_{ice_type}")
+            with cols[i]:
+                st.markdown(f"ยอดขายก่อนหน้า: **{default_val}** ถุง")
+                added_sold = st.number_input(f"🧊 เพิ่มขายออก {ice_type}", min_value=0, step=1, key=f"add_sell_{ice_type}")
 
-            if added_sold > 0:
-                new_total_sold = default_val + added_sold
-                df_ice.at[idx, "ขายออก"] = new_total_sold
-                st.success(f"✅ รวมเป็น {new_total_sold} ถุง")
-            else:
-                df_ice.at[idx, "ขายออก"] = default_val
+                if added_sold > 0:
+                    new_total_sold = default_val + added_sold
+                    df_ice.at[idx, "ขายออก"] = new_total_sold
+                    st.success(f"✅ รวมเป็น {new_total_sold} ถุง")
+                else:
+                    df_ice.at[idx, "ขายออก"] = default_val
 
-            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            income = df_ice.at[idx, "ขายออก"] * price
-            profit = (df_ice.at[idx, "ขายออก"] * (price - cost)) - (melted * cost)
+                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+                income = df_ice.at[idx, "ขายออก"] * price
+                profit = (df_ice.at[idx, "ขายออก"] * (price - cost)) - (melted * cost)
 
-            df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - melted
-            df_ice.at[idx, "กำไรรวม"] = income
-            df_ice.at[idx, "กำไรสุทธิ"] = profit
-            df_ice.at[idx, "วันที่"] = today_str
+                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - melted
+                df_ice.at[idx, "กำไรรวม"] = income
+                df_ice.at[idx, "กำไรสุทธิ"] = profit
+                df_ice.at[idx, "วันที่"] = today_str
 
-            total_income += income
-            total_profit += profit
-    else:
-        st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
+                total_income += income
+                total_profit += profit
+        else:
+            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
