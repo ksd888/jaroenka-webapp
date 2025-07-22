@@ -226,7 +226,8 @@ if st.session_state.page == "Dashboard":
     
     # โหลดข้อมูลยอดขาย
     @st.cache_data(ttl=60)
-def load_sales_data():
+    @st.cache_data(ttl=60)
+    def load_sales_data():
         try:
             sales_df = pd.DataFrame(summary_ws.get_all_records())
             sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'])
@@ -274,7 +275,7 @@ def load_sales_data():
     else:
         st.warning("ไม่มีข้อมูลยอดขาย")
 
-# หน้าขายสินค้า
+    # หน้าขายสินค้า
 elif st.session_state.page == "ขายสินค้า":
     st.title("🧃 ขายสินค้าตู้เย็น")
     product_names = df["ชื่อสินค้า"].tolist()
@@ -484,6 +485,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
     @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
+    @st.cache_data(ttl=60)
     @st.cache_data(ttl=60)
     def load_ice_data():
         try:
