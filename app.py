@@ -730,7 +730,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                         total_income += income
                         total_profit += profit
 
-           if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+              if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
                 # แปลงค่า int64/float64 เป็น int/float ปกติก่อนบันทึก
