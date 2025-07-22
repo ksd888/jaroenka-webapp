@@ -714,7 +714,91 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
         
-    # สรุปยอดขาย
+    # ✅ โซนขายน้ำแข็ง (เดิมยังคงอยู่เหมือนเดิมด้านบน)
+
+# 🌟 โซนใหม่: 🔻 แบ่งขายน้ำแข็งแบบบาท (5,10,20,30,40)
+st.markdown("### 💰 โซนแบ่งขายน้ำแข็ง (ขายปลีกแบบบาท)")
+
+divide_ice_col = st.columns(4)
+levels = [0, 5, 10, 20, 30, 40]
+
+if "divided_sales" not in st.session_state:
+    st.session_state.divided_sales = {}
+
+for i, ice_type in enumerate(ice_types):
+    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+    if not row.empty:
+        idx = row.index[0]
+        price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
+        cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
+        
+        if ice_type == "ก้อน":
+            price_per_unit = 5
+            cost_per_unit = 22 / 10
+        else:
+            price_per_unit = price_per_bag / 30
+            cost_per_unit = cost_per_bag / 30
+
+        with divide_ice_col[i]:
+            st.markdown(f"""
+            <div class='ice-box'>
+                <div class='ice-header'>แบ่งขายน้ำแข็ง{ice_type}</div>
+                <div class='ice-metric'>
+                    <div style='margin-bottom: 10px;'>เลือกระดับราคา:</div>
+            """, unsafe_allow_html=True)
+            selected = st.selectbox(f"💵 เลือกบาท", levels, key=f"div_{ice_type}")
+            st.markdown("</div></div>", unsafe_allow_html=True)
+
+            if selected > 0:
+                income = selected
+                profit = income - (selected * cost_per_unit)
+                st.session_state.divided_sales[ice_type] = {
+                    "amount": selected,
+                    "income": income,
+                    "profit": profit,
+                    "cost_unit": cost_per_unit,
+                    "price_unit": price_per_unit
+                }
+
+# ✅ ปุ่มยืนยันการแบ่งขาย
+if st.session_state.divided_sales:
+    if st.button("📦 บันทึกการแบ่งขายน้ำแข็ง"):
+        try:
+            for ice_type, data in st.session_state.divided_sales.items():
+                idx = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)].index[0]
+                df_ice.at[idx, "กำไรรวม"] += data["income"]
+                df_ice.at[idx, "กำไรสุทธิ"] += data["profit"]
+
+                if ice_type == "ก้อน":
+                    pieces_sold = data["amount"] / 5
+                    decrease_stock = pieces_sold / 10
+                else:
+                    decrease_stock = data["amount"] / (data["price_unit"] * 30)
+
+                df_ice.at[idx, "คงเหลือตอนเย็น"] -= decrease_stock
+
+                summary_ws.append_row([
+                    today_str,
+                    f"{ice_type} (แบ่งขาย {data['amount']} บ.)",
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    data["income"],
+                    data["profit"],
+                    "ice"
+                ])
+
+            iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+            st.success("✅ บันทึกแบ่งขายเรียบร้อยแล้ว")
+            del st.session_state.divided_sales
+            time.sleep(1)
+            st.rerun()
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการบันทึกแบ่งขาย: {str(e)}")
+
+
+# สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
     with col1:
