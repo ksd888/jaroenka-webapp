@@ -120,16 +120,29 @@ worksheet = sheet.worksheet("ตู้เย็น")
 
 # 🔍 ฟังก์ชันค้นหา worksheet อย่างปลอดภัย
 def get_worksheet_by_name(sheet, name):
-    for ws in sheet.worksheets():
-        if ws.title.strip() == name.strip():
-            return ws
-    return None
+    try:
+        return sheet.worksheet(name)
+    except gspread.exceptions.WorksheetNotFound:
+        return None
 
 summary_ws = get_worksheet_by_name(sheet, "ยอดขาย")
 if not summary_ws:
     st.error("❌ ไม่พบชีทชื่อ 'ยอดขาย'")
     st.stop()
-df = pd.DataFrame(worksheet.get_all_records())
+
+# โหลดข้อมูลและทำความสะอาด
+def load_and_clean_data(worksheet):
+    df = pd.DataFrame(worksheet.get_all_records())
+    # ทำความสะอาดข้อมูล
+    df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
+    df["ราคาขาย"] = pd.to_numeric(df["ราคาขาย"], errors="coerce").fillna(0)
+    df["ต้นทุน"] = pd.to_numeric(df["ต้นทุน"], errors="coerce").fillna(0)
+    df["เข้า"] = pd.to_numeric(df["เข้า"], errors="coerce").fillna(0)
+    df["ออก"] = pd.to_numeric(df["ออก"], errors="coerce").fillna(0)
+    df["คงเหลือในตู้"] = pd.to_numeric(df["คงเหลือในตู้"], errors="coerce").fillna(0)
+    return df
+
+df = load_and_clean_data(worksheet)
 
 # Helper functions
 def safe_key(text): 
@@ -152,27 +165,31 @@ def add_money(amount: int):
     st.session_state.last_paid_click = amount
 
 # ระบบจัดการ Session
-if st.session_state.get("reset_search_items"):
-    st.session_state["search_items"] = []
-    st.session_state["quantities"] = {}
-    st.session_state["cart"] = []
-    st.session_state["paid_input"] = 0.0
-    st.session_state["last_paid_click"] = 0
-    del st.session_state["reset_search_items"]
+def initialize_session_state():
+    default_session = {
+        "cart": [],
+        "search_items": [],
+        "quantities": {},
+        "paid_input": 0.0,
+        "last_paid_click": 0,
+        "sale_complete": False,
+        "page": "ขายสินค้า",
+        "reset_search_items": False
+    }
+    
+    for key, default in default_session.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+            
+    if st.session_state.reset_search_items:
+        st.session_state["search_items"] = []
+        st.session_state["quantities"] = {}
+        st.session_state["cart"] = []
+        st.session_state["paid_input"] = 0.0
+        st.session_state["last_paid_click"] = 0
+        st.session_state["reset_search_items"] = False
 
-default_session = {
-    "cart": [],
-    "search_items": [],
-    "quantities": {},
-    "paid_input": 0.0,
-    "last_paid_click": 0,
-    "sale_complete": False,
-    "page": "ขายสินค้า"
-}
-
-for key, default in default_session.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
+initialize_session_state()
 
 # เมนูหลัก
 st.markdown("### 🚀 เมนูหลัก")
@@ -180,12 +197,15 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🏪 ขายสินค้า"):
         st.session_state.page = "ขายสินค้า"
+        st.rerun()
 with col2:
     if st.button("🧊 ขายน้ำแข็ง"):
         st.session_state.page = "ขายน้ำแข็ง"
+        st.rerun()
 with col3:
     if st.button("📊 Dashboard"):
         st.session_state.page = "Dashboard"
+        st.rerun()
 
 now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -193,9 +213,9 @@ now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%
 if st.session_state.page == "Dashboard":
     st.title("📊 Dashboard รายวัน")
     try:
-        sales_ws = sheet.worksheet("ยอดขาย")
-        sales_data = pd.DataFrame(sales_ws.get_all_records())
-
+        sales_data = pd.DataFrame(summary_ws.get_all_records())
+        
+        # ทำความสะอาดข้อมูล
         if "เวลา" in sales_data.columns:
             sales_data = sales_data.rename(columns={"เวลา": "timestamp"})
         else:
@@ -209,8 +229,14 @@ if st.session_state.page == "Dashboard":
         if not today_sales.empty:
             total_today_price = today_sales["total_price"].sum()
             total_today_profit = today_sales["total_profit"].sum()
-            top_items = today_sales["Items"].value_counts().idxmax()
-
+            
+            # หาสินค้าขายดี (กรองเฉพาะประเภทเครื่องดื่ม)
+            drink_sales = today_sales[today_sales["type"] == "drink"]
+            if not drink_sales.empty:
+                top_items = drink_sales["Items"].value_counts().idxmax()
+            else:
+                top_items = "ไม่มีข้อมูล"
+                
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("💰 ยอดขายวันนี้", f"{total_today_price:,.2f} บาท")
@@ -255,37 +281,39 @@ elif st.session_state.page == "ขายสินค้า":
     product_names = df["ชื่อสินค้า"].tolist()
     
     # ระบบค้นหาสินค้า
-    search_term = st.text_input("🔍 ค้นหาสินค้า", help="พิมพ์ชื่อสินค้าเพื่อค้นหา")
+    search_term = st.text_input("🔍 ค้นหาสินค้า", help="พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term")
     filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
-    selected = st.multiselect("เลือกสินค้าจากชื่อ", filtered_products, key="search_items")
-
-    # แสดงสินค้าที่เลือก
-    for p in selected:
-        if p not in st.session_state.quantities:
-            st.session_state.quantities[p] = 1
+    
+    # ใช้ selectbox แทน multiselect สำหรับการเลือกสินค้า
+    selected_product = st.selectbox("เลือกสินค้า", [""] + filtered_products, key="product_select")
+    
+    if selected_product:
+        if selected_product not in st.session_state.quantities:
+            st.session_state.quantities[selected_product] = 1
         
-        qty = st.session_state.quantities[p]
-        row = df[df["ชื่อสินค้า"] == p]
+        qty = st.session_state.quantities[selected_product]
+        row = df[df["ชื่อสินค้า"] == selected_product]
         stock = int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
         
-        st.markdown(f"**{p}**")
+        st.markdown(f"**{selected_product}**")
         col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
         with col1: 
-            st.button("➖", key=f"dec_{safe_key(p)}", on_click=decrease_quantity, args=(p,))
+            st.button("➖", key=f"dec_{safe_key(selected_product)}", on_click=decrease_quantity, args=(selected_product,))
         with col2: 
             st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", unsafe_allow_html=True)
         with col3: 
-            st.button("➕", key=f"inc_{safe_key(p)}", on_click=increase_quantity, args=(p,))
+            st.button("➕", key=f"inc_{safe_key(selected_product)}", on_click=increase_quantity, args=(selected_product,))
         with col4:
             stock_color = "red" if stock < 3 else "green"
             st.markdown(f"<span style='color:{stock_color}; font-size:18px; font-weight:bold'>📦 คงเหลือ: {stock} ชิ้น</span>", unsafe_allow_html=True)
 
-    if st.button("➕ เพิ่มลงตะกร้า", type="primary"):
-        for p in selected:
-            qty = safe_int(st.session_state.quantities[p])
+        if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
+            qty = safe_int(st.session_state.quantities[selected_product])
             if qty > 0:
-                st.session_state.cart.append((p, qty))
-        st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
+                st.session_state.cart.append((selected_product, qty))
+                st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
+                st.session_state.quantities[selected_product] = 1  # รีเซ็ตจำนวนหลังจากเพิ่มลงตะกร้า
+                st.rerun()
 
     # แสดงรายการในตะกร้า
     st.subheader("📋 รายการขาย")
@@ -294,35 +322,44 @@ elif st.session_state.page == "ขายสินค้า":
     if not st.session_state.cart:
         st.info("ℹ️ ยังไม่มีสินค้าในตะกร้า")
     else:
-        for item, qty in st.session_state.cart:
+        for idx, (item, qty) in enumerate(st.session_state.cart):
             row = df[df["ชื่อสินค้า"] == item].iloc[0]
             price, cost = safe_float(row["ราคาขาย"]), safe_float(row["ต้นทุน"])
             subtotal, profit = qty * price, qty * (price - cost)
             total_price += subtotal
             total_profit += profit
-            st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
+            
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
+            with col2:
+                if st.button("🗑️", key=f"remove_{idx}"):
+                    st.session_state.cart.pop(idx)
+                    st.rerun()
 
     # ระบบรับเงิน
     st.subheader("💰 การชำระเงิน")
     st.session_state.paid_input = st.number_input("รับเงินจากลูกค้า", 
                                                value=st.session_state.paid_input, 
                                                step=1.0,
-                                               min_value=0.0)
+                                               min_value=0.0,
+                                               key="paid_input")
     
     # ปุ่มเงินด่วน
     st.write("เพิ่มเงินด่วน:")
     col1, col2, col3 = st.columns(3)
-    with col1: st.button("20", on_click=lambda: add_money(20))
-    with col2: st.button("50", on_click=lambda: add_money(50))
-    with col3: st.button("100", on_click=lambda: add_money(100))
+    with col1: st.button("20", on_click=lambda: add_money(20), key="add_20")
+    with col2: st.button("50", on_click=lambda: add_money(50), key="add_50")
+    with col3: st.button("100", on_click=lambda: add_money(100), key="add_100")
     col4, col5 = st.columns(2)
-    with col4: st.button("500", on_click=lambda: add_money(500))
-    with col5: st.button("1000", on_click=lambda: add_money(1000))
+    with col4: st.button("500", on_click=lambda: add_money(500), key="add_500")
+    with col5: st.button("1000", on_click=lambda: add_money(1000), key="add_1000")
     
     if st.session_state.last_paid_click:
-        if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}"):
+        if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}", key="cancel_last"):
             st.session_state.paid_input -= st.session_state.last_paid_click
             st.session_state.last_paid_click = 0
+            st.rerun()
 
     # สรุปยอด
     st.info(f"📦 ยอดรวม: {total_price:,.2f} บาท | 🟢 กำไร: {total_profit:,.2f} บาท")
@@ -332,7 +369,7 @@ elif st.session_state.page == "ขายสินค้า":
         st.warning(f"💸 เงินไม่พอ (ขาด: {total_price - st.session_state.paid_input:,.2f} บาท)")
 
     # ยืนยันการขาย
-    if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart):
+    if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart, key="confirm_sale"):
         for item, qty in st.session_state.cart:
             index = df[df["ชื่อสินค้า"] == item].index[0]
             row = df.loc[index]
@@ -352,6 +389,7 @@ elif st.session_state.page == "ขายสินค้า":
             "drink"
         ])
         st.session_state.reset_search_items = True
+        st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
         st.rerun()
 
     # ระบบจัดการสินค้า
@@ -361,7 +399,7 @@ elif st.session_state.page == "ขายสินค้า":
         with tab1:
             restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
             restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
-            if st.button("📥 ยืนยันเติมสินค้า"):
+            if st.button("📥 ยืนยันเติมสินค้า", key="confirm_restock"):
                 index = df[df["ชื่อสินค้า"] == restock_item].index[0]
                 idx_in_sheet = index + 2
                 row = df.loc[index]
@@ -386,7 +424,7 @@ elif st.session_state.page == "ขายสินค้า":
             
             new_stock = st.number_input("คงเหลือในตู้", value=safe_int(row["คงเหลือในตู้"]), key="edit_stock", step=1)
             
-            if st.button("💾 บันทึกการแก้ไข"):
+            if st.button("💾 บันทึกการแก้ไข", key="save_edit"):
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
@@ -395,7 +433,7 @@ elif st.session_state.page == "ขายสินค้า":
         
         with tab3:
             st.warning("⚠️ การรีเซ็ตจะตั้งค่ายอด 'เข้า' และ 'ออก' เป็น 0 ทั้งหมด")
-            if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", type="secondary"):
+            if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", type="secondary", key="reset_counts"):
                 num_rows = len(df)
                 worksheet.batch_update([
                     {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
@@ -410,7 +448,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
         ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
         for ice_type in ice_types:
-            # ใช้วิธีที่ปลอดภัยในการรีเซ็ตค่า
             st.session_state.pop(f"in_{ice_type}", None)
             st.session_state.pop(f"sell_out_{ice_type}", None)
         st.session_state["force_rerun"] = True
@@ -422,11 +459,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     # ปรับรูปแบบข้อมูล
     df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
-    df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce')
-    df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce')
-    df_ice = df_ice.dropna(subset=["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"])
+    df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
+    df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce').fillna(0)
     
-    today_str = datetime.datetime.now().strftime("%-d/%-m/%Y")
+    today_str = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
     
     # ตรวจสอบและรีเซ็ตข้อมูลวันใหม่
     if not df_ice.empty and df_ice["วันที่"].iloc[0] != today_str:
@@ -462,7 +498,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     f"📥 {ice_type}", 
                     min_value=0, 
                     value=current_value,
-                    key=f"in_{ice_type}_input"  # ใช้ key ที่แตกต่างสำหรับ widget
+                    key=f"in_{ice_type}_input"
                 )
                 
                 # อัปเดตค่าใน session state
@@ -480,15 +516,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
     # ปุ่มบันทึกยอดเติมน้ำแข็ง
-    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
+    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="save_restock"):
         try:
             iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
             st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
-            
-            # รีเซ็ตค่าที่ป้อนไว้
             reset_ice_session_state()
-            
-            # บังคับรีโหลดหน้า
             st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
@@ -516,7 +548,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     f"🧊 ขายออก {ice_type}", 
                     min_value=0, 
                     value=current_value,
-                    key=f"sell_out_{ice_type}_input"  # ใช้ key ที่แตกต่างสำหรับ widget
+                    key=f"sell_out_{ice_type}_input"
                 )
                 
                 # อัปเดตค่าใน session state
@@ -536,7 +568,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 total_profit += profit
 
     # ปุ่มบันทึกการขาย
-    if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary"):
+    if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
             iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
             
@@ -554,11 +586,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 ])
             
             st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
-            
-            # รีเซ็ตค่าที่ป้อนไว้
             reset_ice_session_state()
-            
-            # บังคับรีโหลดหน้า
             st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
