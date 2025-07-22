@@ -589,7 +589,9 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     cols = st.columns(4)
 
     for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+        if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
+            for ice_type in ice_types:
+                row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
         if not row.empty:
             idx = row.index[0]
             default_val = safe_int(df_ice.at[idx, "รับเข้า"])
@@ -646,7 +648,6 @@ total_profit = 0
 # เก็บค่าเริ่มต้นก่อนทำการขาย
 initial_sales = {}
 for ice_type in ice_types:
-    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
     if not row.empty:
         idx = row.index[0]
         initial_sales[ice_type] = safe_int(df_ice.at[idx, "ขายออก"])
@@ -655,7 +656,6 @@ if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
     cols = st.columns(4)
     
     for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
         if not row.empty:
             idx = row.index[0]
             price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
@@ -731,7 +731,6 @@ if st.button("✅ บันทึกการขายน้ำแข็ง", ty
             
             # บันทึกรายการขาย (เฉพาะส่วนที่เพิ่มขึ้นจากการขายครั้งนี้)
             for ice_type in ice_types:
-                row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
                 if not row.empty:
                     idx = row.index[0]
                     current_sold = safe_int(df_ice.at[idx, "ขายออก"])
@@ -763,7 +762,6 @@ if st.button("✅ บันทึกการขายน้ำแข็ง", ty
     melted_cols = st.columns(4)
     
     for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
         if not row.empty:
             idx = row.index[0]
             with melted_cols[i]:
