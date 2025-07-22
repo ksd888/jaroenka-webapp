@@ -553,23 +553,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 added_value = st.number_input(f"➕ เพิ่มเข้า {ice_type}", min_value=0, step=1, key=f"increase_{ice_type}")
 
                 if added_value > 0:
-                    new_total = default_val + added_value
-                    df_ice.at[idx, "รับเข้า"] = new_total
-                    st.success(f"✅ รวมเป็น {new_total} ถุง")
-                st.markdown(f"""
-                <div style='
-                    background-color:#f2f2f7;
-                    padding:10px 15px;
-                    border-radius:10px;
-                    text-align:center;
-                    font-size:20px;
-                    font-weight:bold;
-                    color:#007aff;
-                    border: 2px solid #007aff;
-                    margin-top:10px;'>
-                    คงเหลือ: {remaining} ถุง
-                </div>
-                """, unsafe_allow_html=True)
                 else:
                     df_ice.at[idx, "รับเข้า"] = default_val
 
