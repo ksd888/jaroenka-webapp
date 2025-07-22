@@ -533,14 +533,12 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
-    @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
+    @st.cache_data(ttl=60)
     def load_ice_data():
         try:
-            # โหลดข้อมูลจากชีท iceflow
             records = iceflow_sheet.get_all_records()
             df_ice = pd.DataFrame(records)
             
-            # ทำความสะอาดข้อมูล
             df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
             df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
             df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce').fillna(0)
@@ -561,11 +559,9 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     today_str = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
     
-    # ตรวจสอบและรีเซ็ตข้อมูลวันใหม่
     if not df_ice.empty and df_ice["วันที่"].iloc[0] != today_str:
         try:
             with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
-                # อัปเดตข้อมูลสำหรับวันใหม่
                 df_ice["วันที่"] = today_str
                 df_ice["รับเข้า"] = 0
                 df_ice["ขายออก"] = 0
@@ -574,7 +570,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 df_ice["กำไรรวม"] = 0
                 df_ice["กำไรสุทธิ"] = 0
                 
-                # อัปเดต Google Sheet
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
                 st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
@@ -596,23 +591,13 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         if not row.empty:
             idx = row.index[0]
             default_val = safe_int(df_ice.at[idx, "รับเข้า"])
-            received = safe_int(df_ice.at[idx, "รับเข้า"])
-            sold = safe_int(df_ice.at[idx, "ขายออก"])
-            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            remaining = received - sold - melted
             
             with cols[i]:
-                # กล่องข้อมูลน้ำแข็ง
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">น้ำแข็ง{ice_type}</div>
                     <div class="ice-metric">
-                        <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
-                        <div>📤 ยอดขายออก: <strong>{sold}</strong> ถุง</div>
-                        <div>💧 ละลาย: <strong>{melted}</strong> ถุง</div>
-                        <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
-                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
-                        </div>
+                        <div>📥 ยอดรับเข้า: <strong>{default_val}</strong> ถุง</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -635,13 +620,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
-                # อัปเดตข้อมูลใน Google Sheet
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                
-                # รีเซ็ตค่าใน session state
                 reset_ice_session_state()
-                
-                # ล้าง cache และรีเฟรชหน้า
                 st.cache_data.clear()
                 st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
                 time.sleep(1)
@@ -660,25 +640,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         if not row.empty:
             idx = row.index[0]
             price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
-            cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             default_val = safe_int(df_ice.at[idx, "ขายออก"])
-            received = safe_int(df_ice.at[idx, "รับเข้า"])
-            sold = safe_int(df_ice.at[idx, "ขายออก"])
-            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            remaining = received - sold - melted
 
             with cols[i]:
-                # กล่องข้อมูลน้ำแข็ง
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
                     <div class="ice-metric">
                         <div>💰 ราคา: <strong>{price:,.2f}</strong> บาท/ถุง</div>
-                        <div>📤 ยอดขาย: <strong>{sold}</strong> ถุง</div>
-                        <div>💧 ละลาย: <strong>{melted}</strong> ถุง</div>
-                        <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
-                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
-                        </div>
+                        <div>📤 ยอดขาย: <strong>{default_val}</strong> ถุง</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -698,6 +668,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 else:
                     df_ice.at[idx, "ขายออก"] = default_val
 
+                cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
                 income = df_ice.at[idx, "ขายออก"] * price
                 profit = (df_ice.at[idx, "ขายออก"] * (price - cost)) - (melted * cost)
@@ -713,10 +684,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
-                # อัปเดตข้อมูลใน Google Sheet
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
-                # บันทึกรายการขายในชีทยอดขาย
                 for _, row in df_ice.iterrows():
                     summary_ws.append_row([
                         today_str,
@@ -730,10 +699,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                         "ice"
                     ])
                 
-                # รีเซ็ตค่าใน session state
                 reset_ice_session_state()
-                
-                # ล้าง cache และรีเฟรชหน้า
                 st.cache_data.clear()
                 st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
                 time.sleep(1)
