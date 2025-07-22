@@ -672,3 +672,85 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     key=f"melted_{ice_type}"
                 )
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
+
+
+# ------------------ GOOGLE SHEET CONFIG ------------------
+SPREADSHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
+ICE_SHEET_NAME = "iceflow"
+CREDENTIALS = st.secrets["GCP_SERVICE_ACCOUNT"]
+
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(CREDENTIALS, scopes=scope)
+client = gspread.authorize(creds)
+worksheet = client.open_by_key(SPREADSHEET_ID).worksheet(ICE_SHEET_NAME)
+
+# ------------------ โหลดข้อมูลน้ำแข็ง ------------------
+@st.cache_data(ttl=60)
+def load_ice_data():
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
+
+df_ice = load_ice_data()
+
+# ------------------ อัปเดตยอดเข้า/ออก ------------------
+def update_ice_value(ice_type, action, amount):
+    row = df_ice[df_ice["ประเภท"] == ice_type].index[0] + 2
+    col_map = {"เข้า": "เข้า", "ออก": "ออก"}
+    col_letter = {"เข้า": "C", "ออก": "D"}[action]
+    current = worksheet.acell(f"{col_letter}{row}").value
+    current = int(current) if current.isnumeric() else 0
+    new_value = current + amount
+    worksheet.update_acell(f"{col_letter}{row}", str(new_value))
+    return new_value
+
+# ------------------ ฟังก์ชันรีเซ็ต ------------------
+def reset_ice_inputs():
+    for key in list(st.session_state.keys()):
+        if key.startswith("in_") or key.startswith("out_"):
+            st.session_state[key] = 0
+    st.rerun()
+
+# ------------------ UI น้ำแข็ง ------------------
+st.header("🧊 ระบบขายน้ำแข็งเชื่อม Google Sheet")
+
+ice_types = df_ice["ประเภท"].tolist()
+for ice in ice_types:
+    col1, col2 = st.columns(2)
+    with col1:
+        in_amt = st.number_input(f"เข้า {ice}", key=f"in_{ice}", min_value=0, step=1)
+    with col2:
+        out_amt = st.number_input(f"ออก {ice}", key=f"out_{ice}", min_value=0, step=1)
+
+if st.button("✅ บันทึกยอดเข้า/ออก"):
+    for ice in ice_types:
+        in_amt = st.session_state.get(f"in_{ice}", 0)
+        out_amt = st.session_state.get(f"out_{ice}", 0)
+        if in_amt > 0:
+            update_ice_value(ice, "เข้า", in_amt)
+        if out_amt > 0:
+            update_ice_value(ice, "ออก", out_amt)
+    st.success("✅ บันทึกสำเร็จแล้ว")
+    reset_ice_inputs()
+
+
+
+# ------------------ แสดงยอดคงเหลือและกำไรสะสม ------------------
+st.subheader("📊 รายงานยอดคงเหลือและกำไรสุทธิ")
+
+df_ice["เข้า"] = pd.to_numeric(df_ice["เข้า"], errors="coerce").fillna(0)
+df_ice["ออก"] = pd.to_numeric(df_ice["ออก"], errors="coerce").fillna(0)
+df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors="coerce").fillna(0)
+df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors="coerce").fillna(0)
+
+df_ice["จำนวนละลาย"] = pd.to_numeric(df_ice["จำนวนละลาย"], errors="coerce").fillna(0)
+df_ice["คงเหลือ"] = df_ice["เข้า"] - df_ice["ออก"] - df_ice["จำนวนละลาย"]
+df_ice["ยอดขาย(บาท)"] = df_ice["ออก"] * df_ice["ราคาขายต่อหน่วย"]
+df_ice["กำไร(บาท)"] = df_ice["ออก"] * (df_ice["ราคาขายต่อหน่วย"] - df_ice["ต้นทุนต่อหน่วย"])
+
+st.dataframe(df_ice[["ประเภท", "เข้า", "ออก", "คงเหลือ", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "ยอดขาย(บาท)", "กำไร(บาท)"]],
+             use_container_width=True)
+
+total_sale = df_ice["ยอดขาย(บาท)"].sum()
+total_profit = df_ice["กำไร(บาท)"].sum()
+st.metric("💰 ยอดขายรวมทั้งหมด", f"{total_sale:,.0f} บาท")
+st.metric("📈 กำไรสุทธิรวม", f"{total_profit:,.0f} บาท")
