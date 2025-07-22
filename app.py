@@ -640,13 +640,14 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         
    # ส่วนขายออกน้ำแข็ง (ปรับปรุงแล้ว)
 st.markdown("### 💸 โซนขายออกน้ำแข็ง")
+        if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
 total_income = 0
 total_profit = 0
 
 cols = st.columns(4)
     if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
-        for i, ice_type in enumerate(ice_types):
-            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+            for i, ice_type in enumerate(ice_types):
+                row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
     if not row.empty:
         idx = row.index[0]
         price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
@@ -695,6 +696,9 @@ cols = st.columns(4)
                         divided_income = divided_amount
                         divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))
                         stock_decrease = pieces_sold / 10  # 1 ถุง = 10 ก้อน
+        else:
+            st.error("ไม่พบข้อมูล 'ชนิดน้ำแข็ง' หรือโหลดข้อมูลไม่สำเร็จ")
+
                     else:
                         # น้ำแข็งอื่นๆ แบ่งตามสัดส่วน
                         divided_income = divided_amount
