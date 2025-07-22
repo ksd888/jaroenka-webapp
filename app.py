@@ -541,6 +541,12 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             records = iceflow_sheet.get_all_records()
             df_ice = pd.DataFrame(records)
             
+            # Ensure required columns exist
+            required_cols = ["ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย"]
+            for col in required_cols:
+                if col not in df_ice.columns:
+                    df_ice[col] = 0  # Add missing columns with default values
+            
             df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
             df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
             df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce').fillna(0)
@@ -551,13 +557,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             return df_ice
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
-            return pd.DataFrame()
+            return pd.DataFrame(columns=required_cols)
     
     df_ice = load_ice_data()
     
     if df_ice.empty:
         st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
         st.stop()
+    
+    # Rest of your ice sales code...
+    # Make sure all ice sales processing happens after df_ice is confirmed to be loaded
     
     today_str = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
     
