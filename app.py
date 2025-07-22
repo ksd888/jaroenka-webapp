@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
 
 # ตั้งค่าพื้นฐาน CSS
 st.markdown("""
@@ -117,6 +118,8 @@ def initialize_session_state():
         st.session_state.reset_search_items = False
     if 'prev_paid_input' not in st.session_state:
         st.session_state.prev_paid_input = 0.0
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = time.time()
 
 initialize_session_state()
 
@@ -133,11 +136,13 @@ try:
     sheet = connect_google_sheets()
     worksheet = sheet.worksheet("ตู้เย็น")
     summary_ws = sheet.worksheet("ยอดขาย")
+    iceflow_sheet = sheet.worksheet("iceflow")
 except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: {str(e)}")
     st.stop()
 
 # โหลดข้อมูลและทำความสะอาด
+@st.cache_data(ttl=60)  # Cache ข้อมูล 1 นาที
 def load_and_clean_data(worksheet):
     df = pd.DataFrame(worksheet.get_all_records())
     # ทำความสะอาดข้อมูล
@@ -202,8 +207,57 @@ now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%
 
 # หน้า Dashboard
 if st.session_state.page == "Dashboard":
-    # Dashboard code remains the same as before
-    pass
+    st.title("📊 Dashboard สถิติการขาย")
+    
+    # โหลดข้อมูลยอดขาย
+    @st.cache_data(ttl=300)
+    def load_sales_data():
+        try:
+            sales_df = pd.DataFrame(summary_ws.get_all_records())
+            sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'])
+            sales_df['รายการ'] = sales_df['รายการ'].astype(str)
+            sales_df['ยอดขาย'] = pd.to_numeric(sales_df['ยอดขาย'], errors='coerce').fillna(0)
+            sales_df['กำไร'] = pd.to_numeric(sales_df['กำไร'], errors='coerce').fillna(0)
+            sales_df['ประเภท'] = sales_df['ประเภท'].astype(str)
+            return sales_df
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
+            return pd.DataFrame()
+
+    sales_df = load_sales_data()
+    
+    if not sales_df.empty:
+        # แสดงสถิติการขาย
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            total_sales = sales_df['ยอดขาย'].sum()
+            st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
+        with col2:
+            total_profit = sales_df['กำไร'].sum()
+            st.metric("🟢 กำไรรวม", f"{total_profit:,.2f} บาท")
+        with col3:
+            avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
+            st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
+        
+        # กราฟยอดขายรายวัน
+        st.subheader("📈 ยอดขายรายวัน")
+        daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+        
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+        ax.set_title('ยอดขายรายวัน')
+        ax.set_xlabel('วันที่')
+        ax.set_ylabel('ยอดขาย (บาท)')
+        ax.grid(True)
+        st.pyplot(fig)
+        
+        # สินค้าขายดี
+        st.subheader("🏆 สินค้าขายดี")
+        if 'รายการ' in sales_df.columns:
+            top_products = sales_df['รายการ'].value_counts().head(10)
+            st.bar_chart(top_products)
+    else:
+        st.warning("ไม่มีข้อมูลยอดขาย")
 
 # หน้าขายสินค้า
 elif st.session_state.page == "ขายสินค้า":
@@ -239,10 +293,13 @@ elif st.session_state.page == "ขายสินค้า":
         if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
             qty = safe_int(st.session_state.quantities[selected_product])
             if qty > 0:
-                st.session_state.cart.append((selected_product, qty))
-                st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
-                st.session_state.quantities[selected_product] = 1
-                st.experimental_rerun()
+                if stock >= qty:
+                    st.session_state.cart.append((selected_product, qty))
+                    st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
+                    st.session_state.quantities[selected_product] = 1
+                    st.experimental_rerun()
+                else:
+                    st.error(f"⚠️ สินค้ามีไม่พอในสต็อก (เหลือ {stock} ชิ้น)")
 
     # แสดงรายการในตะกร้า
     st.subheader("📋 รายการขาย")
@@ -266,7 +323,7 @@ elif st.session_state.page == "ขายสินค้า":
                     st.session_state.cart.pop(idx)
                     st.experimental_rerun()
 
-    # ระบบรับเงิน - Fixed version
+    # ระบบรับเงิน
     st.subheader("💰 การชำระเงิน")
     paid_input = st.number_input(
         "รับเงินจากลูกค้า", 
@@ -314,30 +371,36 @@ elif st.session_state.page == "ขายสินค้า":
     # ยืนยันการขาย
     if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart, key="confirm_sale"):
         try:
-            for item, qty in st.session_state.cart:
-                index = df[df["ชื่อสินค้า"] == item].index[0]
-                row = df.loc[index]
-                idx_in_sheet = index + 2
-                new_out = safe_int(row["ออก"]) + qty
-                new_left = safe_int(row["คงเหลือในตู้"]) - qty
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+            with st.spinner("กำลังบันทึกการขาย..."):
+                for item, qty in st.session_state.cart:
+                    index = df[df["ชื่อสินค้า"] == item].index[0]
+                    row = df.loc[index]
+                    idx_in_sheet = index + 2
+                    new_out = safe_int(row["ออก"]) + qty
+                    new_left = safe_int(row["คงเหลือในตู้"]) - qty
+                    worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+                    worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-            summary_ws.append_row([
-                now,
-                ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
-                total_price,
-                total_profit,
-                st.session_state.paid_input,
-                st.session_state.paid_input - total_price,
-                "drink"
-            ])
-            st.session_state.cart = []
-            st.session_state.paid_input = 0.0
-            st.session_state.prev_paid_input = 0.0
-            st.session_state.last_paid_click = 0
-            st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
-            st.experimental_rerun()
+                summary_ws.append_row([
+                    now,
+                    ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
+                    total_price,
+                    total_profit,
+                    st.session_state.paid_input,
+                    st.session_state.paid_input - total_price,
+                    "drink"
+                ])
+                
+                # อัปเดตข้อมูลใน cache
+                st.cache_data.clear()
+                
+                st.session_state.cart = []
+                st.session_state.paid_input = 0.0
+                st.session_state.prev_paid_input = 0.0
+                st.session_state.last_paid_click = 0
+                st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
+                time.sleep(1)
+                st.experimental_rerun()
         except Exception as e:
             st.error(f"Error confirming sale: {str(e)}")
 
@@ -357,6 +420,7 @@ elif st.session_state.page == "ขายสินค้า":
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, new_in)
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
                 st.success(f"✅ เติม {restock_item} จำนวน {restock_qty} ชิ้นเรียบร้อย")
+                st.cache_data.clear()
                 st.experimental_rerun()
         
         with tab2:
@@ -378,6 +442,7 @@ elif st.session_state.page == "ขายสินค้า":
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
                 st.success(f"✅ อัปเดต {edit_item} เรียบร้อย")
+                st.cache_data.clear()
                 st.experimental_rerun()
         
         with tab3:
@@ -389,6 +454,7 @@ elif st.session_state.page == "ขายสินค้า":
                     {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
                 ])
                 st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
+                st.cache_data.clear()
                 st.experimental_rerun()
 
 # หน้าขายน้ำแข็ง
@@ -403,13 +469,16 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
-    iceflow_sheet = sheet.worksheet("iceflow")
-    df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+    @st.cache_data(ttl=60)
+    def load_ice_data():
+        df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+        # ปรับรูปแบบข้อมูล
+        df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
+        df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
+        df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce').fillna(0)
+        return df_ice
     
-    # ปรับรูปแบบข้อมูล
-    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
-    df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
-    df_ice["ต้นทุนต่อหน่วย"] = pd.to_numeric(df_ice["ต้นทุนต่อหน่วย"], errors='coerce').fillna(0)
+    df_ice = load_ice_data()
     
     today_str = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
     
@@ -425,6 +494,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
         reset_ice_session_state()
+        st.cache_data.clear()
+        st.experimental_rerun()
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
@@ -467,10 +538,13 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     # ปุ่มบันทึกยอดเติมน้ำแข็ง
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="save_restock"):
         try:
-            iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-            st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
-            reset_ice_session_state()
-            st.rerun()
+            with st.spinner("กำลังบันทึกข้อมูล..."):
+                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+                st.cache_data.clear()
+                reset_ice_session_state()
+                time.sleep(1)
+                st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
@@ -519,24 +593,27 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     # ปุ่มบันทึกการขาย
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
-            iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-            
-            for _, row in df_ice.iterrows():
-                summary_ws.append_row([
-                    today_str,
-                    row["ชนิดน้ำแข็ง"],
-                    safe_int(row["ขายออก"]),
-                    row["ราคาขายต่อหน่วย"],
-                    row["ต้นทุนต่อหน่วย"],
-                    row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"],
-                    safe_int(row["ขายออก"]) * row["ราคาขายต่อหน่วย"],
-                    safe_int(row["ขายออก"]) * (row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"]),
-                    "ice"
-                ])
-            
-            st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
-            reset_ice_session_state()
-            st.rerun()
+            with st.spinner("กำลังบันทึกการขาย..."):
+                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                
+                for _, row in df_ice.iterrows():
+                    summary_ws.append_row([
+                        today_str,
+                        row["ชนิดน้ำแข็ง"],
+                        safe_int(row["ขายออก"]),
+                        row["ราคาขายต่อหน่วย"],
+                        row["ต้นทุนต่อหน่วย"],
+                        row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"],
+                        safe_int(row["ขายออก"]) * row["ราคาขายต่อหน่วย"],
+                        safe_int(row["ขายออก"]) * (row["ราคาขายต่อหน่วย"] - row["ต้นทุนต่อหน่วย"]),
+                        "ice"
+                    ])
+                
+                st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
+                st.cache_data.clear()
+                reset_ice_session_state()
+                time.sleep(1)
+                st.rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
         
@@ -547,3 +624,19 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         st.metric("💰 ยอดขายรวม", f"{total_income:,.2f} บาท")
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
+
+    # ส่วนจัดการน้ำแข็งที่ละลาย
+    st.markdown("### 🧊 การจัดการน้ำแข็งที่ละลาย")
+    melted_cols = st.columns(4)
+    for i, ice_type in enumerate(ice_types):
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+        if not row.empty:
+            idx = row.index[0]
+            with melted_cols[i]:
+                melted_qty = st.number_input(
+                    f"ละลาย {ice_type}", 
+                    min_value=0, 
+                    value=safe_int(df_ice.at[idx, "จำนวนละลาย"]),
+                    key=f"melted_{ice_type}"
+                )
+                df_ice.at[idx, "จำนวนละลาย"] = melted_qty
