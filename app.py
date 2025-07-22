@@ -113,6 +113,55 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
     padding: 15px !important;
     margin-bottom: 15px !important;
 }
+
+/* กล่องข้อมูลน้ำแข็ง */
+.ice-box {
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* หัวข้อกล่องน้ำแข็ง */
+.ice-header {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #007aff;
+    padding-bottom: 5px;
+}
+
+/* เมตริกน้ำแข็ง */
+.ice-metric {
+    background-color: white;
+    border-radius: 10px;
+    padding: 10px;
+    margin: 5px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ปุ่มน้ำแข็ง */
+.ice-button {
+    width: 100%;
+    margin: 5px 0;
+}
+
+/* สถานะสต็อก */
+.stock-low {
+    color: #e74c3c;
+    font-weight: bold;
+}
+.stock-ok {
+    color: #27ae60;
+    font-weight: bold;
+}
+.stock-high {
+    color: #2980b9;
+    font-weight: bold;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -547,38 +596,41 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         if not row.empty:
             idx = row.index[0]
             default_val = safe_int(df_ice.at[idx, "รับเข้า"])
-
+            received = safe_int(df_ice.at[idx, "รับเข้า"])
+            sold = safe_int(df_ice.at[idx, "ขายออก"])
+            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            remaining = received - sold - melted
+            
             with cols[i]:
-                st.markdown(f"ยอดก่อนหน้า: **{default_val}** ถุง")
-                added_value = st.number_input(f"➕ เพิ่มเข้า {ice_type}", min_value=0, step=1, key=f"increase_{ice_type}")
+                # กล่องข้อมูลน้ำแข็ง
+                st.markdown(f"""
+                <div class="ice-box">
+                    <div class="ice-header">น้ำแข็ง{ice_type}</div>
+                    <div class="ice-metric">
+                        <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
+                        <div>📤 ยอดขายออก: <strong>{sold}</strong> ถุง</div>
+                        <div>💧 ละลาย: <strong>{melted}</strong> ถุง</div>
+                        <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
+                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                added_value = st.number_input(
+                    f"เพิ่มเข้า {ice_type}", 
+                    min_value=0, 
+                    step=1, 
+                    key=f"increase_{ice_type}",
+                    help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่รับเข้า"
+                )
 
                 if added_value > 0:
                     new_total = default_val + added_value
                     df_ice.at[idx, "รับเข้า"] = new_total
                     st.success(f"✅ รวมเป็น {new_total} ถุง")
-                
-                # คำนวณและแสดงผลคงเหลือสำหรับน้ำแข็งประเภทนี้
-                received = safe_int(df_ice.at[idx, "รับเข้า"])
-                sold = safe_int(df_ice.at[idx, "ขายออก"])
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                remaining = received - sold - melted
-                
-                st.markdown(f"""
-                <div style='
-                    background-color:#f2f2f7;
-                    padding:10px 15px;
-                    border-radius:10px;
-                    text-align:center;
-                    font-size:20px;
-                    font-weight:bold;
-                    color:#007aff;
-                    border: 2px solid #007aff;
-                    margin-top:10px;'>
-                    คงเหลือ: {remaining} ถุง
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
+                else:
+                    df_ice.at[idx, "รับเข้า"] = default_val
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
         try:
@@ -610,36 +662,41 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             default_val = safe_int(df_ice.at[idx, "ขายออก"])
+            received = safe_int(df_ice.at[idx, "รับเข้า"])
+            sold = safe_int(df_ice.at[idx, "ขายออก"])
+            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            remaining = received - sold - melted
 
             with cols[i]:
-                st.markdown(f"ยอดขายก่อนหน้า: **{default_val}** ถุง")
-                added_sold = st.number_input(f"🧊 เพิ่มขายออก {ice_type}", min_value=0, step=1, key=f"add_sell_{ice_type}")
+                # กล่องข้อมูลน้ำแข็ง
+                st.markdown(f"""
+                <div class="ice-box">
+                    <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
+                    <div class="ice-metric">
+                        <div>💰 ราคา: <strong>{price:,.2f}</strong> บาท/ถุง</div>
+                        <div>📤 ยอดขาย: <strong>{sold}</strong> ถุง</div>
+                        <div>💧 ละลาย: <strong>{melted}</strong> ถุง</div>
+                        <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
+                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                added_sold = st.number_input(
+                    f"เพิ่มขายออก {ice_type}", 
+                    min_value=0, 
+                    step=1, 
+                    key=f"add_sell_{ice_type}",
+                    help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่ขายออก"
+                )
 
                 if added_sold > 0:
                     new_total_sold = default_val + added_sold
                     df_ice.at[idx, "ขายออก"] = new_total_sold
                     st.success(f"✅ รวมเป็น {new_total_sold} ถุง")
-                
-                # คำนวณและแสดงผลคงเหลือสำหรับน้ำแข็งประเภทนี้
-                received = safe_int(df_ice.at[idx, "รับเข้า"])
-                sold = safe_int(df_ice.at[idx, "ขายออก"])
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                remaining = received - sold - melted
-                
-                st.markdown(f"""
-                <div style='
-                    background-color:#f2f2f7;
-                    padding:10px 15px;
-                    border-radius:10px;
-                    text-align:center;
-                    font-size:20px;
-                    font-weight:bold;
-                    color:#007aff;
-                    border: 2px solid #007aff;
-                    margin-top:10px;'>
-                    คงเหลือ: {remaining} ถุง
-                </div>
-                """, unsafe_allow_html=True)
+                else:
+                    df_ice.at[idx, "ขายออก"] = default_val
 
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
                 income = df_ice.at[idx, "ขายออก"] * price
@@ -652,8 +709,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
                 total_income += income
                 total_profit += profit
-        else:
-            st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
