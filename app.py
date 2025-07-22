@@ -485,7 +485,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
     @st.cache_data(ttl=60)
-    @st.cache_data(ttl=60)
     def load_ice_data():
         try:
             # โหลดข้อมูลจากชีท iceflow
@@ -540,11 +539,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
     
-# ส่วนรับเข้าน้ำแข็ง
-st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
-cols = st.columns(4)
+    # ส่วนรับเข้าน้ำแข็ง
+    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
+    cols = st.columns(4)
 
-for i, ice_type in enumerate(ice_types):
+    for i, ice_type in enumerate(ice_types):
     row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
     if not row.empty:
         idx = row.index[0]
@@ -587,13 +586,13 @@ for i, ice_type in enumerate(ice_types):
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
     
-# ส่วนขายออกน้ำแข็ง
-st.markdown("### 💸 โซนขายออกน้ำแข็ง")
-total_income = 0
-total_profit = 0
+    # ส่วนขายออกน้ำแข็ง
+    st.markdown("### 💸 โซนขายออกน้ำแข็ง")
+    total_income = 0
+    total_profit = 0
 
-cols = st.columns(4)
-for i, ice_type in enumerate(ice_types):
+    cols = st.columns(4)
+    for i, ice_type in enumerate(ice_types):
     row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
     if not row.empty:
         idx = row.index[0]
