@@ -489,7 +489,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             reset_ice_session_state()
             
             # บังคับรีโหลดหน้า
-            st.rerun()
+            st.experimental_rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
@@ -559,7 +559,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             reset_ice_session_state()
             
             # บังคับรีโหลดหน้า
-            st.rerun()
+            st.experimental_rerun()
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
         
