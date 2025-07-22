@@ -406,15 +406,11 @@ elif st.session_state.page == "ขายสินค้า":
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
+    pass
     def reset_ice_session_state():
-        """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
-        ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
-        for ice_type in ice_types:
-            if f"in_{ice_type}" in st.session_state:
-                del st.session_state[f"in_{ice_type}"]
-            if f"sell_out_{ice_type}" in st.session_state:
-                del st.session_state[f"sell_out_{ice_type}"]
-        st.session_state["force_rerun"] = True
+        st.session_state.clear()
+        st.session_state["page"] = "ขายน้ำแข็ง"
+        st.experimental_rerun()
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
@@ -440,7 +436,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         df_ice["กำไรสุทธิ"] = 0
         iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
-        reset_ice_session_state()
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
@@ -455,21 +450,20 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             idx = row.index[0]
             old_val = safe_int(df_ice.at[idx, "รับเข้า"])
             
-            # ใช้ key ที่แตกต่างสำหรับการแสดงผล
-            input_key = f"in_{ice_type}"
-            if input_key not in st.session_state:
-                st.session_state[input_key] = old_val
-                
             with cols[i]:
-                current_value = st.number_input(
+                # ใช้ key ใน session_state เพื่อจัดการค่า
+                if f"in_{ice_type}_value" not in st.session_state:
+                    st.session_state[f"in_{ice_type}_value"] = old_val
+                    
+                in_values[ice_type] = st.number_input(
                     f"📥 {ice_type}", 
                     min_value=0, 
-                    value=st.session_state[input_key], 
-                    key=input_key
+                    value=st.session_state.get(f"in_{ice_type}_value", old_val), 
+                    key=f"in_{ice_type}_input"
                 )
-                df_ice.at[idx, "รับเข้า"] = current_value
+                df_ice.at[idx, "รับเข้า"] = in_values[ice_type]
                 
-                # คำนวณยอดคงเหลือใหม่
+                # แสดงยอดคงเหลือ
                 received = safe_int(df_ice.at[idx, "รับเข้า"])
                 sold = safe_int(df_ice.at[idx, "ขายออก"])
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
@@ -510,25 +504,24 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             old_out = safe_int(df_ice.at[idx, "ขายออก"])
             
-            # ใช้ key ที่แตกต่างสำหรับการแสดงผล
-            input_key = f"sell_out_{ice_type}"
-            if input_key not in st.session_state:
-                st.session_state[input_key] = old_out
-                
             with cols[i]:
-                current_value = st.number_input(
+                # ใช้ session_state เพื่อจัดการค่าที่ป้อน
+                if f"sell_out_{ice_type}_value" not in st.session_state:
+                    st.session_state[f"sell_out_{ice_type}_value"] = old_out
+                    
+                out_val = st.number_input(
                     f"🧊 ขายออก {ice_type}", 
                     min_value=0, 
-                    value=st.session_state[input_key], 
-                    key=input_key
+                    value=st.session_state.get(f"sell_out_{ice_type}_value", old_out), 
+                    key=f"sell_out_{ice_type}_input"
                 )
-                df_ice.at[idx, "ขายออก"] = current_value
                 
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                income = current_value * price
-                profit = (current_value * (price - cost)) - (melted * cost)
+                income = out_val * price
+                profit = (out_val * (price - cost)) - (melted * cost)
                 
-                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - current_value - melted
+                df_ice.at[idx, "ขายออก"] = out_val
+                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - out_val - melted
                 df_ice.at[idx, "กำไรรวม"] = income
                 df_ice.at[idx, "กำไรสุทธิ"] = profit
                 df_ice.at[idx, "วันที่"] = today_str
