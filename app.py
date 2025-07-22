@@ -11,20 +11,6 @@ import numpy as np
 ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
 
 # ตั้งค่าพื้นฐาน CSS
-
-# ✅ ฟังก์ชันรีเซ็ตค่าเข้าออกละลายหลังบันทึก
-def reset_ice_input_states():
-    for key in list(st.session_state.keys()):
-        if any(k in key for k in ["เข้า_", "ออก_", "ละลาย_"]):
-            st.session_state[key] = 0
-
-# ✅ คำนวณคงเหลือและกำไรสะสม
-def calculate_ice_totals(df_ice):
-    df_ice["คงเหลือ"] = df_ice["เข้า"] - df_ice["ออก"] - df_ice["ละลาย"]
-    df_ice["กำไร"] = (df_ice["ราคาขายต่อหน่วย"] - df_ice["ต้นทุนต่อหน่วย"]) * df_ice["ออก"]
-    total_profit = df_ice["กำไร"].sum()
-    return df_ice, total_profit
-
 st.markdown("""
 <style>
 /* พื้นหลังขาว ตัวหนังสือดำเข้ม */
@@ -168,6 +154,23 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
 </style>
 """, unsafe_allow_html=True)
 
+# ✅ ฟังก์ชันรีเซ็ตค่าเข้าออกละลายหลังบันทึก
+def reset_ice_input_states():
+    for key in list(st.session_state.keys()):
+        if any(k in key for k in ["เข้า_", "ออก_", "ละลาย_"]):
+            st.session_state[key] = 0
+
+# ✅ คำนวณคงเหลือและกำไรสะสม
+def calculate_ice_totals(df_ice):
+    try:
+        df_ice["คงเหลือ"] = df_ice["เข้า"] - df_ice["ออก"] - df_ice["ละลาย"]
+        df_ice["กำไร"] = (df_ice["ราคาขายต่อหน่วย"] - df_ice["ต้นทุนต่อหน่วย"]) * df_ice["ออก"]
+        total_profit = df_ice["กำไร"].sum()
+        return df_ice, total_profit
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการคำนวณยอดน้ำแข็ง: {str(e)}")
+        return df_ice, 0
+
 # Initialize session state with proper checks
 def initialize_session_state():
     if 'page' not in st.session_state:
@@ -192,37 +195,45 @@ initialize_session_state()
 # เชื่อมต่อ Google Sheets
 @st.cache_resource
 def connect_google_sheets():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
-    gc = gspread.authorize(credentials)
-    sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
-    return sheet
-
-try:
-    sheet = connect_google_sheets()
-    worksheet = sheet.worksheet("ตู้เย็น")
-    summary_ws = sheet.worksheet("ยอดขาย")
-    iceflow_sheet = sheet.worksheet("iceflow")
-except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: {str(e)}")
-    st.stop()
+    try:
+        if 'GCP_SERVICE_ACCOUNT' not in st.secrets:
+            st.error("ไม่พบข้อมูลการเชื่อมต่อ Google Sheets ใน secrets")
+            return None
+            
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        credentials = Credentials.from_service_account_info(st.secrets["GCP_SERVICE_ACCOUNT"], scopes=scope)
+        gc = gspread.authorize(credentials)
+        return gc
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: {str(e)}")
+        return None
 
 # โหลดข้อมูลและทำความสะอาด
 @st.cache_data(ttl=60)
 def load_and_clean_data():
-    sheet = connect_google_sheets()
-    worksheet = sheet.worksheet("ตู้เย็น")
-    df = pd.DataFrame(worksheet.get_all_records())
-    # ทำความสะอาดข้อมูล
-    df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
-    df["ราคาขาย"] = pd.to_numeric(df["ราคาขาย"], errors="coerce").fillna(0)
-    df["ต้นทุน"] = pd.to_numeric(df["ต้นทุน"], errors="coerce").fillna(0)
-    df["เข้า"] = pd.to_numeric(df["เข้า"], errors="coerce").fillna(0)
-    df["ออก"] = pd.to_numeric(df["ออก"], errors="coerce").fillna(0)
-    df["คงเหลือในตู้"] = pd.to_numeric(df["คงเหลือในตู้"], errors="coerce").fillna(0)
-    return df
-
-df = load_and_clean_data()
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+        worksheet = sheet.worksheet("ตู้เย็น")
+        df = pd.DataFrame(worksheet.get_all_records())
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        # ทำความสะอาดข้อมูล
+        df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
+        df["ราคาขาย"] = pd.to_numeric(df["ราคาขาย"], errors="coerce").fillna(0)
+        df["ต้นทุน"] = pd.to_numeric(df["ต้นทุน"], errors="coerce").fillna(0)
+        df["เข้า"] = pd.to_numeric(df["เข้า"], errors="coerce").fillna(0)
+        df["ออก"] = pd.to_numeric(df["ออก"], errors="coerce").fillna(0)
+        df["คงเหลือในตู้"] = pd.to_numeric(df["คงเหลือในตู้"], errors="coerce").fillna(0)
+        return df
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูล: {str(e)}")
+        return pd.DataFrame()
 
 # Helper functions
 def safe_key(text): 
@@ -281,8 +292,18 @@ if st.session_state.page == "Dashboard":
     @st.cache_data(ttl=60)
     def load_sales_data():
         try:
+            gc = connect_google_sheets()
+            if not gc:
+                return pd.DataFrame()
+                
+            sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+            summary_ws = sheet.worksheet("ยอดขาย")
             sales_df = pd.DataFrame(summary_ws.get_all_records())
-            sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'])
+            
+            if sales_df.empty:
+                return pd.DataFrame()
+                
+            sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
             sales_df['รายการ'] = sales_df['รายการ'].astype(str)
             sales_df['ยอดขาย'] = pd.to_numeric(sales_df['ยอดขาย'], errors='coerce').fillna(0)
             sales_df['กำไร'] = pd.to_numeric(sales_df['กำไร'], errors='coerce').fillna(0)
@@ -309,27 +330,39 @@ if st.session_state.page == "Dashboard":
         
         # กราฟยอดขายรายวัน
         st.subheader("📈 ยอดขายรายวัน")
-        daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
-        
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-        ax.set_title('ยอดขายรายวัน')
-        ax.set_xlabel('วันที่')
-        ax.set_ylabel('ยอดขาย (บาท)')
-        ax.grid(True)
-        st.pyplot(fig)
+        try:
+            daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+            
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+            ax.set_title('ยอดขายรายวัน')
+            ax.set_xlabel('วันที่')
+            ax.set_ylabel('ยอดขาย (บาท)')
+            ax.grid(True)
+            st.pyplot(fig)
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
         
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
-        if 'รายการ' in sales_df.columns:
-            top_products = sales_df['รายการ'].value_counts().head(10)
-            st.bar_chart(top_products)
+        try:
+            if 'รายการ' in sales_df.columns:
+                top_products = sales_df['รายการ'].value_counts().head(10)
+                st.bar_chart(top_products)
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
     else:
         st.warning("ไม่มีข้อมูลยอดขาย")
 
 # หน้าขายสินค้า
 elif st.session_state.page == "ขายสินค้า":
     st.title("🧃 ขายสินค้าตู้เย็น")
+    
+    df = load_and_clean_data()
+    if df.empty:
+        st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
+        st.stop()
+    
     product_names = df["ชื่อสินค้า"].tolist()
     
     # ระบบค้นหาสินค้า
@@ -377,19 +410,21 @@ elif st.session_state.page == "ขายสินค้า":
         st.info("ℹ️ ยังไม่มีสินค้าในตะกร้า")
     else:
         for idx, (item, qty) in enumerate(st.session_state.cart):
-            row = df[df["ชื่อสินค้า"] == item].iloc[0]
-            price, cost = safe_float(row["ราคาขาย"]), safe_float(row["ต้นทุน"])
-            subtotal, profit = qty * price, qty * (price - cost)
-            total_price += subtotal
-            total_profit += profit
-            
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
-            with col2:
-                if st.button("🗑️", key=f"remove_{idx}"):
-                    st.session_state.cart.pop(idx)
-                    st.rerun()
+            row = df[df["ชื่อสินค้า"] == item]
+            if not row.empty:
+                row = row.iloc[0]
+                price, cost = safe_float(row["ราคาขาย"]), safe_float(row["ต้นทุน"])
+                subtotal, profit = qty * price, qty * (price - cost)
+                total_price += subtotal
+                total_profit += profit
+                
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"- {item} x {qty} = {subtotal:.2f} บาท")
+                with col2:
+                    if st.button("🗑️", key=f"remove_{idx}"):
+                        st.session_state.cart.pop(idx)
+                        st.rerun()
 
     # ระบบรับเงิน
     st.subheader("💰 การชำระเงิน")
@@ -440,6 +475,15 @@ elif st.session_state.page == "ขายสินค้า":
     if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart, key="confirm_sale"):
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
+                gc = connect_google_sheets()
+                if not gc:
+                    st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
+                    return
+                    
+                sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                worksheet = sheet.worksheet("ตู้เย็น")
+                summary_ws = sheet.worksheet("ยอดขาย")
+                
                 for item, qty in st.session_state.cart:
                     index = df[df["ชื่อสินค้า"] == item].index[0]
                     row = df.loc[index]
@@ -480,16 +524,26 @@ elif st.session_state.page == "ขายสินค้า":
             restock_item = st.selectbox("เลือกสินค้า", product_names, key="restock_select")
             restock_qty = st.number_input("จำนวนที่เติม", min_value=1, step=1, key="restock_qty")
             if st.button("📥 ยืนยันเติมสินค้า", key="confirm_restock"):
-                index = df[df["ชื่อสินค้า"] == restock_item].index[0]
-                idx_in_sheet = index + 2
-                row = df.loc[index]
-                new_in = safe_int(row["เข้า"]) + restock_qty
-                new_left = safe_int(row["คงเหลือในตู้"]) + restock_qty
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, new_in)
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-                st.success(f"✅ เติม {restock_item} จำนวน {restock_qty} ชิ้นเรียบร้อย")
-                st.cache_data.clear()
-                st.rerun()
+                try:
+                    index = df[df["ชื่อสินค้า"] == restock_item].index[0]
+                    idx_in_sheet = index + 2
+                    row = df.loc[index]
+                    new_in = safe_int(row["เข้า"]) + restock_qty
+                    new_left = safe_int(row["คงเหลือในตู้"]) + restock_qty
+                    
+                    gc = connect_google_sheets()
+                    if gc:
+                        sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                        worksheet = sheet.worksheet("ตู้เย็น")
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("เข้า") + 1, new_in)
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+                        st.success(f"✅ เติม {restock_item} จำนวน {restock_qty} ชิ้นเรียบร้อย")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการเติมสินค้า: {str(e)}")
         
         with tab2:
             edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
@@ -506,24 +560,42 @@ elif st.session_state.page == "ขายสินค้า":
             new_stock = st.number_input("คงเหลือในตู้", value=safe_int(row["คงเหลือในตู้"]), key="edit_stock", step=1)
             
             if st.button("💾 บันทึกการแก้ไข", key="save_edit"):
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
-                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
-                st.success(f"✅ อัปเดต {edit_item} เรียบร้อย")
-                st.cache_data.clear()
-                st.rerun()
+                try:
+                    gc = connect_google_sheets()
+                    if gc:
+                        sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                        worksheet = sheet.worksheet("ตู้เย็น")
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ราคาขาย") + 1, new_price)
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ต้นทุน") + 1, new_cost)
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
+                        st.success(f"✅ อัปเดต {edit_item} เรียบร้อย")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการอัปเดตสินค้า: {str(e)}")
         
         with tab3:
             st.warning("⚠️ การรีเซ็ตจะตั้งค่ายอด 'เข้า' และ 'ออก' เป็น 0 ทั้งหมด")
             if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", type="secondary", key="reset_counts"):
-                num_rows = len(df)
-                worksheet.batch_update([
-                    {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
-                    {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
-                ])
-                st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
-                st.cache_data.clear()
-                st.rerun()
+                try:
+                    gc = connect_google_sheets()
+                    if gc:
+                        sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                        worksheet = sheet.worksheet("ตู้เย็น")
+                        num_rows = len(df)
+                        worksheet.batch_update([
+                            {"range": f"E2:E{num_rows+1}", "values": [[0]] * num_rows},
+                            {"range": f"G2:G{num_rows+1}", "values": [[0]] * num_rows}
+                        ])
+                        st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตยอด: {str(e)}")
 
 elif st.session_state.page == "ขายน้ำแข็ง":
     def reset_ice_session_state():
@@ -539,7 +611,17 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     @st.cache_data(ttl=60)
     def load_ice_data():
         try:
+            gc = connect_google_sheets()
+            if not gc:
+                return pd.DataFrame()
+                
+            sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+            iceflow_sheet = sheet.worksheet("iceflow")
             records = iceflow_sheet.get_all_records()
+            
+            if not records:
+                return pd.DataFrame()
+                
             df_ice = pd.DataFrame(records)
             
             # Ensure required columns exist
@@ -547,6 +629,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             for col in required_cols:
                 if col not in df_ice.columns:
                     df_ice[col] = 0  # Add missing columns with default values
+            
+            # Add date column if not exists
+            if "วันที่" not in df_ice.columns:
+                df_ice["วันที่"] = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
             
             df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
             df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
@@ -558,8 +644,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             return df_ice
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
-            return pd.DataFrame(columns=required_cols)
-    
+            return pd.DataFrame()
+
     df_ice = load_ice_data()
     
     if df_ice.empty:
@@ -568,33 +654,37 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     today_str = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%-d/%-m/%Y")
     
-    if not df_ice.empty and df_ice["วันที่"].iloc[0] != today_str:
+    # ตรวจสอบและรีเซ็ตข้อมูลหากเป็นวันใหม่
+    if not df_ice.empty and 'วันที่' in df_ice.columns and df_ice["วันที่"].iloc[0] != today_str:
         try:
             with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
-                df_ice["วันที่"] = today_str
-                df_ice["รับเข้า"] = 0
-                df_ice["ขายออก"] = 0
-                df_ice["จำนวนละลาย"] = 0
-                df_ice["คงเหลือตอนเย็น"] = 0
-                df_ice["กำไรรวม"] = 0
-                df_ice["กำไรสุทธิ"] = 0
-                
-                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                
-                st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
-                reset_ice_session_state()
-                st.cache_data.clear()
-                time.sleep(1)
-                st.rerun()
+                gc = connect_google_sheets()
+                if gc:
+                    sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                    iceflow_sheet = sheet.worksheet("iceflow")
+                    
+                    df_ice["วันที่"] = today_str
+                    df_ice["รับเข้า"] = 0
+                    df_ice["ขายออก"] = 0
+                    df_ice["จำนวนละลาย"] = 0
+                    df_ice["คงเหลือตอนเย็น"] = 0
+                    df_ice["กำไรรวม"] = 0
+                    df_ice["กำไรสุทธิ"] = 0
+                    
+                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                    
+                    st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
+                    reset_ice_session_state()
+                    st.cache_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูล: {str(e)}")
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
-    # ส่วนรับเข้าน้ำแข็ง
-    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
-    cols = st.columns(4)
-
     # เก็บค่าเริ่มต้นก่อนทำการขาย
     initial_sales = {}
     for ice_type in ice_types:
@@ -602,6 +692,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         if not row.empty:
             idx = row.index[0]
             initial_sales[ice_type] = safe_int(df_ice.at[idx, "ขายออก"])
+
+    # ส่วนรับเข้าน้ำแข็ง
+    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
+    cols = st.columns(4)
 
     for i, ice_type in enumerate(ice_types):
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
@@ -644,12 +738,18 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
-                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                reset_ice_session_state()
-                st.cache_data.clear()
-                st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
-                time.sleep(1)
-                st.rerun()
+                gc = connect_google_sheets()
+                if gc:
+                    sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                    iceflow_sheet = sheet.worksheet("iceflow")
+                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                    reset_ice_session_state()
+                    st.cache_data.clear()
+                    st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
         
