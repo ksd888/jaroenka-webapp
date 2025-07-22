@@ -469,25 +469,22 @@ elif st.session_state.page == "ขายสินค้า":
                 st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
                 st.cache_data.clear()
                 st.rerun()
-
 elif st.session_state.page == "ขายน้ำแข็ง":
     def reset_ice_session_state():
         """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
         ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
         for ice_type in ice_types:
-            st.session_state.pop(f"in_{ice_type}", None)
+            st.session_state.pop(f"add_in_{ice_type}", None)  # เปลี่ยนชื่อ session state เป็น add_in_
             st.session_state.pop(f"sell_out_{ice_type}", None)
-        st.session_state["force_rerun"] = True
+            st.session_state.pop(f"melted_{ice_type}", None)
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
-    @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
+    @st.cache_data(ttl=60)
     def load_ice_data():
         try:
-            # โหลดข้อมูลจากชีท iceflow
             records = iceflow_sheet.get_all_records()
             df_ice = pd.DataFrame(records)
-            
             # ทำความสะอาดข้อมูล
             df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
             df_ice["ราคาขายต่อหน่วย"] = pd.to_numeric(df_ice["ราคาขายต่อหน่วย"], errors='coerce').fillna(0)
@@ -495,7 +492,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             df_ice["รับเข้า"] = pd.to_numeric(df_ice["รับเข้า"], errors='coerce').fillna(0)
             df_ice["ขายออก"] = pd.to_numeric(df_ice["ขายออก"], errors='coerce').fillna(0)
             df_ice["จำนวนละลาย"] = pd.to_numeric(df_ice["จำนวนละลาย"], errors='coerce').fillna(0)
-            
             return df_ice
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
@@ -522,7 +518,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 df_ice["กำไรรวม"] = 0
                 df_ice["กำไรสุทธิ"] = 0
                 
-                # อัปเดต Google Sheet
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
                 st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
@@ -535,7 +530,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
-    # ส่วนรับเข้าน้ำแข็ง
+    # ส่วนรับเข้าน้ำแข็ง - ปรับปรุงให้กรอกจำนวนที่เพิ่มเข้ามา
     st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
     cols = st.columns(4)
 
@@ -543,31 +538,29 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
         if not row.empty:
             idx = row.index[0]
-            default_val = safe_int(df_ice.at[idx, "รับเข้า"])
-            
-            # กำหนดค่าเริ่มต้นจาก session state หรือจากฐานข้อมูล
-            current_value = st.session_state.get(f"in_{ice_type}", default_val)
+            current_stock = safe_int(df_ice.at[idx, "รับเข้า"])
             
             with cols[i]:
-                # สร้าง input field โดยใช้ค่า current_value
-                new_value = st.number_input(
-                    f"📥 {ice_type}", 
+                st.markdown(f"**{ice_type}**")
+                st.markdown(f"<div style='font-size:16px;margin-bottom:10px'>ยอดปัจจุบัน: {current_stock} ถุง</div>", unsafe_allow_html=True)
+                
+                # เปลี่ยนเป็นกรอกจำนวนที่เพิ่มเข้ามา (ค่าเริ่มต้นเป็น 0)
+                added_value = st.number_input(
+                    f"จำนวนที่เพิ่ม (+)", 
                     min_value=0, 
-                    value=current_value,
-                    key=f"in_{ice_type}_input"
+                    value=st.session_state.get(f"add_in_{ice_type}", 0),
+                    key=f"add_in_{ice_type}_input",
+                    step=1
                 )
                 
-                # อัปเดตค่าใน session state และ DataFrame
-                st.session_state[f"in_{ice_type}"] = new_value
-                df_ice.at[idx, "รับเข้า"] = new_value
+                # บันทึกค่าใน session state
+                st.session_state[f"add_in_{ice_type}"] = added_value
                 
-                # คำนวณยอดคงเหลือ
-                received = safe_int(df_ice.at[idx, "รับเข้า"])
-                sold = safe_int(df_ice.at[idx, "ขายออก"])
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                remaining = received - sold - melted
+                # คำนวณยอดรวมใหม่
+                new_total = current_stock + added_value
                 
-                st.metric("คงเหลือ", f"{remaining} ถุง")
+                # แสดงยอดรวมใหม่
+                st.markdown(f"<div style='font-size:16px;margin-top:10px'>ยอดรวมใหม่: {new_total} ถุง</div>", unsafe_allow_html=True)
         else:
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
@@ -575,6 +568,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="save_restock"):
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
+                # อัปเดตข้อมูลใน DataFrame
+                for ice_type in ice_types:
+                    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+                    if not row.empty:
+                        idx = row.index[0]
+                        added_value = st.session_state.get(f"add_in_{ice_type}", 0)
+                        current_stock = safe_int(df_ice.at[idx, "รับเข้า"])
+                        df_ice.at[idx, "รับเข้า"] = current_stock + added_value
+                
                 # อัปเดตข้อมูลใน Google Sheet
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
