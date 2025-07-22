@@ -157,7 +157,9 @@ except Exception as e:
 
 # โหลดข้อมูลและทำความสะอาด
 @st.cache_data(ttl=60)
-def load_and_clean_data(worksheet):
+def load_and_clean_data():
+    sheet = connect_google_sheets()
+    worksheet = sheet.worksheet("ตู้เย็น")
     df = pd.DataFrame(worksheet.get_all_records())
     # ทำความสะอาดข้อมูล
     df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
@@ -168,7 +170,7 @@ def load_and_clean_data(worksheet):
     df["คงเหลือในตู้"] = pd.to_numeric(df["คงเหลือในตู้"], errors="coerce").fillna(0)
     return df
 
-df = load_and_clean_data(worksheet)
+df = load_and_clean_data()
 
 # Helper functions
 def safe_key(text): 
