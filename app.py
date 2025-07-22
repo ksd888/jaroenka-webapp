@@ -6,6 +6,7 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+import numpy as np
 
 ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
 
@@ -729,7 +730,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                         total_income += income
                         total_profit += profit
 
-      if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+         if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
                 # แปลงค่า int64/float64 เป็น int/float ปกติก่อนบันทึก
