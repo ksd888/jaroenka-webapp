@@ -7,6 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 
+ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
+
 # ตั้งค่าพื้นฐาน CSS
 
 # ✅ ฟังก์ชันรีเซ็ตค่าเข้าออกละลายหลังบันทึก
