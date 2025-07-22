@@ -157,6 +157,7 @@ except Exception as e:
     st.stop()
 
 # โหลดข้อมูลและทำความสะอาด
+@st.cache_data(ttl=60)
 def load_and_clean_data(worksheet):
     df = pd.DataFrame(worksheet.get_all_records())
     # ทำความสะอาดข้อมูล
@@ -224,7 +225,8 @@ if st.session_state.page == "Dashboard":
     st.title("📊 Dashboard สถิติการขาย")
     
     # โหลดข้อมูลยอดขาย
-    def load_sales_data():
+    @st.cache_data(ttl=60)
+def load_sales_data():
         try:
             sales_df = pd.DataFrame(summary_ws.get_all_records())
             sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'])
@@ -482,7 +484,8 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
     @st.cache_data(ttl=60)  # เพิ่ม caching เพื่อประสิทธิภาพ
-    def load_ice_data():
+    @st.cache_data(ttl=60)
+def load_ice_data():
         try:
             # โหลดข้อมูลจากชีท iceflow
             records = iceflow_sheet.get_all_records()
@@ -565,7 +568,7 @@ for i, ice_type in enumerate(ice_types):
     else:
         st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
-    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
+    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
                 # อัปเดตข้อมูลใน Google Sheet
