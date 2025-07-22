@@ -102,18 +102,23 @@ input, textarea, .stTextInput > div > div > input, .stNumberInput input {
 """, unsafe_allow_html=True)
 
 # Initialize session state with proper checks
-if 'page' not in st.session_state:
-    st.session_state.page = "ขายสินค้า"
-if 'cart' not in st.session_state:
-    st.session_state.cart = []
-if 'quantities' not in st.session_state:
-    st.session_state.quantities = {}
-if 'paid_input' not in st.session_state:
-    st.session_state.paid_input = 0.0
-if 'last_paid_click' not in st.session_state:
-    st.session_state.last_paid_click = 0
-if 'reset_search_items' not in st.session_state:
-    st.session_state.reset_search_items = False
+def initialize_session_state():
+    if 'page' not in st.session_state:
+        st.session_state.page = "ขายสินค้า"
+    if 'cart' not in st.session_state:
+        st.session_state.cart = []
+    if 'quantities' not in st.session_state:
+        st.session_state.quantities = {}
+    if 'paid_input' not in st.session_state:
+        st.session_state.paid_input = 0.0
+    if 'last_paid_click' not in st.session_state:
+        st.session_state.last_paid_click = 0
+    if 'reset_search_items' not in st.session_state:
+        st.session_state.reset_search_items = False
+    if 'prev_paid_input' not in st.session_state:
+        st.session_state.prev_paid_input = 0.0
+
+initialize_session_state()
 
 # เชื่อมต่อ Google Sheets
 @st.cache_resource
@@ -169,8 +174,13 @@ def decrease_quantity(p):
         st.session_state.quantities[p] = 1
 
 def add_money(amount: int):
-    st.session_state.paid_input = float(st.session_state.get('paid_input', 0)) + amount
-    st.session_state.last_paid_click = amount
+    try:
+        current = float(st.session_state.get('paid_input', 0.0))
+        st.session_state.paid_input = current + amount
+        st.session_state.last_paid_click = amount
+        st.session_state.prev_paid_input = current + amount
+    except Exception as e:
+        st.error(f"Error adding money: {str(e)}")
 
 # เมนูหลัก
 st.markdown("### 🚀 เมนูหลัก")
@@ -256,16 +266,23 @@ elif st.session_state.page == "ขายสินค้า":
                     st.session_state.cart.pop(idx)
                     st.experimental_rerun()
 
-    # ระบบรับเงิน - Fixed the session state issue here
+    # ระบบรับเงิน - Fixed version
     st.subheader("💰 การชำระเงิน")
     paid_input = st.number_input(
         "รับเงินจากลูกค้า", 
         value=float(st.session_state.get('paid_input', 0.0)), 
         step=1.0,
         min_value=0.0,
-        key="paid_input"
+        key="paid_input_widget"
     )
-    st.session_state.paid_input = paid_input
+
+    # Update session state only if the value changed
+    if paid_input != st.session_state.prev_paid_input:
+        try:
+            st.session_state.paid_input = paid_input
+            st.session_state.prev_paid_input = paid_input
+        except Exception as e:
+            st.error(f"Error updating payment amount: {str(e)}")
     
     # ปุ่มเงินด่วน
     st.write("เพิ่มเงินด่วน:")
@@ -279,9 +296,13 @@ elif st.session_state.page == "ขายสินค้า":
     
     if st.session_state.last_paid_click:
         if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}", key="cancel_last"):
-            st.session_state.paid_input -= st.session_state.last_paid_click
-            st.session_state.last_paid_click = 0
-            st.experimental_rerun()
+            try:
+                st.session_state.paid_input -= st.session_state.last_paid_click
+                st.session_state.prev_paid_input = st.session_state.paid_input
+                st.session_state.last_paid_click = 0
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Error canceling last payment: {str(e)}")
 
     # สรุปยอด
     st.info(f"📦 ยอดรวม: {total_price:,.2f} บาท | 🟢 กำไร: {total_profit:,.2f} บาท")
@@ -292,29 +313,33 @@ elif st.session_state.page == "ขายสินค้า":
 
     # ยืนยันการขาย
     if st.button("✅ ยืนยันการขาย", type="primary", disabled=not st.session_state.cart, key="confirm_sale"):
-        for item, qty in st.session_state.cart:
-            index = df[df["ชื่อสินค้า"] == item].index[0]
-            row = df.loc[index]
-            idx_in_sheet = index + 2
-            new_out = safe_int(row["ออก"]) + qty
-            new_left = safe_int(row["คงเหลือในตู้"]) - qty
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-            worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+        try:
+            for item, qty in st.session_state.cart:
+                index = df[df["ชื่อสินค้า"] == item].index[0]
+                row = df.loc[index]
+                idx_in_sheet = index + 2
+                new_out = safe_int(row["ออก"]) + qty
+                new_left = safe_int(row["คงเหลือในตู้"]) - qty
+                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+                worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
 
-        summary_ws.append_row([
-            now,
-            ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
-            total_price,
-            total_profit,
-            st.session_state.paid_input,
-            st.session_state.paid_input - total_price,
-            "drink"
-        ])
-        st.session_state.cart = []
-        st.session_state.paid_input = 0.0
-        st.session_state.last_paid_click = 0
-        st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
-        st.experimental_rerun()
+            summary_ws.append_row([
+                now,
+                ", ".join([f"{i} x {q}" for i, q in st.session_state.cart]),
+                total_price,
+                total_profit,
+                st.session_state.paid_input,
+                st.session_state.paid_input - total_price,
+                "drink"
+            ])
+            st.session_state.cart = []
+            st.session_state.paid_input = 0.0
+            st.session_state.prev_paid_input = 0.0
+            st.session_state.last_paid_click = 0
+            st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error confirming sale: {str(e)}")
 
     # ระบบจัดการสินค้า
     with st.expander("📦 การจัดการสินค้า", expanded=False):
