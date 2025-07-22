@@ -556,6 +556,20 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     new_total = default_val + added_value
                     df_ice.at[idx, "รับเข้า"] = new_total
                     st.success(f"✅ รวมเป็น {new_total} ถุง")
+                st.markdown(f"""
+                <div style='
+                    background-color:#f2f2f7;
+                    padding:10px 15px;
+                    border-radius:10px;
+                    text-align:center;
+                    font-size:20px;
+                    font-weight:bold;
+                    color:#007aff;
+                    border: 2px solid #007aff;
+                    margin-top:10px;'>
+                    คงเหลือ: {remaining} ถุง
+                </div>
+                """, unsafe_allow_html=True)
                 else:
                     df_ice.at[idx, "รับเข้า"] = default_val
 
@@ -563,6 +577,11 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             sold = safe_int(df_ice.at[idx, "ขายออก"])
             melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
             remaining = received - sold - melted
+            st.markdown(f"""
+                <div style='background-color:#f2f2f7; padding:10px 15px; border-radius:10px; text-align:center; font-size:20px; font-weight:bold; color:#007aff; border: 2px solid #007aff; margin-top:10px;'>
+                    คงเหลือ: {remaining} ถุง
+                </div>
+            """, unsafe_allow_html=True)
             
     st.markdown(f"""
     <div style='
@@ -622,6 +641,20 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                     new_total_sold = default_val + added_sold
                     df_ice.at[idx, "ขายออก"] = new_total_sold
                     st.success(f"✅ รวมเป็น {new_total_sold} ถุง")
+                st.markdown(f"""
+                <div style='
+                    background-color:#f2f2f7;
+                    padding:10px 15px;
+                    border-radius:10px;
+                    text-align:center;
+                    font-size:20px;
+                    font-weight:bold;
+                    color:#007aff;
+                    border: 2px solid #007aff;
+                    margin-top:10px;'>
+                    คงเหลือ: {remaining} ถุง
+                </div>
+                """, unsafe_allow_html=True)
                 else:
                     df_ice.at[idx, "ขายออก"] = default_val
 
