@@ -142,7 +142,6 @@ except Exception as e:
     st.stop()
 
 # โหลดข้อมูลและทำความสะอาด
-@st.cache_data(ttl=60)  # Cache ข้อมูล 1 นาที
 def load_and_clean_data(worksheet):
     df = pd.DataFrame(worksheet.get_all_records())
     # ทำความสะอาดข้อมูล
@@ -193,15 +192,15 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🏪 ขายสินค้า"):
         st.session_state.page = "ขายสินค้า"
-        st.experimental_rerun()
+        st.rerun()
 with col2:
     if st.button("🧊 ขายน้ำแข็ง"):
         st.session_state.page = "ขายน้ำแข็ง"
-        st.experimental_rerun()
+        st.rerun()
 with col3:
     if st.button("📊 Dashboard"):
         st.session_state.page = "Dashboard"
-        st.experimental_rerun()
+        st.rerun()
 
 now = datetime.datetime.now(timezone("Asia/Bangkok")).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -210,7 +209,6 @@ if st.session_state.page == "Dashboard":
     st.title("📊 Dashboard สถิติการขาย")
     
     # โหลดข้อมูลยอดขาย
-    @st.cache_data(ttl=300)
     def load_sales_data():
         try:
             sales_df = pd.DataFrame(summary_ws.get_all_records())
@@ -297,7 +295,7 @@ elif st.session_state.page == "ขายสินค้า":
                     st.session_state.cart.append((selected_product, qty))
                     st.success("✅ เพิ่มสินค้าลงตะกร้าแล้ว")
                     st.session_state.quantities[selected_product] = 1
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error(f"⚠️ สินค้ามีไม่พอในสต็อก (เหลือ {stock} ชิ้น)")
 
@@ -321,7 +319,7 @@ elif st.session_state.page == "ขายสินค้า":
             with col2:
                 if st.button("🗑️", key=f"remove_{idx}"):
                     st.session_state.cart.pop(idx)
-                    st.experimental_rerun()
+                    st.rerun()
 
     # ระบบรับเงิน
     st.subheader("💰 การชำระเงิน")
@@ -357,7 +355,7 @@ elif st.session_state.page == "ขายสินค้า":
                 st.session_state.paid_input -= st.session_state.last_paid_click
                 st.session_state.prev_paid_input = st.session_state.paid_input
                 st.session_state.last_paid_click = 0
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"Error canceling last payment: {str(e)}")
 
@@ -400,7 +398,7 @@ elif st.session_state.page == "ขายสินค้า":
                 st.session_state.last_paid_click = 0
                 st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
                 time.sleep(1)
-                st.experimental_rerun()
+                st.rerun()
         except Exception as e:
             st.error(f"Error confirming sale: {str(e)}")
 
@@ -421,7 +419,7 @@ elif st.session_state.page == "ขายสินค้า":
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
                 st.success(f"✅ เติม {restock_item} จำนวน {restock_qty} ชิ้นเรียบร้อย")
                 st.cache_data.clear()
-                st.experimental_rerun()
+                st.rerun()
         
         with tab2:
             edit_item = st.selectbox("เลือกรายการ", product_names, key="edit_select")
@@ -443,7 +441,7 @@ elif st.session_state.page == "ขายสินค้า":
                 worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_stock)
                 st.success(f"✅ อัปเดต {edit_item} เรียบร้อย")
                 st.cache_data.clear()
-                st.experimental_rerun()
+                st.rerun()
         
         with tab3:
             st.warning("⚠️ การรีเซ็ตจะตั้งค่ายอด 'เข้า' และ 'ออก' เป็น 0 ทั้งหมด")
@@ -455,7 +453,7 @@ elif st.session_state.page == "ขายสินค้า":
                 ])
                 st.success("✅ รีเซ็ตยอด 'เข้า' และ 'ออก' สำเร็จแล้วสำหรับวันใหม่")
                 st.cache_data.clear()
-                st.experimental_rerun()
+                st.rerun()
 
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
@@ -469,7 +467,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
-    @st.cache_data(ttl=60)
     def load_ice_data():
         df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
         # ปรับรูปแบบข้อมูล
@@ -495,7 +492,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         st.info("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
         reset_ice_session_state()
         st.cache_data.clear()
-        st.experimental_rerun()
+        st.rerun()
     
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
@@ -537,6 +534,17 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     # ปุ่มบันทึกยอดเติมน้ำแข็ง
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="save_restock"):
+
+        # 🔁 Reset ค่าเข้าออกหลังบันทึก
+        st.session_state['เข้า_โม่'] = 0
+        st.session_state['เข้า_หลอดใหญ่'] = 0
+        st.session_state['เข้า_หลอดเล็ก'] = 0
+        st.session_state['เข้า_ก้อน'] = 0
+        st.session_state['ออก_โม่'] = 0
+        st.session_state['ออก_หลอดใหญ่'] = 0
+        st.session_state['ออก_หลอดเล็ก'] = 0
+        st.session_state['ออก_ก้อน'] = 0
+        st.rerun()
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
@@ -592,6 +600,17 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
     # ปุ่มบันทึกการขาย
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+
+        # 🔁 Reset ค่าเข้าออกหลังบันทึก
+        st.session_state['เข้า_โม่'] = 0
+        st.session_state['เข้า_หลอดใหญ่'] = 0
+        st.session_state['เข้า_หลอดเล็ก'] = 0
+        st.session_state['เข้า_ก้อน'] = 0
+        st.session_state['ออก_โม่'] = 0
+        st.session_state['ออก_หลอดใหญ่'] = 0
+        st.session_state['ออก_หลอดเล็ก'] = 0
+        st.session_state['ออก_ก้อน'] = 0
+        st.rerun()
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
