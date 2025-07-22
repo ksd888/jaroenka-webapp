@@ -726,36 +726,27 @@ if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
 if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
     try:
         with st.spinner("กำลังบันทึกการขาย..."):
-            # แปลงข้อมูลใน DataFrame ให้เป็นประเภทที่สามารถ serialize ได้
-            df_ice_to_save = df_ice.copy()
-            numeric_cols = ['รับเข้า', 'ขายออก', 'จำนวนละลาย', 'คงเหลือตอนเย็น', 
-                          'ราคาขายต่อหน่วย', 'ต้นทุนต่อหน่วย', 'กำไรรวม', 'กำไรสุทธิ']
-            
-            for col in numeric_cols:
-                if col in df_ice_to_save.columns:
-                    df_ice_to_save[col] = df_ice_to_save[col].apply(lambda x: float(x) if pd.notnull(x) else 0.0)
-            
             # บันทึกข้อมูลน้ำแข็ง
-            iceflow_sheet.update([df_ice_to_save.columns.tolist()] + df_ice_to_save.values.tolist())
+            iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
             
             # บันทึกรายการขาย (เฉพาะส่วนที่เพิ่มขึ้นจากการขายครั้งนี้)
             for ice_type in ice_types:
                 row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
                 if not row.empty:
                     idx = row.index[0]
-                    current_sold = int(df_ice.at[idx, "ขายออก"])
+                    current_sold = safe_int(df_ice.at[idx, "ขายออก"])
                     sold_in_this_session = current_sold - initial_sales.get(ice_type, 0)
                     
                     if sold_in_this_session > 0:
                         summary_ws.append_row([
                             today_str,
-                            f"{ice_type} (ขาย {float(sold_in_this_session):.2f} ถุง)",
-                            float(sold_in_this_session),
-                            float(df_ice.at[idx, "ราคาขายต่อหน่วย"]),
-                            float(df_ice.at[idx, "ต้นทุนต่อหน่วย"]),
-                            float(df_ice.at[idx, "ราคาขายต่อหน่วย"] - df_ice.at[idx, "ต้นทุนต่อหน่วย"]),
-                            float(sold_in_this_session * df_ice.at[idx, "ราคาขายต่อหน่วย"]),
-                            float(sold_in_this_session * (df_ice.at[idx, "ราคาขายต่อหน่วย"] - df_ice.at[idx, "ต้นทุนต่อหน่วย"])),
+                            f"{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                            sold_in_this_session,
+                            df_ice.at[idx, "ราคาขายต่อหน่วย"],
+                            df_ice.at[idx, "ต้นทุนต่อหน่วย"],
+                            df_ice.at[idx, "ราคาขายต่อหน่วย"] - df_ice.at[idx, "ต้นทุนต่อหน่วย"],
+                            sold_in_this_session * df_ice.at[idx, "ราคาขายต่อหน่วย"],
+                            sold_in_this_session * (df_ice.at[idx, "ราคาขายต่อหน่วย"] - df_ice.at[idx, "ต้นทุนต่อหน่วย"]),
                             "ice"
                         ])
             
