@@ -563,7 +563,23 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             sold = safe_int(df_ice.at[idx, "ขายออก"])
             melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
             remaining = received - sold - melted
-            st.metric("คงเหลือ", f"{remaining} ถุง")
+            
+    st.markdown(f"""
+    <div style='
+        background-color:#f2f2f7;
+        padding:10px 15px;
+        border-radius:10px;
+        text-align:center;
+        font-size:20px;
+        font-weight:bold;
+        color:#007aff;
+        border: 2px solid #007aff;
+        margin-top:10px;
+    '>
+        คงเหลือ: {remaining} ถุง
+    </div>
+    """, unsafe_allow_html=True)
+    
         else:
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
