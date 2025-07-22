@@ -731,6 +731,10 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                         total_profit += profit
 
         if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+            try:
+                st.success("บันทึกการขายน้ำแข็งแล้วเรียบร้อย ✅")
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาด: {e}")
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
                 # แปลงค่า int64/float64 เป็น int/float ปกติก่อนบันทึก
