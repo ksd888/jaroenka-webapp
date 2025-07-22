@@ -214,6 +214,9 @@ def load_and_clean_data():
     try:
         gc = connect_google_sheets()
         if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
+        if not gc:
             return pd.DataFrame()
             
         sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
@@ -293,6 +296,9 @@ if st.session_state.page == "Dashboard":
     def load_sales_data():
         try:
             gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
             if not gc:
                 return pd.DataFrame()
                 
@@ -476,6 +482,9 @@ elif st.session_state.page == "ขายสินค้า":
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
                 gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                 if not gc:
                     st.error("ไม่สามารถเชื่อมต่อ Google Sheets")
                     return
@@ -532,6 +541,9 @@ elif st.session_state.page == "ขายสินค้า":
                     new_left = safe_int(row["คงเหลือในตู้"]) + restock_qty
                     
                     gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                     if gc:
                         sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
                         worksheet = sheet.worksheet("ตู้เย็น")
@@ -562,6 +574,9 @@ elif st.session_state.page == "ขายสินค้า":
             if st.button("💾 บันทึกการแก้ไข", key="save_edit"):
                 try:
                     gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                     if gc:
                         sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
                         worksheet = sheet.worksheet("ตู้เย็น")
@@ -581,6 +596,9 @@ elif st.session_state.page == "ขายสินค้า":
             if st.button("🔁 รีเซ็ตยอดเข้า-ออก (เริ่มวันใหม่)", type="secondary", key="reset_counts"):
                 try:
                     gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                     if gc:
                         sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
                         worksheet = sheet.worksheet("ตู้เย็น")
@@ -612,6 +630,9 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     def load_ice_data():
         try:
             gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
             if not gc:
                 return pd.DataFrame()
                 
@@ -659,6 +680,9 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         try:
             with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
                 gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                 if gc:
                     sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
                     iceflow_sheet = sheet.worksheet("iceflow")
@@ -739,6 +763,9 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         try:
             with st.spinner("กำลังบันทึกข้อมูล..."):
                 gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
                 if gc:
                     sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
                     iceflow_sheet = sheet.worksheet("iceflow")
@@ -832,6 +859,15 @@ elif st.session_state.page == "ขายน้ำแข็ง":
 
         if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
             try:
+            gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+            st.stop()
+            if gc:
+                sheet = gc.open_by_key("1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE")
+                iceflow_sheet = sheet.worksheet("iceflow")
+                summary_ws = sheet.worksheet("ยอดขาย")
+
                 st.success("บันทึกการขายน้ำแข็งแล้วเรียบร้อย ✅")
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาด: {e}")
@@ -889,7 +925,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
                 )
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
 
-           # สรุปยอดขาย
+    # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
     with col1:
