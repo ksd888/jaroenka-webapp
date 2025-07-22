@@ -583,52 +583,58 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
     
     # ส่วนรับเข้าน้ำแข็ง
-    st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
-    cols = st.columns(4)
+st.markdown("### 📦 โซนรับเข้าน้ำแข็ง")
+cols = st.columns(4)
 
-    for i, ice_type in enumerate(ice_types):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-        if not row.empty:
-            idx = row.index[0]
-            default_val = safe_int(df_ice.at[idx, "รับเข้า"])
-            
-            with cols[i]:
-                st.markdown(f"""
-                <div class="ice-box">
-                    <div class="ice-header">น้ำแข็ง{ice_type}</div>
-                    <div class="ice-metric">
-                        <div>📥 ยอดรับเข้า: <strong>{default_val}</strong> ถุง</div>
+for i, ice_type in enumerate(ice_types):
+    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
+    if not row.empty:
+        idx = row.index[0]
+        default_val = safe_int(df_ice.at[idx, "รับเข้า"])
+        received = safe_int(df_ice.at[idx, "รับเข้า"])
+        sold = safe_int(df_ice.at[idx, "ขายออก"])
+        melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+        remaining = received - sold - melted
+        
+        with cols[i]:
+            st.markdown(f"""
+            <div class="ice-box">
+                <div class="ice-header">น้ำแข็ง{ice_type}</div>
+                <div class="ice-metric">
+                    <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
+                    <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
+                        📦 คงเหลือ: <strong>{remaining}</strong> ถุง
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                added_value = st.number_input(
-                    f"เพิ่มเข้า {ice_type}", 
-                    min_value=0, 
-                    step=1, 
-                    key=f"increase_{ice_type}",
-                    help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่รับเข้า"
-                )
+            </div>
+            """, unsafe_allow_html=True)
+            
+            added_value = st.number_input(
+                f"เพิ่มเข้า {ice_type}", 
+                min_value=0, 
+                step=1, 
+                key=f"increase_{ice_type}",
+                help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่รับเข้า"
+            )
 
-                if added_value > 0:
-                    new_total = default_val + added_value
-                    df_ice.at[idx, "รับเข้า"] = new_total
-                    st.success(f"✅ รวมเป็น {new_total} ถุง")
-                else:
-                    df_ice.at[idx, "รับเข้า"] = default_val
+            if added_value > 0:
+                new_total = default_val + added_value
+                df_ice.at[idx, "รับเข้า"] = new_total
+                st.success(f"✅ รวมเป็น {new_total} ถุง")
+            else:
+                df_ice.at[idx, "รับเข้า"] = default_val
 
-    if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
-        try:
-            with st.spinner("กำลังบันทึกข้อมูล..."):
-                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                reset_ice_session_state()
-                st.cache_data.clear()
-                st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
-                time.sleep(1)
-                st.rerun()
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-
+if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="unique_btn_save_restock_ice"):
+    try:
+        with st.spinner("กำลังบันทึกข้อมูล..."):
+            iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+            reset_ice_session_state()
+            st.cache_data.clear()
+            st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
+            time.sleep(1)
+            st.rerun()
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
     # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
