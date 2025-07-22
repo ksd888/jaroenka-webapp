@@ -776,6 +776,7 @@ if st.session_state.divided_sales:
                     decrease_stock = data["amount"] / (data["price_unit"] * 30)
 
                 df_ice.at[idx, "คงเหลือตอนเย็น"] -= decrease_stock
+                df_ice.at[idx, "ขายออก"] += decrease_stock
 
                 summary_ws.append_row([
                     today_str,
