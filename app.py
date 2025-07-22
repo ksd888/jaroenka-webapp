@@ -410,7 +410,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
     def reset_ice_session_state():
         st.session_state.clear()
         st.session_state["page"] = "ขายน้ำแข็ง"
-        st.experimental_rerun()
+        st.rerun()
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
