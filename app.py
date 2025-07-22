@@ -407,11 +407,13 @@ elif st.session_state.page == "ขายสินค้า":
 # หน้าขายน้ำแข็ง
 elif st.session_state.page == "ขายน้ำแข็ง":
     def reset_ice_session_state():
+        """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
         ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
         for ice_type in ice_types:
-            # รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก
-            st.session_state[f"in_{ice_type}_input"] = 0
-            st.session_state[f"sell_out_{ice_type}_input"] = 0
+            if f"in_{ice_type}" in st.session_state:
+                del st.session_state[f"in_{ice_type}"]
+            if f"sell_out_{ice_type}" in st.session_state:
+                del st.session_state[f"sell_out_{ice_type}"]
         st.session_state["force_rerun"] = True
 
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
@@ -453,19 +455,21 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             idx = row.index[0]
             old_val = safe_int(df_ice.at[idx, "รับเข้า"])
             
-            # ใช้ค่าจาก session state ถ้ามี ไม่เช่นนั้นใช้ค่าจากฐานข้อมูล
-            current_value = st.session_state.get(f"in_{ice_type}_input", old_val)
-            
+            # ใช้ key ที่แตกต่างสำหรับการแสดงผล
+            input_key = f"in_{ice_type}"
+            if input_key not in st.session_state:
+                st.session_state[input_key] = old_val
+                
             with cols[i]:
                 current_value = st.number_input(
                     f"📥 {ice_type}", 
                     min_value=0, 
-                    value=current_value, 
-                    key=f"in_{ice_type}_input"
+                    value=st.session_state[input_key], 
+                    key=input_key
                 )
                 df_ice.at[idx, "รับเข้า"] = current_value
                 
-                # คำนวณยอดคงเหลือใหม่โดยไม่เปลี่ยนค่าใน session state
+                # คำนวณยอดคงเหลือใหม่
                 received = safe_int(df_ice.at[idx, "รับเข้า"])
                 sold = safe_int(df_ice.at[idx, "ขายออก"])
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
@@ -475,7 +479,7 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         else:
             st.warning(f"❌ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}'")
 
-     # ปุ่มบันทึกยอดเติมน้ำแข็ง
+    # ปุ่มบันทึกยอดเติมน้ำแข็ง
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary"):
         try:
             iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
@@ -492,7 +496,6 @@ elif st.session_state.page == "ขายน้ำแข็ง":
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
 
-
     # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
@@ -507,15 +510,17 @@ elif st.session_state.page == "ขายน้ำแข็ง":
             cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             old_out = safe_int(df_ice.at[idx, "ขายออก"])
             
-            # ใช้ค่าจาก session state ถ้ามี ไม่เช่นนั้นใช้ค่าจากฐานข้อมูล
-            current_value = st.session_state.get(f"sell_out_{ice_type}_input", old_out)
-            
+            # ใช้ key ที่แตกต่างสำหรับการแสดงผล
+            input_key = f"sell_out_{ice_type}"
+            if input_key not in st.session_state:
+                st.session_state[input_key] = old_out
+                
             with cols[i]:
                 current_value = st.number_input(
                     f"🧊 ขายออก {ice_type}", 
                     min_value=0, 
-                    value=current_value, 
-                    key=f"sell_out_{ice_type}_input"
+                    value=st.session_state[input_key], 
+                    key=input_key
                 )
                 df_ice.at[idx, "ขายออก"] = current_value
                 
