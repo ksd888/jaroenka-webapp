@@ -525,7 +525,6 @@ elif st.session_state.page == "ขายสินค้า":
                 st.rerun()
 
 elif st.session_state.page == "ขายน้ำแข็ง":
-    df_ice = load_ice_data()
     def reset_ice_session_state():
         """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
         ice_types = ["โม่", "หลอดใหญ่", "หลอดเล็ก", "ก้อน"]
@@ -660,12 +659,7 @@ initial_sales = {}
 for ice_type in ice_types:
     if not row.empty:
         idx = row.index[0]
-        if not df_ice.empty and 'ขายออก' in df_ice.columns:
-            for i, ice_type in enumerate(ice_types):
-                row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type)]
-                if not row.empty:
-                    idx = row.index[0]
-                    initial_sales[ice_type] = safe_int(df_ice.at[idx, "ขายออก"])
+        initial_sales[ice_type] = safe_int(df_ice.at[idx, "ขายออก"])
 
 if not df_ice.empty and 'ชนิดน้ำแข็ง' in df_ice.columns:
     cols = st.columns(4)
