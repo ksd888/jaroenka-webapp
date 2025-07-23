@@ -1,9 +1,8 @@
-streamlit==1.29.0
-pandas==2.0.3
-gspread==5.11.3
-google-auth==2.22.0
-plotly==5.15.0
-matplotlib==3.7.2
-numpy==1.24.0
-pyperclip==1.8.2
-pytz==2023.3
+streamlit
+gspread
+google-auth
+pytz
+pandas
+matplotlib
+numpy
+pyperclip
