@@ -8,12 +8,15 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 import logging
+import traceback 
+
 # เพิ่มการตรวจสอบ dependencies
 try:
     import pyperclip
 except ImportError:
     st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
     pyperclip = None
+
 
 # ตั้งค่าการบันทึกข้อผิดพลาด
 logging.basicConfig(level=logging.INFO)
@@ -23,8 +26,7 @@ logger = logging.getLogger(__name__)
 ICE_TYPES = ['โม่', 'หลอดเล็ก', 'หลอดใหญ่', 'ก้อน']
 SHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
 TIMEZONE = "Asia/Bangkok"
-
-# ตั้งค่าพื้นฐาน CSS
+# ตั้งค่าพื้นฐา
 def set_custom_css():
     """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
     st.markdown("""
@@ -868,17 +870,18 @@ def show_ice_sale_page():
                     stock_decrease = full_bag_sold
                     
                     # ขายแบบแบ่ง
-                    if divided_amount > 0:
-                        if ice_type == "ก้อน":
-                            pieces_sold = divided_amount / 5
-                            divided_income = divided_amount
-                            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))
-                            stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
-                        else:
-                            divided_income = divided_amount
-                            partial_bags = divided_amount / price_per_bag
-                            divided_profit = divided_amount - (partial_bags * cost_per_bag)
-                            stock_decrease += partial_bags
+                    # แก้ไขส่วนคำนวณน้ำแข็งก้อน
+    if divided_amount > 0:
+        if ice_type == "ก้อน":
+            pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
+            divided_income = divided_amount
+            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
+            stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
+        else:
+            divided_income = divided_amount
+            partial_bags = divided_amount / price_per_bag
+            divided_profit = divided_amount - (partial_bags * cost_per_bag)
+            stock_decrease += partial_bags
                         
                         income += divided_income
                         profit += divided_profit
@@ -1064,6 +1067,7 @@ def main():
             </ol>
         </div>
         """, unsafe_allow_html=True)
+
 if __name__ == "__main__":
     try:
         set_custom_css()
@@ -1081,7 +1085,7 @@ if __name__ == "__main__":
                 st.rerun()
         with col2:
             if st.button("📋 คัดลอกข้อผิดพลาด", key="copy_error"):
-                if pyperclip:
+                if pyperclip:  # เปลี่ยนเป็นการตรวจสอบก่อนใช้
                     pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
                     st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
                 else:
