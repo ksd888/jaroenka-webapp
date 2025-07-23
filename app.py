@@ -1064,7 +1064,6 @@ def main():
             </ol>
         </div>
         """, unsafe_allow_html=True)
-
 if __name__ == "__main__":
     try:
         set_custom_css()
