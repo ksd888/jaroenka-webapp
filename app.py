@@ -27,7 +27,6 @@ ICE_TYPES = ['โม่', 'หลอดเล็ก', 'หลอดใหญ่'
 SHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
 TIMEZONE = "Asia/Bangkok"
 
-# ตั้งค่าพื้นฐา
 def set_custom_css():
     """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
     st.markdown("""
@@ -220,7 +219,7 @@ def add_money(amount):
     st.session_state.paid_input += amount
     st.session_state.last_paid_click = amount
     st.session_state.prev_paid_input = st.session_state.paid_input
-
+    
 # การจัดการ Session State
 def initialize_session_state():
     """Initialize all required session state variables"""
@@ -260,7 +259,7 @@ def reset_ice_session_state():
     for ice_type in ICE_TYPES:
         st.session_state.pop(f"in_{ice_type}", None)
         st.session_state.pop(f"sell_out_{ice_type}", None)
-    st.session_state.pop("force_rerun", None)
+    st.session_state.force_rerun = True
     
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
@@ -363,6 +362,33 @@ def load_ice_data():
         logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=60)
+def load_sales_data():
+    """โหลดข้อมูลยอดขายจาก Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("ยอดขาย")
+        df = pd.DataFrame(worksheet.get_all_records())
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        # ทำความสะอาดข้อมูล
+        numeric_cols = ["ยอดขาย", "กำไร"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                
+        return df
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
+        logger.error(f"Error loading sales data: {e}")
+        return pd.DataFrame()
+
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
     
@@ -436,8 +462,6 @@ def show_dashboard():
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
             logger.error(f"Error showing top products: {e}")
-    else:
-        st.warning("ไม่มีข้อมูลยอดขาย")
 
 def show_product_sale_page():
     st.title("🧃 ขายสินค้าตู้เย็น")
@@ -559,125 +583,125 @@ def show_product_sale_page():
                         time.sleep(0.5)
                         st.rerun()
                         
-# ในส่วนแสดงรายการในตะกร้า หลังจากลูปแสดงสินค้า
-if st.session_state.cart:
-    if st.button("🗑️ ล้างตะกร้าทั้งหมด", type="secondary", key="clear_cart"):
-        clear_cart()
-        st.success("ล้างตะกร้าเรียบร้อยแล้ว")
-        time.sleep(0.5)
-        st.rerun()
-
-    # ระบบรับเงิน
-    st.subheader("💰 การชำระเงิน")
-    
-    # แสดงยอดรวม
-    st.markdown(f"""
-    <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px;'>
-        <h4 style='margin-bottom:0;'>ยอดรวม: {total_price:,.2f} บาท</h4>
-        <p style='margin-top:5px; color:#28a745;'>กำไรประมาณการ: {total_profit:,.2f} บาท</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # ปุ่มเงินด่วน
-    st.write("เพิ่มเงินด่วน:")
-    col1, col2, col3 = st.columns(3)
-    with col1: st.button("+20", on_click=lambda: add_money(20), key="add_20")
-    with col2: st.button("+50", on_click=lambda: add_money(50), key="add_50")
-    with col3: st.button("+100", on_click=lambda: add_money(100), key="add_100")
-    col4, col5 = st.columns(2)
-    with col4: st.button("+500", on_click=lambda: add_money(500), key="add_500")
-    with col5: st.button("+1000", on_click=lambda: add_money(1000), key="add_1000")
-    
-    # ฟิลด์รับเงิน
-    paid_input = st.number_input(
-        "รับเงินจากลูกค้า (บาท)", 
-        value=float(st.session_state.get('paid_input', 0.0)), 
-        step=1.0,
-        min_value=0.0,
-        format="%.2f",
-        key="paid_input_widget"
-    )
-    
-    # อัปเดต session state เมื่อค่าเปลี่ยน
-    if paid_input != st.session_state.get('prev_paid_input', 0.0):
-        st.session_state.paid_input = paid_input
-        st.session_state.prev_paid_input = paid_input
-    
-    # แสดงเงินทอนหรือเงินขาด
-    if paid_input > 0:
-        change = paid_input - total_price
-        if change >= 0:
-            st.success(f"💰 เงินทอน: {change:,.2f} บาท")
-        else:
-            st.error(f"💸 เงินไม่พอ (ขาด: {-change:,.2f} บาท)")
-    
-    # ปุ่มยกเลิกเงินล่าสุด
-    if st.session_state.last_paid_click > 0:
-        if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}", key="cancel_last"):
-            st.session_state.paid_input -= st.session_state.last_paid_click
-            st.session_state.prev_paid_input = st.session_state.paid_input
-            st.session_state.last_paid_click = 0
+    # ในส่วนแสดงรายการในตะกร้า หลังจากลูปแสดงสินค้า
+    if st.session_state.cart:
+        if st.button("🗑️ ล้างตะกร้าทั้งหมด", type="secondary", key="clear_cart"):
+            clear_cart()
+            st.success("ล้างตะกร้าเรียบร้อยแล้ว")
+            time.sleep(0.5)
             st.rerun()
 
-    # ปุ่มยืนยันการขาย
-    if st.button("✅ ยืนยันการขาย", type="primary", 
-                disabled=not st.session_state.cart or paid_input < total_price,
-                key="confirm_sale"):
-        try:
-            with st.spinner("กำลังบันทึกการขาย..."):
-                gc = connect_google_sheets()
-                if not gc:
-                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                    return
-                
-                sheet = gc.open_by_key(SHEET_ID)
-                worksheet = sheet.worksheet("ตู้เย็น")
-                summary_ws = sheet.worksheet("ยอดขาย")
-                
-                # อัปเดตสต็อกสินค้า
-                for item, qty, _ in st.session_state.cart:
-                    index = df[df["ชื่อสินค้า"] == item].index[0]
-                    row = df.loc[index]
-                    idx_in_sheet = index + 2  # +2 เพราะ header และ index เริ่มที่ 1
-                    
-                    # คำนวณยอดใหม่
-                    new_out = safe_int(row["ออก"]) + qty
-                    new_left = safe_int(row["คงเหลือในตู้"]) - qty
-                    
-                    # อัปเดตใน Google Sheets
-                    worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
-                    worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
-                
-                # บันทึกรายการขาย
-                now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
-                items_sold = ", ".join([f"{i} x {q}" for i, q, _ in st.session_state.cart])
-                
-                summary_ws.append_row([
-                    now,
-                    items_sold,
-                    total_price,
-                    total_profit,
-                    paid_input,
-                    paid_input - total_price,
-                    "drink"
-                ])
-                
-                # รีเซ็ตข้อมูลหลังขายสำเร็จ
-                st.session_state.cart = []
-                st.session_state.paid_input = 0.0
-                st.session_state.prev_paid_input = 0.0
+        # ระบบรับเงิน
+        st.subheader("💰 การชำระเงิน")
+        
+        # แสดงยอดรวม
+        st.markdown(f"""
+        <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px;'>
+            <h4 style='margin-bottom:0;'>ยอดรวม: {total_price:,.2f} บาท</h4>
+            <p style='margin-top:5px; color:#28a745;'>กำไรประมาณการ: {total_profit:,.2f} บาท</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ปุ่มเงินด่วน
+        st.write("เพิ่มเงินด่วน:")
+        col1, col2, col3 = st.columns(3)
+        with col1: st.button("+20", on_click=lambda: add_money(20), key="add_20")
+        with col2: st.button("+50", on_click=lambda: add_money(50), key="add_50")
+        with col3: st.button("+100", on_click=lambda: add_money(100), key="add_100")
+        col4, col5 = st.columns(2)
+        with col4: st.button("+500", on_click=lambda: add_money(500), key="add_500")
+        with col5: st.button("+1000", on_click=lambda: add_money(1000), key="add_1000")
+        
+        # ฟิลด์รับเงิน
+        paid_input = st.number_input(
+            "รับเงินจากลูกค้า (บาท)", 
+            value=float(st.session_state.get('paid_input', 0.0)), 
+            step=1.0,
+            min_value=0.0,
+            format="%.2f",
+            key="paid_input_widget"
+        )
+        
+        # อัปเดต session state เมื่อค่าเปลี่ยน
+        if paid_input != st.session_state.get('prev_paid_input', 0.0):
+            st.session_state.paid_input = paid_input
+            st.session_state.prev_paid_input = paid_input
+        
+        # แสดงเงินทอนหรือเงินขาด
+        if paid_input > 0:
+            change = paid_input - total_price
+            if change >= 0:
+                st.success(f"💰 เงินทอน: {change:,.2f} บาท")
+            else:
+                st.error(f"💸 เงินไม่พอ (ขาด: {-change:,.2f} บาท)")
+        
+        # ปุ่มยกเลิกเงินล่าสุด
+        if st.session_state.last_paid_click > 0:
+            if st.button(f"➖ ยกเลิก {st.session_state.last_paid_click}", key="cancel_last"):
+                st.session_state.paid_input -= st.session_state.last_paid_click
+                st.session_state.prev_paid_input = st.session_state.paid_input
                 st.session_state.last_paid_click = 0
-                
-                # ล้าง cache เพื่อโหลดข้อมูลใหม่
-                st.cache_data.clear()
-                
-                st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
-                logger.info(f"Sale recorded: {total_price} THB, Profit: {total_profit} THB")
-                time.sleep(2)
                 st.rerun()
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
-            logger.error(f"Error confirming sale: {e}")
+
+        # ปุ่มยืนยันการขาย
+        if st.button("✅ ยืนยันการขาย", type="primary", 
+                    disabled=not st.session_state.cart or paid_input < total_price,
+                    key="confirm_sale"):
+            try:
+                with st.spinner("กำลังบันทึกการขาย..."):
+                    gc = connect_google_sheets()
+                    if not gc:
+                        st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+                        return
+                    
+                    sheet = gc.open_by_key(SHEET_ID)
+                    worksheet = sheet.worksheet("ตู้เย็น")
+                    summary_ws = sheet.worksheet("ยอดขาย")
+                    
+                    # อัปเดตสต็อกสินค้า
+                    for item, qty, _ in st.session_state.cart:
+                        index = df[df["ชื่อสินค้า"] == item].index[0]
+                        row = df.loc[index]
+                        idx_in_sheet = index + 2  # +2 เพราะ header และ index เริ่มที่ 1
+                        
+                        # คำนวณยอดใหม่
+                        new_out = safe_int(row["ออก"]) + qty
+                        new_left = safe_int(row["คงเหลือในตู้"]) - qty
+                        
+                        # อัปเดตใน Google Sheets
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("ออก") + 1, new_out)
+                        worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
+                    
+                    # บันทึกรายการขาย
+                    now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+                    items_sold = ", ".join([f"{i} x {q}" for i, q, _ in st.session_state.cart])
+                    
+                    summary_ws.append_row([
+                        now,
+                        items_sold,
+                        total_price,
+                        total_profit,
+                        paid_input,
+                        paid_input - total_price,
+                        "drink"
+                    ])
+                    
+                    # รีเซ็ตข้อมูลหลังขายสำเร็จ
+                    st.session_state.cart = []
+                    st.session_state.paid_input = 0.0
+                    st.session_state.prev_paid_input = 0.0
+                    st.session_state.last_paid_click = 0
+                    
+                    # ล้าง cache เพื่อโหลดข้อมูลใหม่
+                    st.cache_data.clear()
+                    
+                    st.success("✅ บันทึกการขายเรียบร้อยแล้ว")
+                    logger.info(f"Sale recorded: {total_price} THB, Profit: {total_profit} THB")
+                    time.sleep(2)
+                    st.rerun()
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
+                logger.error(f"Error confirming sale: {e}")
 
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
@@ -690,7 +714,8 @@ def show_ice_sale_page():
         return
 
     # ตรวจสอบและรีเซ็ตข้อมูลหากเป็นวันใหม่
-    if 'วันที่' in df_ice.columns and df_ice["วันที่"].iloc[0] != today_str:
+    latest_date = df_ice["วันที่"].max() if "วันที่" in df_ice.columns else today_str
+    if latest_date != today_str:
         try:
             with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
                 gc = connect_google_sheets()
@@ -782,7 +807,7 @@ def show_ice_sale_page():
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
             logger.error(f"Error saving ice restock: {e}")
 
-       # ส่วนขายออกน้ำแข็ง
+    # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
     total_profit = 0
