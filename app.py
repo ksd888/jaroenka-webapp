@@ -288,8 +288,8 @@ def reset_ice_session_state():
         # 5. แสดงการแจ้งเตือนผู้ใช้
         st.toast("รีเซ็ตข้อมูลน้ำแข็งเรียบร้อยแล้ว", icon="🔄")
         
-        # 6. รีเฟรชหน้าทันที (รอสักครู่เพื่อให้ผู้ใช้เห็นข้อความ)
-        time.sleep(0.5)
+        # 6. รอสักครู่เพื่อให้ผู้ใช้เห็นข้อความก่อนรีเฟรช
+        time.sleep(1.5)
         st.rerun()
         
     except Exception as e:
@@ -478,25 +478,31 @@ def show_dashboard():
             st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
 
         # แสดงกราฟยอดขายรายวัน
-        st.subheader("📈 ยอดขายรายวัน")
-        if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
-            try:
-                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-                sales_df = sales_df.dropna(subset=['วันที่'])
-                
-                if not sales_df.empty:
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
-                    
-                    if not daily_sales.empty:
-                        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-                        ax.set_title('ยอดขายรายวัน')
-                        ax.set_xlabel('วันที่')
-                        ax.set_ylabel('ยอดขาย (บาท)')
-                        ax.grid(True)
-                        st.pyplot(fig)
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+st.subheader("📈 ยอดขายรายวัน")
+if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+    try:
+        sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
+        sales_df = sales_df.dropna(subset=['วันที่'])
+        
+        if not sales_df.empty:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+            
+            if not daily_sales.empty:
+                ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+                ax.set_title('ยอดขายรายวัน')
+                ax.set_xlabel('วันที่')
+                ax.set_ylabel('ยอดขาย (บาท)')
+                ax.grid(True)
+                st.pyplot(fig)
+            else:
+                st.warning("ไม่มีข้อมูลยอดขายรายวัน")
+        else:
+            st.warning("ไม่มีข้อมูลยอดขาย")
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+else:
+    st.warning("ไม่มีข้อมูลยอดขายหรือรูปแบบข้อมูลไม่ถูกต้อง")
 
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
@@ -540,7 +546,7 @@ def show_product_sale_page():
     selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
 
     if selected_product:
-        # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
+    # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
     if selected_product not in st.session_state.quantities:
         st.session_state.quantities[selected_product] = 1
     
@@ -771,6 +777,7 @@ def show_ice_sale_page():
     
     df_ice = load_ice_data()
     today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+    initial_sales = {}
 
     # ตรวจสอบข้อมูลน้ำแข็งก่อนแสดงผล
     required_columns = [
@@ -788,8 +795,152 @@ def show_ice_sale_page():
         st.error(f"⚠️ รูปแบบข้อมูลไม่ถูกต้อง: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
         return
 
-    # ส่วน UI การขายน้ำแข็ง (ตัดส่วนอื่นๆ ออกเพื่อความกระชับ)...
+    # ตรวจสอบว่ามีข้อมูลน้ำแข็งแต่ละประเภทหรือไม่
+    for ice_type in ICE_TYPES:
+        if ice_type not in df_ice['ชนิดน้ำแข็ง'].values:
+            st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
 
+    # 1. ตรวจสอบข้อมูลพื้นฐาน
+    if df_ice.empty:
+        st.error("⚠️ ไม่พบข้อมูลน้ำแข็งในระบบ")
+        logger.error("Ice data is empty")
+        return
+        
+    # 2. ตรวจสอบคอลัมน์ที่จำเป็น
+    required_columns = {
+        "ชนิดน้ำแข็ง": "",
+        "ราคาขายต่อหน่วย": 0,
+        "ต้นทุนต่อหน่วย": 0,
+        "รับเข้า": 0,
+        "ขายออก": 0,
+        "จำนวนละลาย": 0,
+        "กำไรสุทธิ": 0,
+        "กำไรรวม": 0,
+        "วันที่": today_str
+    }
+    
+    missing_cols = [col for col in required_columns if col not in df_ice.columns]
+    if missing_cols:
+        st.error(f"⚠️ รูปแบบข้อมูลไม่ถูกต้อง: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
+        return
+
+    # 3. เติมค่าคอลัมน์ที่หายไป
+    for col, default_val in required_columns.items():
+        if col not in df_ice.columns:
+            df_ice[col] = default_val
+            logger.warning(f"Added missing column: {col} with default value: {default_val}")
+
+    # 4. ทำความสะอาดข้อมูล
+    df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
+    numeric_cols = ["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "กำไรรวม"]
+    for col in numeric_cols:
+        df_ice[col] = pd.to_numeric(df_ice[col], errors='coerce').fillna(0)
+
+    # 5. ตรวจสอบน้ำแข็งแต่ละประเภท
+    ice_data_status = {}
+    for ice_type in ICE_TYPES:
+        ice_type_lower = ice_type.lower()
+        mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type_lower
+        ice_data = df_ice[mask]
+        
+        if ice_data.empty:
+            ice_data_status[ice_type] = {
+                "exists": False,
+                "message": f"ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ",
+                "data": None
+            }
+            continue
+            
+        # เก็บข้อมูลเริ่มต้น
+        initial_sales[ice_type] = safe_int(ice_data.iloc[0]["ขายออก"])
+        
+        ice_data_status[ice_type] = {
+            "exists": True,
+            "message": "ข้อมูลพร้อมใช้งาน",
+            "data": ice_data.iloc[0],
+            "stock": safe_int(ice_data.iloc[0]["รับเข้า"]) - safe_int(ice_data.iloc[0]["ขายออก"]) - safe_int(ice_data.iloc[0]["จำนวนละลาย"])
+        }
+
+    # 6. แสดงสถานะข้อมูล
+    with st.expander("📊 สถานะข้อมูลน้ำแข็ง", expanded=False):
+        status_cols = st.columns(3)
+        for idx, ice_type in enumerate(ICE_TYPES):
+            with status_cols[idx % 3]:
+                status = ice_data_status.get(ice_type, {})
+                if status.get("exists"):
+                    st.success(f"🧊 {ice_type}")
+                    st.caption(f"คงเหลือ: {status['stock']} ถุง")
+                    st.caption(f"ขายแล้ว: {safe_int(status['data']['ขายออก'])} ถุง")
+                else:
+                    st.error(f"❌ {ice_type}")
+                    st.caption(status.get("message", "ไม่พบข้อมูล"))
+                     # แสดงฟอร์มขายน้ำแข็ง
+    
+    st.subheader("📝 กรอกข้อมูลน้ำแข็ง")
+    
+    # สร้างแท็บสำหรับน้ำแข็งแต่ละประเภท
+    tabs = st.tabs(ICE_TYPES)
+    
+    for idx, ice_type in enumerate(ICE_TYPES):
+        with tabs[idx]:
+            st.markdown(f"### น้ำแข็ง{ice_type}")
+            
+            status = ice_data_status.get(ice_type, {})
+            if not status.get("exists"):
+                st.warning(status.get("message", "ไม่พบข้อมูล"))
+                continue
+                
+            # แสดงข้อมูลปัจจุบัน
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("📦 คงเหลือในสต็อก", f"{status['stock']} ถุง")
+            with col2:
+                st.metric("💰 ราคาขายต่อถุง", f"{safe_float(status['data']['ราคาขายต่อหน่วย']):.2f} บาท")
+            
+            # ฟอร์มกรอกข้อมูล
+            with st.form(key=f"form_{ice_type}"):
+                cols = st.columns(3)
+                with cols[0]:
+                    in_val = st.number_input(
+                        "รับเข้า (ถุง)",
+                        min_value=0,
+                        key=f"in_{ice_type}",
+                        value=0
+                    )
+                with cols[1]:
+                    sell_out_val = st.number_input(
+                        "ขายออก (ถุง)",
+                        min_value=0,
+                        key=f"sell_out_{ice_type}",
+                        value=0
+                    )
+                with cols[2]:
+                    melted_val = st.number_input(
+                        "ละลาย/เสียหาย (ถุง)",
+                        min_value=0,
+                        key=f"melted_{ice_type}",
+                        value=0
+                    )
+                
+                # ปุ่มส่งฟอร์ม
+                submitted = st.form_submit_button("บันทึกการเปลี่ยนแปลง")
+                if submitted:
+                    # อัปเดตข้อมูลใน DataFrame
+                    mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
+                    if mask.any():
+                        idx = df_ice[mask].index[0]
+                        df_ice.at[idx, "รับเข้า"] += in_val
+                        df_ice.at[idx, "ขายออก"] += sell_out_val
+                        df_ice.at[idx, "จำนวนละลาย"] += melted_val
+                        
+                        # คำนวณกำไร
+                        price = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
+                        cost = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
+                        df_ice.at[idx, "กำไรสุทธิ"] = (price - cost) * sell_out_val
+                        df_ice.at[idx, "กำไรรวม"] = df_ice.at[idx, "กำไรสุทธิ"] - (cost * melted_val)
+                        
+                        st.success(f"บันทึกข้อมูลน้ำแข็ง{ice_type} เรียบร้อยแล้ว")
+                        
     # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
@@ -800,33 +951,33 @@ def show_ice_sale_page():
 
     # ส่วนบันทึกการขายน้ำแข็ง - ส่วน Validation ที่แก้ไขแล้ว
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
-        validation_passed = True
-        error_messages = []
-        
-        for ice_type in ICE_TYPES:
-            mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
-            if not mask.any():
-                st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
-                continue
+    validation_passed = True
+    error_messages = []
     
-    row = df_ice[mask].iloc[0]
-            initial_sales[ice_type] = safe_int(row["ขายออก"])
-                    received = safe_int(row["รับเข้า"])
-                sold = safe_int(row["ขายออก"])
-    melted = safe_int(row["จำนวนละลาย"])
-                remaining = received - sold - melted
-                
-                if remaining < 0:
-                    validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
-                
-                if sold > received:
-                    validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
-                
-                if melted > received:
-                    validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+    for ice_type in ICE_TYPES:
+        mask = (df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower())
+        if not mask.any():
+            st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
+            continue
+            
+        row = df_ice[mask].iloc[0]
+        initial_sales[ice_type] = safe_int(row["ขายออก"])
+        received = safe_int(row["รับเข้า"])
+        sold = safe_int(row["ขายออก"])
+        melted = safe_int(row["จำนวนละลาย"])
+        remaining = received - sold - melted
+        
+        if remaining < 0:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
+        
+        if sold > received:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+        
+        if melted > received:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
 
         if not validation_passed:
             st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
