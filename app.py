@@ -509,27 +509,27 @@ def show_product_sale_page():
             st.markdown(f"**สต็อก:** {stock} ชิ้น ({stock_status})")
                # ในฟังก์ชัน show_product_sale_page()
             stock_status = (
-    "🟢 พอ" if stock >= 10 
-    else "🟡 ใกล้หมด" if stock >= 5 
-    else "🔴 หมด" if stock == 0 
-    else "⚠️ น้อยมาก"
-)
-stock_color = (
-    "#28a745" if stock >= 10  # สีเขียว
-    else "#ffc107" if stock >= 5  # สีเหลือง
-    else "#dc3545" if stock == 0  # สีแดง
-    else "#fd7e14"  # สีส้ม
-)
+            "🟢 พอ" if stock >= 10 
+            else "🟡 ใกล้หมด" if stock >= 5 
+            else "🔴 หมด" if stock == 0 
+            else "⚠️ น้อยมาก"
+        )
+        stock_color = (
+            "#28a745" if stock >= 10  # สีเขียว
+            else "#ffc107" if stock >= 5  # สีเหลือง
+            else "#dc3545" if stock == 0  # สีแดง
+            else "#fd7e14"  # สีส้ม
+        )
 
-st.markdown(
-    f"<div style='display: flex; align-items: center;'>"
-    f"<div style='margin-right: 10px;'>"
-    f"<strong>สต็อก:</strong> {stock} ชิ้น"
-    f"</div>"
-    f"<div style='color: {stock_color}; font-weight: bold;'>{stock_status}</div>"
-    f"</div>",
-    unsafe_allow_html=True
-)
+        st.markdown(
+            f"<div style='display: flex; align-items: center;'>"
+            f"<div style='margin-right: 10px;'>"
+            f"<strong>สต็อก:</strong> {stock} ชิ้น"
+            f"</div>"
+            f"<div style='color: {stock_color}; font-weight: bold;'>{stock_status}</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
                 
         # ปุ่มเพิ่มลงตะกร้า
         if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
@@ -914,12 +914,10 @@ def show_ice_sale_page():
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
 
-   if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
-    # เพิ่มการตรวจสอบข้อมูลก่อนบันทึก
+  if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
     validation_passed = True
     error_messages = []
     
-    # ตรวจสอบแต่ละประเภทน้ำแข็ง
     for ice_type in ICE_TYPES:
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
@@ -949,15 +947,7 @@ def show_ice_sale_page():
     else:
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
-                gc = connect_google_sheets()
-                if not gc:
-                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                    return
-                    
-                sheet = gc.open_by_key(SHEET_ID)
-                iceflow_sheet = sheet.worksheet("iceflow")
-                summary_ws = sheet.worksheet("ยอดขาย")
-
+            
                 # บันทึกข้อมูลน้ำแข็ง
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
