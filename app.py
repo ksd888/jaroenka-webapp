@@ -259,11 +259,27 @@ def clear_cart():
     st.session_state.prev_paid_input = 0.0
 
 def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
-    for ice_type in ICE_TYPES:
-        st.session_state.pop(f"in_{ice_type}", None)
-        st.session_state.pop(f"sell_out_{ice_type}", None)
-    st.session_state.force_rerun = True
+    """รีเซ็ตค่าที่เกี่ยวข้องกับน้ำแข็งใน Session State"""
+    try:
+        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
+        ice_keys = [f"{prefix}{ice_type}" 
+                  for prefix in ["in_", "sell_out_", "melted_"] 
+                  for ice_type in ICE_TYPES]
+        
+        for key in ice_keys:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # ตั้งค่าสถานะให้รีเฟรชหน้า
+        st.session_state.force_rerun = True
+        logger.info("Ice session state reset successfully")
+        
+        # รีเฟรชหน้าทันที
+        st.rerun()
+        
+    except Exception as e:
+        logger.error(f"Error resetting ice session state: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
     
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
@@ -336,6 +352,15 @@ def load_ice_data():
         
         if df_ice.empty:
             return pd.DataFrame()
+
+        # ทำความสะอาดคอลัมน์ชนิดน้ำแข็งและเติมค่าที่หายไป
+        df_ice["ชนิดน้ำแข็ง"] = (
+            df_ice["ชนิดน้ำแข็ง"]
+            .astype(str)  # แปลงเป็น string ก่อน
+            .str.strip()  # ลบช่องว่าง
+            .str.lower()  # แปลงเป็นตัวเล็ก
+            .replace("nan", "")  # แทนที่ค่า NaN ด้วย string ว่าง
+        )
             
         # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
         required_cols = {
@@ -752,9 +777,30 @@ def show_ice_sale_page():
     df_ice = load_ice_data()
     today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
 
+    # ตรวจสอบข้อมูลน้ำแข็งก่อนแสดงผล
+    required_columns = [
+        "ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", 
+        "รับเข้า", "ขายออก", "จำนวนละลาย", "วันที่"
+    ]
+    
+    # ตรวจสอบว่ามีข้อมูลและคอลัมน์ที่จำเป็นครบหรือไม่
     if df_ice.empty:
-        st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
+        st.error("⚠️ ไม่พบข้อมูลน้ำแข็งในระบบ")
+        logger.error("Ice data is empty")
         return
+        
+    missing_cols = [col for col in required_columns if col not in df_ice.columns]
+    if missing_cols:
+        st.error(f"⚠️ รูปแบบข้อมูลไม่ถูกต้อง: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
+        logger.error(f"Missing columns in ice data: {missing_cols}")
+        return
+        
+    # ตรวจสอบว่ามีข้อมูลน้ำแข็งครบทุกประเภทหรือไม่
+    ice_types_in_data = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower().unique()
+    missing_ice_types = [t for t in ICE_TYPES if t.lower() not in ice_types_in_data]
+    if missing_ice_types:
+        st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งบางชนิด: {', '.join(missing_ice_types)}")
+        logger.warning(f"Missing ice types: {missing_ice_types}")
 
     # ตรวจสอบและรีเซ็ตข้อมูลหากเป็นวันใหม่
     latest_date = df_ice["วันที่"].max() if "วันที่" in df_ice.columns else today_str
@@ -770,7 +816,8 @@ def show_ice_sale_page():
                 
                 # รีเซ็ตข้อมูลใน DataFrame
                 for ice_type in ICE_TYPES:
-                    mask = df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)
+                    # ใช้การเปรียบเทียบ string แบบตรงมากขึ้น
+                    mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
                     if mask.any():
                         idx = df_ice[mask].index[0]
                         df_ice.at[idx, "วันที่"] = today_str
@@ -802,8 +849,13 @@ def show_ice_sale_page():
     cols = st.columns(4)
     
     for i, ice_type in enumerate(ICE_TYPES):
-        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-        if not row.empty:
+        # หาข้อมูลน้ำแข็งโดยใช้การเปรียบเทียบ string อย่างระมัดระวัง
+        mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
+        if not mask.any():
+            st.warning(f"ไม่พบข้อมูลน้ำแข็งชนิด {ice_type}")
+            continue
+            
+        row = df_ice[mask].iloc[0]
             idx = row.index[0]
             received = safe_int(df_ice.at[idx, "รับเข้า"])
             sold = safe_int(df_ice.at[idx, "ขายออก"])
