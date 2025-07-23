@@ -497,12 +497,15 @@ def show_product_sale_page():
     selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
 
     if selected_product:
-        # ... (โค้ดส่วนที่เหลือของฟังก์ชัน)
-
-    if selected_product:
-        # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
-        if selected_product not in st.session_state.quantities:
-            st.session_state.quantities[selected_product] = 1
+    # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
+    if selected_product not in st.session_state.quantities:
+        st.session_state.quantities[selected_product] = 1
+    
+    qty = st.session_state.quantities[selected_product]
+    row = df[df["ชื่อสินค้า"] == selected_product]
+    
+    if not row.empty:
+        # ... (โค้ดส่วนที่เหลือ)
         
         qty = st.session_state.quantities[selected_product]
         row = df[df["ชื่อสินค้า"] == selected_product]
