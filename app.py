@@ -554,41 +554,41 @@ def show_product_sale_page():
         st.markdown(f"### {selected_product}")
         st.markdown(f"**ราคา:** {price:,.2f} บาท")
 
-            # ปุ่มปรับจำนวน
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-            with col1: 
-                st.button("➖", key=f"dec_{safe_key(selected_product)}", 
-                        on_click=decrease_quantity, args=(selected_product,))
-            with col2: 
-                st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
-                           unsafe_allow_html=True)
-            with col3: 
-                st.button("➕", key=f"inc_{safe_key(selected_product)}", 
-                        on_click=increase_quantity, args=(selected_product,))
-            with col4:
-                # แสดงสถานะสต็อก
-                if stock >= 10:
-                    status = "🟢 พอ"
-                    color = "#28a745"
-                elif stock >= 5:
-                    status = "🟡 ใกล้หมด"
-                    color = "#ffc107"
-                elif stock > 0:
-                    status = "⚠️ น้อยมาก"
-                    color = "#fd7e14"
-                else:
-                    status = "🔴 หมด"
-                    color = "#dc3545"
-                
-                st.markdown(
-                    f"<div style='display: flex; align-items: center;'>"
-                    f"<div style='margin-right: 10px;'>"
-                    f"<strong>สต็อก:</strong> {stock} ชิ้น"
-                    f"</div>"
-                    f"<div style='color: {color}; font-weight: bold;'>{status}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
+        # ปุ่มปรับจำนวน
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+        with col1: 
+            st.button("➖", key=f"dec_{safe_key(selected_product)}", 
+                    on_click=decrease_quantity, args=(selected_product,))
+        with col2: 
+            st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
+                       unsafe_allow_html=True)
+        with col3: 
+            st.button("➕", key=f"inc_{safe_key(selected_product)}", 
+                    on_click=increase_quantity, args=(selected_product,))
+        with col4:
+            # แสดงสถานะสต็อก
+            if stock >= 10:
+                status = "🟢 พอ"
+                color = "#28a745"
+            elif stock >= 5:
+                status = "🟡 ใกล้หมด"
+                color = "#ffc107"
+            elif stock > 0:
+                status = "⚠️ น้อยมาก"
+                color = "#fd7e14"
+            else:
+                status = "🔴 หมด"
+                color = "#dc3545"
+            
+            st.markdown(
+                f"<div style='display: flex; align-items: center;'>"
+                f"<div style='margin-right: 10px;'>"
+                f"<strong>สต็อก:</strong> {stock} ชิ้น"
+                f"</div>"
+                f"<div style='color: {color}; font-weight: bold;'>{status}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
                 
         # ปุ่มเพิ่มลงตะกร้า
         if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
@@ -799,95 +799,95 @@ def show_ice_sale_page():
 
     # ส่วนบันทึกการขายน้ำแข็ง - ส่วน Validation ที่แก้ไขแล้ว
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
-        validation_passed = True
-        error_messages = []
+    validation_passed = True
+    error_messages = []
+    
+    # ตรวจสอบข้อมูลน้ำแข็งทุกประเภท
+    for ice_type in ICE_TYPES:
+        # หาข้อมูลน้ำแข็งแต่ละชนิด (แบบปลอดภัย)
+        mask = (
+            df_ice["ชนิดน้ำแข็ง"]
+            .str.strip()  # ลบช่องว่าง
+            .str.lower()  # แปลงเป็นตัวเล็ก
+            .fillna("")    # เติมค่าสำหรับ NaN
+            .str.contains(ice_type.lower(), regex=False)  # เปรียบเทียบแบบตรงๆ
+        )
         
-        # ตรวจสอบข้อมูลน้ำแข็งทุกประเภท
-        for ice_type in ICE_TYPES:
-            # หาข้อมูลน้ำแข็งแต่ละชนิด (แบบปลอดภัย)
-            mask = (
-                df_ice["ชนิดน้ำแข็ง"]
-                .str.strip()  # ลบช่องว่าง
-                .str.lower()  # แปลงเป็นตัวเล็ก
-                .fillna("")    # เติมค่าสำหรับ NaN
-                .str.contains(ice_type.lower(), regex=False)  # เปรียบเทียบแบบตรงๆ
-            )
-            
-            if not mask.any():  # ตรวจสอบว่ามีข้อมูลหรือไม่
-                st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
-                continue  # ข้ามไปหากไม่มีข้อมูล
-            
-            # ดึงข้อมูลแถวที่ตรงกับน้ำแข็งชนิดนี้
-            row = df_ice[mask].iloc[0]
-            
-            # ดึงค่าจาก DataFrame
-            received = safe_int(row["รับเข้า"])
-            sold = safe_int(row["ขายออก"])
-            melted = safe_int(row["จำนวนละลาย"])
-            remaining = received - sold - melted
-            
-            # ตรวจสอบเงื่อนไขต่างๆ
-            if remaining < 0:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
-            
-            if sold > received:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
-            
-            if melted > received:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+        if not mask.any():  # ตรวจสอบว่ามีข้อมูลหรือไม่
+            st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
+            continue  # ข้ามไปหากไม่มีข้อมูล
+        
+        # ดึงข้อมูลแถวที่ตรงกับน้ำแข็งชนิดนี้
+        row = df_ice[mask].iloc[0]
+        
+        # ดึงค่าจาก DataFrame
+        received = safe_int(row["รับเข้า"])
+        sold = safe_int(row["ขายออก"])
+        melted = safe_int(row["จำนวนละลาย"])
+        remaining = received - sold - melted
+        
+        # ตรวจสอบเงื่อนไขต่างๆ
+        if remaining < 0:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
+        
+        if sold > received:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+        
+        if melted > received:
+            validation_passed = False
+            error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
 
-        # แสดงผลการตรวจสอบ
-        if not validation_passed:
-            st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
-            for msg in error_messages:
-                st.error(msg)
-            st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
-        else:
-            try:
-                with st.spinner("กำลังบันทึกการขาย..."):
-                    gc = connect_google_sheets()
-                    if not gc:
-                        st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                        return
-                    
-                    sheet = gc.open_by_key(SHEET_ID)
-                    iceflow_sheet = sheet.worksheet("iceflow")
-                    summary_ws = sheet.worksheet("ยอดขาย")
-                    
-                    # บันทึกข้อมูลน้ำแข็ง
-                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                    
-                    # บันทึกรายการขาย
-                    for ice_type in ICE_TYPES:
-                        mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
-                        if mask.any():
-                            row = df_ice[mask].iloc[0]
-                            current_sold = safe_int(row["ขายออก"])
-                            sold_in_this_session = max(0, current_sold - initial_sales.get(ice_type, 0))
-                            
-                            if sold_in_this_session > 0:
-                                summary_ws.append_row([
-                                    today_str,
-                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
-                                    float(row["กำไรรวม"]),
-                                    float(row["กำไรสุทธิ"]),
-                                    "ice"
-                                ])
-                    
-                    # รีเซ็ตข้อมูลหลังบันทึกสำเร็จ
-                    reset_ice_session_state()
-                    st.cache_data.clear()
-                    st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อยแล้ว")
-                    time.sleep(1)
-                    st.rerun()
-                    
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-                logger.error(f"Error saving ice sale: {e}")
-                st.error("กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ")
+    # แสดงผลการตรวจสอบ
+    if not validation_passed:
+        st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
+        for msg in error_messages:
+            st.error(msg)
+        st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
+    else:
+        try:
+            with st.spinner("กำลังบันทึกการขาย..."):
+                gc = connect_google_sheets()
+                if not gc:
+                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+                    return
+                
+                sheet = gc.open_by_key(SHEET_ID)
+                iceflow_sheet = sheet.worksheet("iceflow")
+                summary_ws = sheet.worksheet("ยอดขาย")
+                
+                # บันทึกข้อมูลน้ำแข็ง
+                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                
+                # บันทึกรายการขาย
+                for ice_type in ICE_TYPES:
+                    mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
+                    if mask.any():
+                        row = df_ice[mask].iloc[0]
+                        current_sold = safe_int(row["ขายออก"])
+                        sold_in_this_session = max(0, current_sold - initial_sales.get(ice_type, 0))
+                        
+                        if sold_in_this_session > 0:
+                            summary_ws.append_row([
+                                today_str,
+                                f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                                float(row["กำไรรวม"]),
+                                float(row["กำไรสุทธิ"]),
+                                "ice"
+                            ])
+                
+                # รีเซ็ตข้อมูลหลังบันทึกสำเร็จ
+                reset_ice_session_state()
+                st.cache_data.clear()
+                st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อยแล้ว")
+                time.sleep(1)
+                st.rerun()
+                
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
+            logger.error(f"Error saving ice sale: {e}")
+            st.error("กรุณาลองอีกครั้งหรือติดต่อผู้ดูแลระบบ")
 
     # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
