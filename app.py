@@ -22,7 +22,31 @@ TIMEZONE = "Asia/Bangkok"
 def set_custom_css():
     st.markdown("""
     <style>
-    /* CSS styles here */
+    .ice-box {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: #f9f9f9;
+    }
+    .ice-header {
+        font-weight: bold;
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: #333;
+    }
+    .ice-metric {
+        font-size: 14px;
+    }
+    .stock-high {
+        color: #28a745;
+    }
+    .stock-ok {
+        color: #ffc107;
+    }
+    .stock-low {
+        color: #dc3545;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -45,24 +69,45 @@ def safe_key(text):
     """สร้างคีย์ที่ปลอดภัยจากข้อความ"""
     return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 
+def increase_quantity(product_name):
+    """เพิ่มจำนวนสินค้า"""
+    if product_name in st.session_state.quantities:
+        st.session_state.quantities[product_name] += 1
+    else:
+        st.session_state.quantities[product_name] = 1
+
+def decrease_quantity(product_name):
+    """ลดจำนวนสินค้า"""
+    if product_name in st.session_state.quantities and st.session_state.quantities[product_name] > 1:
+        st.session_state.quantities[product_name] -= 1
+
+def add_money(amount):
+    """เพิ่มจำนวนเงินที่รับ"""
+    st.session_state.paid_input += amount
+    st.session_state.last_paid_click = amount
+    st.session_state.prev_paid_input = st.session_state.paid_input
+
 # การจัดการ Session State
 def initialize_session_state():
     """Initialize all required session state variables"""
-    default_values = {
-        'page': "ขายสินค้า",
-        'cart': [],
-        'quantities': {},
-        'paid_input': 0.0,
-        'last_paid_click': 0,
-        'reset_search_items': False,
-        'prev_paid_input': 0.0,
-        'last_update': time.time(),
-        'force_rerun': False
-    }
-    
-    for key, value in default_values.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if 'page' not in st.session_state:
+        st.session_state.page = "ขายสินค้า"
+    if 'cart' not in st.session_state:
+        st.session_state.cart = []
+    if 'quantities' not in st.session_state:
+        st.session_state.quantities = {}
+    if 'paid_input' not in st.session_state:
+        st.session_state.paid_input = 0.0
+    if 'last_paid_click' not in st.session_state:
+        st.session_state.last_paid_click = 0
+    if 'reset_search_items' not in st.session_state:
+        st.session_state.reset_search_items = False
+    if 'prev_paid_input' not in st.session_state:
+        st.session_state.prev_paid_input = 0.0
+    if 'last_update' not in st.session_state:
+        st.session_state.last_update = time.time()
+    if 'force_rerun' not in st.session_state:
+        st.session_state.force_rerun = False
 
 def reset_ice_session_state():
     """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
@@ -190,7 +235,6 @@ def load_sales_data():
         logger.error(f"Error loading sales data: {e}")
         return pd.DataFrame()
 
-# หน้าต่างๆ
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
     
@@ -216,7 +260,8 @@ def show_dashboard():
             row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
             if not row.empty:
                 idx = row.index[0]
-                st.write(f"- น้ำแข็ง{ice_type}: ขาย {safe_int(row.at[idx, 'ขายออก'])} ถุง, กำไร {safe_float(row.at[idx, 'กำไรสุทธิ']):.2f} บาท")
+                profit = safe_float(row.at[idx, 'กำไรสุทธิ']) if 'กำไรสุทธิ' in row else 0.0
+                st.write(f"- น้ำแข็ง{ice_type}: ขาย {safe_int(row.at[idx, 'ขายออก'])} ถุง, กำไร {profit:.2f} บาท")
 
         # กราฟยอดขายรายวัน
         st.subheader("📈 ยอดขายรายวัน")
@@ -246,15 +291,6 @@ def show_dashboard():
         st.warning("ไม่มีข้อมูลยอดขาย")
 
 def show_product_sale_page():
-    st.title("🧃 ขายสินค้าตู้เย็น")
-    
-    df = load_product_data()
-    if df.empty:
-        st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
-        return
-    
-    # ส่วน UI การขายสินค้า
-    def show_product_sale_page():
     st.title("🧃 ขายสินค้าตู้เย็น")
     
     df = load_product_data()
@@ -691,10 +727,9 @@ def show_ice_sale_page():
                             if sold_in_this_session > 0:
                                 summary_ws.append_row([
                                     today_str,
-                                    f"{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
-                                    float(sold_in_this_session),
-                                    float(df_ice.at[idx, "ราคาขายต่อหน่วย"]),
-                                    float(df_ice.at[idx, "ต้นทุนต่อหน่วย"]),
+                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                                    float(df_ice.at[idx, "กำไรรวม"]),
+                                    float(df_ice.at[idx, "กำไรสุทธิ"]),
                                     "ice"
                                 ])
                     
@@ -709,6 +744,7 @@ def show_ice_sale_page():
         else:
             st.warning("⚠️ ไม่มียอดขายที่จะบันทึก")
 
+                
 # หน้าหลัก
 def main():
     set_custom_css()
