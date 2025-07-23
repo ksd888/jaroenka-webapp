@@ -6,3 +6,5 @@ reportlab
 plotly        
 matplotlib
 numpy
+pyperclip
+traceback
