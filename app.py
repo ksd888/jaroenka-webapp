@@ -8,7 +8,12 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 import logging
-import pyperclip
+# เพิ่มการตรวจสอบ dependencies
+try:
+    import pyperclip
+except ImportError:
+    st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
+    pyperclip = None
 import traceback
 
 # ตั้งค่าการบันทึกข้อผิดพลาด
@@ -914,7 +919,8 @@ def show_ice_sale_page():
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
 
-  if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+  # แก้ไขส่วนบันทึกการขายน้ำแข็ง
+if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
     validation_passed = True
     error_messages = []
     
@@ -947,7 +953,15 @@ def show_ice_sale_page():
     else:
         try:
             with st.spinner("กำลังบันทึกการขาย..."):
-            
+                gc = connect_google_sheets()
+                if not gc:
+                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+                    return
+                
+                sheet = gc.open_by_key(SHEET_ID)
+                iceflow_sheet = sheet.worksheet("iceflow")
+                summary_ws = sheet.worksheet("ยอดขาย")
+                
                 # บันทึกข้อมูลน้ำแข็ง
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
@@ -977,35 +991,84 @@ def show_ice_sale_page():
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
             logger.error(f"Error saving ice sale: {e}")
                 
-# หน้าหลัก
 def main():
-    set_custom_css()
-    initialize_session_state()
-    
-    st.markdown("### 🚀 เมนูหลัก")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🏪 ขายสินค้า"):
-            st.session_state.page = "ขายสินค้า"
-            st.rerun()
-    with col2:
-        if st.button("🧊 ขายน้ำแข็ง"):
-            st.session_state.page = "ขายน้ำแข็ง"
-            st.rerun()
-    with col3:
-        if st.button("📊 Dashboard"):
-            st.session_state.page = "Dashboard"
-            st.rerun()
+    try:
+        # 1. ตั้งค่าพื้นฐาน
+        set_custom_css()
+        initialize_session_state()
+        
+        # 2. แสดงสถานะการเชื่อมต่อ (เพิ่มส่วนนี้เพื่อให้ผู้ใช้เห็นสถานะการเชื่อมต่อ)
+        conn_status = st.empty()
+        try:
+            gc = connect_google_sheets()
+            if gc:
+                conn_status.success("✅ เชื่อมต่อกับ Google Sheets แล้ว")
+            else:
+                conn_status.error("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
+        except Exception as e:
+            conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
+            logger.error(f"Connection error in main: {e}")
 
-    if st.session_state.page == "Dashboard":
-        show_dashboard()
-    elif st.session_state.page == "ขายสินค้า":
-        show_product_sale_page()
-    elif st.session_state.page == "ขายน้ำแข็ง":
-        show_ice_sale_page()
+        # 3. แสดงเมนูหลัก
+        st.markdown("### 🚀 เมนูหลัก")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🏪 ขายสินค้า"):
+                st.session_state.page = "ขายสินค้า"
+                st.rerun()
+        with col2:
+            if st.button("🧊 ขายน้ำแข็ง"):
+                st.session_state.page = "ขายน้ำแข็ง"
+                st.rerun()
+        with col3:
+            if st.button("📊 Dashboard"):
+                st.session_state.page = "Dashboard"
+                st.rerun()
+
+        # 4. แสดงหน้าเว็บตามสถานะปัจจุบัน
+        if st.session_state.page == "Dashboard":
+            show_dashboard()
+        elif st.session_state.page == "ขายสินค้า":
+            show_product_sale_page()
+        elif st.session_state.page == "ขายน้ำแข็ง":
+            show_ice_sale_page()
+
+    except Exception as e:
+        # 5. จัดการกับข้อผิดพลาดหลัก
+        logger.error(f"Critical error in main: {e}", exc_info=True)
+        st.error("⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ")
+        st.error(f"รายละเอียด: {str(e)}")
+        
+        # ปุ่มแก้ไขปัญหา
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
+                st.cache_data.clear()
+                st.rerun()
+        with col2:
+            if st.button("📋 คัดลอกข้อผิดพลาด", key="copy_error"):
+                try:
+                    import pyperclip
+                    pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
+                    st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+                except:
+                    st.warning("ไม่สามารถคัดลอกข้อผิดพลาดได้ (โมดูล pyperclip ไม่ติดตั้ง)")
+
+        # คำแนะนำแก้ไขปัญหา
+        st.markdown("""
+        <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
+            <h4>❓ วิธีแก้ไขปัญหาเบื้องต้น</h4>
+            <ol>
+                <li>ลองรีเฟรชหน้าเว็บ</li>
+                <li>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต</li>
+                <li>ติดต่อผู้ดูแลระบบ พร้อมส่งรายละเอียดข้อผิดพลาด</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    try:
+    main()
+    
         set_custom_css()
         initialize_session_state()
         main()
