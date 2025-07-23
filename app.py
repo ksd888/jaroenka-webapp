@@ -434,29 +434,29 @@ def show_dashboard():
             avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
             st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
 
-# แสดงกราฟยอดขายรายวัน
-st.subheader("📈 ยอดขายรายวัน")
-if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
-    try:
-        sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-        sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
-        
-        if not sales_df.empty:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+        # แสดงกราฟยอดขายรายวัน
+        st.subheader("📈 ยอดขายรายวัน")
+        if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+            try:
+                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
+                sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
+                
+                if not sales_df.empty:
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+                    
+                    if not daily_sales.empty:
+                        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+                        ax.set_title('ยอดขายรายวัน')
+                        ax.set_xlabel('วันที่')
+                        ax.set_ylabel('ยอดขาย (บาท)')
+                        ax.grid(True)
+                        st.pyplot(fig)
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+        else:
+            st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
             
-            if not daily_sales.empty:
-                ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-                ax.set_title('ยอดขายรายวัน')
-                ax.set_xlabel('วันที่')
-                ax.set_ylabel('ยอดขาย (บาท)')
-                ax.grid(True)
-                st.pyplot(fig)
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
-else:
-    st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
-        
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
         try:
@@ -467,45 +467,79 @@ else:
             st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
             logger.error(f"Error showing top products: {e}")
 
-def show_product_sale_page():
-    st.title("🧃 ขายสินค้าตู้เย็น")
+def show_dashboard():
+    st.title("📊 Dashboard สถิติการขาย")
     
-    df = load_product_data()
-    if df.empty:
-        st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
-        return
+    # แสดงสถานะการเชื่อมต่อ
+    conn_status = st.empty()
+    try:
+        gc = connect_google_sheets()
+        if gc:
+            conn_status.success("✅ เชื่อมต่อกับ Google Sheets แล้ว")
+        else:
+            conn_status.error("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
+    except Exception as e:
+        conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
+        logger.error(f"Connection error: {e}")
     
-# แจ้งเตือนสินค้าใกล้หมด
-if "คงเหลือในตู้" in df.columns:
-    # กรองสินค้าที่มีสต็อกน้อยกว่า 5 แต่ไม่ใช่ 0 และลบค่าว่าง
-    low_stock_df = df[
-        (df["คงเหลือในตู้"] < 5) & 
-        (df["คงเหลือในตู้"] > 0) & 
-        (df["ชื่อสินค้า"].notna())
-    ]
-    
-    # แปลงเป็นลิสต์และลบช่องว่าง
-    low_stock_products = low_stock_df["ชื่อสินค้า"].str.strip().tolist()
+    sales_df = load_sales_data()
+    df_ice = load_ice_data()
 
-    # แสดงเฉพาะเมื่อมีสินค้าใกล้หมดจริงๆ
-    if low_stock_products:
-        # สร้างข้อความแจ้งเตือนแบบจัดรูปแบบ
-        warning_message = "⚠️ สินค้าใกล้หมด:\n"
-        for product in low_stock_products:
-            stock = low_stock_df[low_stock_df["ชื่อสินค้า"] == product]["คงเหลือในตู้"].values[0]
-            warning_message += f"- {product} (เหลือ {int(stock)} ชิ้น)\n"
-        
-        st.warning(warning_message)
+    # ปุ่มรีเฟรชข้อมูล
+    if st.button("🔄 โหลดข้อมูลใหม่", key="refresh_data"):
+        st.cache_data.clear()
+        st.rerun()
 
-# ระบบค้นหาสินค้า
-st.subheader("🔍 ค้นหาสินค้า")
-search_term = st.text_input("พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term")
+    # ตรวจสอบข้อมูลก่อนแสดงผล
+    if sales_df.empty:
+        st.warning("ไม่มีข้อมูลยอดขาย")
+    else:
+        # แสดงเมตริกหลัก
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            total_sales = sales_df['ยอดขาย'].sum()
+            st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
 
-# กำหนด product_names ก่อนใช้งาน
-product_names = df["ชื่อสินค้า"].dropna().unique().tolist()
+        with col2:
+            total_profit = sales_df['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+            st.metric("🟢 กำไรรวม", f"{total_profit:,.2f} บาท")
 
-# กรองสินค้าตามคำค้นหา
-filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
+        with col3:
+            avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
+            st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
+
+        # แสดงกราฟยอดขายรายวัน
+        st.subheader("📈 ยอดขายรายวัน")
+        if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+            try:
+                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
+                sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
+                
+                if not sales_df.empty:
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+                    
+                    if not daily_sales.empty:
+                        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+                        ax.set_title('ยอดขายรายวัน')
+                        ax.set_xlabel('วันที่')
+                        ax.set_ylabel('ยอดขาย (บาท)')
+                        ax.grid(True)
+                        st.pyplot(fig)
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+        else:
+            st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
+            
+        # สินค้าขายดี
+        st.subheader("🏆 สินค้าขายดี")
+        try:
+            if 'รายการ' in sales_df.columns:
+                top_products = sales_df['รายการ'].value_counts().head(10)
+                st.bar_chart(top_products)
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
+            logger.error(f"Error showing top products: {e}")
 
 # เลือกสินค้า (เพิ่มบรรทัดนี้)
 selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
