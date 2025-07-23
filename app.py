@@ -19,99 +19,158 @@ SHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
 TIMEZONE = "Asia/Bangkok"
 
 # ตั้งค่าพื้นฐาน CSS
-st.markdown("""
-<style>
-/* พื้นหลังขาว ตัวหนังสือดำเข้ม */
-body, .main, .block-container {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
+def set_custom_css():
+    """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
+    st.markdown("""
+    <style>
+    /* พื้นหลังและตัวหนังสือหลัก */
+    body, .main, .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
 
-/* ปุ่ม */
-.stButton > button {
-    color: white !important;
-    background-color: #007aff !important;
-    font-weight: bold;
-    border: none;
-    border-radius: 10px;
-    padding: 0.5em 1.2em;
-    font-size: 16px;
-    transition: all 0.3s ease;
-}
-.stButton > button:hover {
-    background-color: #0062cc !important;
-    transform: scale(1.02);
-}
+    /* ปุ่ม */
+    .stButton > button {
+        color: white !important;
+        background-color: #007aff !important;
+        font-weight: bold;
+        border: none;
+        border-radius: 10px;
+        padding: 0.5em 1.2em;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        background-color: #0062cc !important;
+        transform: scale(1.02);
+    }
 
-/* Input */
-input, textarea, .stTextInput > div > div > input, .stNumberInput input {
-    background-color: #f2f2f7 !important;
-    color: #000000 !important;
-    font-weight: bold !important;
-    font-size: 18px;
-    border-radius: 8px !important;
-    padding: 10px !important;
-}
+    /* Input fields */
+    input, textarea, .stTextInput > div > div > input, .stNumberInput input {
+        background-color: #f2f2f7 !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        font-size: 18px;
+        border-radius: 8px !important;
+        padding: 10px !important;
+    }
 
-/* Custom Checkbox UI */
-.stCheckbox > div {
-    display: flex;
-    align-items: center;
-}
-.stCheckbox input[type="checkbox"] {
-    display: none;
-}
-.stCheckbox > div > label {
-    position: relative;
-    padding-left: 28px;
-    cursor: pointer;
-    font-size: 18px;
-    color: #000000 !important;
-    font-weight: bold;
-}
-.stCheckbox > div > label::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 2px;
-    width: 20px;
-    height: 20px;
-    border: 2px solid #000;
-    background-color: white;
-    border-radius: 4px;
-}
-.stCheckbox input[type="checkbox"]:checked + label::before {
-    background-color: #007aff;
-    border-color: #007aff;
-}
-.stCheckbox input[type="checkbox"]:checked + label::after {
-    content: "✓";
-    position: absolute;
-    left: 5px;
-    top: 0px;
-    font-size: 16px;
-    color: white;
-    font-weight: bold;
-}
+    /* Custom Checkbox */
+    .stCheckbox > div {
+        display: flex;
+        align-items: center;
+    }
+    .stCheckbox input[type="checkbox"] {
+        display: none;
+    }
+    .stCheckbox > div > label {
+        position: relative;
+        padding-left: 28px;
+        cursor: pointer;
+        font-size: 18px;
+        color: #000000 !important;
+        font-weight: bold;
+    }
+    .stCheckbox > div > label::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 2px;
+        width: 20px;
+        height: 20px;
+        border: 2px solid #000;
+        background-color: white;
+        border-radius: 4px;
+    }
+    .stCheckbox input[type="checkbox"]:checked + label::before {
+        background-color: #007aff;
+        border-color: #007aff;
+    }
+    .stCheckbox input[type="checkbox"]:checked + label::after {
+        content: "✓";
+        position: absolute;
+        left: 5px;
+        top: 0px;
+        font-size: 16px;
+        color: white;
+        font-weight: bold;
+    }
 
-/* Alert สินค้าใกล้หมด */
-.stMarkdown span[style*="color:red"] {
-    font-size: 20px !important;
-    font-weight: bold !important;
-    padding: 5px;
-    border-radius: 5px;
-}
+    /* Alert messages */
+    .stMarkdown span[style*="color:red"] {
+        font-size: 20px !important;
+        font-weight: bold !important;
+        padding: 5px;
+        border-radius: 5px;
+    }
 
-/* กล่องข้อมูล */
-.css-1kyxreq {
-    background-color: #f9f9f9 !important;
-    border-radius: 10px !important;
-    padding: 15px !important;
-    margin-bottom: 15px !important;
-}
-</style>
-""", unsafe_allow_html=True)
+    /* Data boxes */
+    .css-1kyxreq {
+        background-color: #f9f9f9 !important;
+        border-radius: 10px !important;
+        padding: 15px !important;
+        margin-bottom: 15px !important;
+    }
+
+    /* Ice box styles */
+    .ice-box {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 15px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .ice-header {
+        font-weight: bold;
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: #007aff;
+        text-align: center;
+    }
+    .ice-metric {
+        font-size: 16px;
+        line-height: 1.6;
+    }
+    .stock-high {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .stock-ok {
+        color: #ffc107;
+        font-weight: bold;
+    }
+    .stock-low {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    /* Metric cards */
+    .stMetric {
+        background-color: #f8f9fa !important;
+        border-radius: 10px !important;
+        padding: 15px !important;
+        border: 1px solid #e0e0e0 !important;
+    }
+
+    /* Progress bar */
+    .stProgress > div > div > div {
+        background-color: #007aff !important;
+    }
+
+    /* Select boxes */
+    .stSelectbox > div > div > select {
+        font-size: 16px !important;
+        padding: 8px 12px !important;
+    }
+
+    /* Tooltips */
+    .stTooltip {
+        font-size: 14px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ฟังก์ชันช่วยเหลือ
 def safe_int(val):
@@ -171,7 +230,10 @@ def initialize_session_state():
         st.session_state.last_update = time.time()
     if 'force_rerun' not in st.session_state:
         st.session_state.force_rerun = False
-
+    if 'ice_data' not in st.session_state:  
+        st.session_state.ice_data = {}
+    if 'ice_sales' not in st.session_state:  
+        st.session_state.ice_sales = {}
 def clear_cart():
     """ล้างตะกร้าสินค้าทั้งหมด"""
     st.session_state.cart = []
@@ -322,6 +384,22 @@ def show_dashboard():
     
     sales_df = load_sales_data()
     df_ice = load_ice_data()
+
+     # ปุ่มรีเฟรชข้อมูล
+    if st.button("🔄 โหลดข้อมูลใหม่", key="refresh_data"):
+        st.cache_data.clear()
+        st.rerun()
+
+    # ตรวจสอบข้อมูลก่อนแสดงผล
+    if sales_df.empty:
+        st.warning("ไม่มีข้อมูลยอดขาย")
+        return
+
+    # ตรวจสอบคอลัมน์ที่จำเป็น
+    required_sales_columns = ['วันที่', 'ยอดขาย']
+    if not all(col in sales_df.columns for col in required_sales_columns):
+        st.error("รูปแบบข้อมูลยอดขายไม่ถูกต้อง")
+        return
     
     if not sales_df.empty:
         col1, col2, col3 = st.columns(3)
@@ -412,7 +490,7 @@ def show_product_sale_page():
         # แสดงข้อมูลสินค้า
         st.markdown(f"### {selected_product}")
         st.markdown(f"**ราคา:** {price:,.2f} บาท")
-        
+
         # ปุ่มปรับจำนวน
         col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
         with col1: 
@@ -427,7 +505,29 @@ def show_product_sale_page():
         with col4:
             stock_status = "🟢 พอ" if stock >= 5 else "🟡 ใกล้หมด" if stock > 0 else "🔴 หมด"
             st.markdown(f"**สต็อก:** {stock} ชิ้น ({stock_status})")
-        
+               # ในฟังก์ชัน show_product_sale_page()
+            stock_status = (
+                    "🟢 พอ" if stock >= 10 
+                    else "🟡 ใกล้หมด" if stock >= 5 
+                    else "🔴 หมด" if stock == 0 
+                    else "⚠️ น้อยมาก"
+                )
+            stock_color = (
+                "#28a745" if stock >= 10  # สีเขียว
+                else "#ffc107" if stock >= 5  # สีเหลือง
+                else "#dc3545" if stock == 0  # สีแดง
+                else "#fd7e14"  # สีส้ม
+            )
+            
+            st.markdown(
+                f"<div style='display: flex; align-items: center;'>"
+                f"<div style='margin-right: 10px;'>"
+                f"<strong>สต็อก:</strong> {stock} ชิ้น"
+                f"</div>"
+                f"<div style='color: {stock_color}; font-weight: bold;'>{stock_status}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+                
         # ปุ่มเพิ่มลงตะกร้า
         if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
             if qty > 0:
@@ -595,6 +695,22 @@ def show_ice_sale_page():
     
     df_ice = load_ice_data()
     today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+
+    if df_ice.empty:
+        st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
+        return
+
+    # ตรวจสอบคอลัมน์ที่จำเป็น
+    required_columns = ["ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก"]
+    if not all(col in df_ice.columns for col in required_columns):
+        st.error("รูปแบบข้อมูลน้ำแข็งไม่ถูกต้อง")
+        return
+
+    # เพิ่มคอลัมน์กำไรหากไม่มี
+    if 'กำไรสุทธิ' not in df_ice.columns:
+        df_ice['กำไรสุทธิ'] = 0.0
+    if 'กำไรรวม' not in df_ice.columns:
+        df_ice['กำไรรวม'] = 0.0
     
     if df_ice.empty:
         st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
@@ -795,7 +911,7 @@ def show_ice_sale_page():
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
 
-    if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+   if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         # เพิ่มการตรวจสอบข้อมูลก่อนบันทึก
         validation_passed = True
         error_messages = []
@@ -810,17 +926,14 @@ def show_ice_sale_page():
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
                 remaining = received - sold - melted
                 
-                # ตรวจสอบว่ายอดไม่เป็นลบ
                 if remaining < 0:
                     validation_passed = False
                     error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
                 
-                # ตรวจสอบว่ายอดขายไม่เกินยอดรับเข้า
                 if sold > received:
                     validation_passed = False
                     error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
                 
-                # ตรวจสอบว่ายอดละลายไม่เกินยอดรับเข้า
                 if melted > received:
                     validation_passed = False
                     error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
@@ -905,7 +1018,28 @@ if __name__ == "__main__":
         set_custom_css()
         initialize_session_state()
         main()
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดร้ายแรงในระบบ: {str(e)}")
-        logger.critical(f"Critical error in main: {e}", exc_info=True)
-        st.button("รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด")
+        except Exception as e:
+        logger.error(f"Critical error in main: {e}", exc_info=True)
+        st.error("⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ")
+        st.error(f"รายละเอียด: {str(e)}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
+                st.cache_data.clear()
+                st.rerun()
+        with col2:
+            if st.button("📋 คัดลอกข้อผิดพลาด", key="copy_error"):
+                pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
+                st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+        
+        st.markdown("""
+        <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
+            <h4>❓ วิธีแก้ไขปัญหาเบื้องต้น</h4>
+            <ol>
+                <li>ลองรีเฟรชหน้าเว็บ</li>
+                <li>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต</li>
+                <li>ติดต่อผู้ดูแลระบบ พร้อมส่งรายละเอียดข้อผิดพลาด</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
