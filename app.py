@@ -870,21 +870,20 @@ def show_ice_sale_page():
                     stock_decrease = full_bag_sold
                     
                     # ขายแบบแบ่ง
-                    # แก้ไขส่วนคำนวณน้ำแข็งก้อน
-    if divided_amount > 0:
-        if ice_type == "ก้อน":
-            pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
-            divided_income = divided_amount
-            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
-            stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
-        else:
-            divided_income = divided_amount
-            partial_bags = divided_amount / price_per_bag
-            divided_profit = divided_amount - (partial_bags * cost_per_bag)
-            stock_decrease += partial_bags
-                        
-                        income += divided_income
-                        profit += divided_profit
+if divided_amount > 0:
+    if ice_type == "ก้อน":
+        pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
+        divided_income = divided_amount
+        divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
+        stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
+    else:
+        divided_income = divided_amount
+        partial_bags = divided_amount / price_per_bag
+        divided_profit = divided_amount - (partial_bags * cost_per_bag)
+        stock_decrease += partial_bags
+    
+    income += divided_income
+    profit += divided_profit
                     
                     # อัปเดตข้อมูลใน DataFrame
                     df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
