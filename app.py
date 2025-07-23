@@ -818,7 +818,7 @@ def show_ice_sale_page():
             st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
             logger.error(f"Error saving ice restock: {e}")
 
-    # ส่วนขายออกน้ำแข็ง
+       # ส่วนขายออกน้ำแข็ง
     st.markdown("### 💸 โซนขายออกน้ำแข็ง")
     total_income = 0
     total_profit = 0
@@ -834,7 +834,7 @@ def show_ice_sale_page():
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             current_sold = safe_int(df_ice.at[idx, "ขายออก"])
 
-                        with cols[i]:
+            with cols[i]:
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
