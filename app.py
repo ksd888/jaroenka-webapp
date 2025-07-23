@@ -258,28 +258,45 @@ def clear_cart():
     st.session_state.last_paid_click = 0
     st.session_state.prev_paid_input = 0.0
 
-def reset_ice_session_state():
-    """รีเซ็ตค่าที่เกี่ยวข้องกับน้ำแข็งใน Session State"""
+def ():
+    """รีเซ็ตค่าที่เกี่ยวข้องกับน้ำแข็งใน Session State แบบสมบูรณ์"""
     try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        ice_keys = [f"{prefix}{ice_type}" 
-                  for prefix in ["in_", "sell_out_", "melted_"] 
-                  for ice_type in ICE_TYPES]
+        # 1. ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็งทุกประเภท
+        ice_keys_to_delete = []
         
-        for key in ice_keys:
+        # สร้างรายการคีย์ทั้งหมดที่ต้องลบ
+        for ice_type in ICE_TYPES:
+            for prefix in ["in_", "sell_out_", "melted_", "increase_", "divided_"]:
+                ice_keys_to_delete.append(f"{prefix}{ice_type}")
+        
+        # 2. ลบค่าออกจาก session state
+        for key in ice_keys_to_delete:
             if key in st.session_state:
                 del st.session_state[key]
+                logger.debug(f"Deleted session key: {key}")
         
-        # ตั้งค่าสถานะให้รีเฟรชหน้า
+        # 3. รีเซ็ตข้อมูลน้ำแข็งใน session state
+        if 'ice_data' in st.session_state:
+            del st.session_state['ice_data']
+        if 'ice_sales' in st.session_state:
+            del st.session_state['ice_sales']
+        
+        # 4. ตั้งค่าสถานะให้รีเฟรชหน้า
         st.session_state.force_rerun = True
-        logger.info("Ice session state reset successfully")
+        logger.info("✅ รีเซ็ตข้อมูลน้ำแข็งใน Session State เรียบร้อยแล้ว")
         
-        # รีเฟรชหน้าทันที
+        # 5. แสดงการแจ้งเตือนผู้ใช้
+        st.toast("รีเซ็ตข้อมูลน้ำแข็งเรียบร้อยแล้ว", icon="🔄")
+        
+        # 6. รีเฟรชหน้าทันที (รอสักครู่เพื่อให้ผู้ใช้เห็นข้อความ)
+        time.sleep(0.5)
         st.rerun()
         
     except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
+        error_msg = f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        st.error(error_msg)
+        st.session_state.force_rerun = False  # ยกเลิกการรีเฟรชหากมีข้อผิดพลาด
     
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
@@ -530,18 +547,12 @@ def show_product_sale_page():
     row = df[df["ชื่อสินค้า"] == selected_product]
     
     if not row.empty:
-        # ... (โค้ดส่วนที่เหลือ)
+        stock = safe_int(row["คงเหลือในตู้"].values[0])
+        price = safe_float(row["ราคาขาย"].values[0])
         
-        qty = st.session_state.quantities[selected_product]
-        row = df[df["ชื่อสินค้า"] == selected_product]
-        
-        if not row.empty:
-            stock = safe_int(row["คงเหลือในตู้"].values[0])
-            price = safe_float(row["ราคาขาย"].values[0])
-            
-            # แสดงข้อมูลสินค้า
-            st.markdown(f"### {selected_product}")
-            st.markdown(f"**ราคา:** {price:,.2f} บาท")
+        # แสดงข้อมูลสินค้า
+        st.markdown(f"### {selected_product}")
+        st.markdown(f"**ราคา:** {price:,.2f} บาท")
 
             # ปุ่มปรับจำนวน
             col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
@@ -741,23 +752,6 @@ def show_product_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
                 logger.error(f"Error confirming sale: {e}")
 
-def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            # ลบค่าป้อนเข้า
-            if f"in_{ice_type}" in st.session_state:
-                del st.session_state[f"in_{ice_type}"]
-            
-            # ลบค่าขายออก
-            if f"sell_out_{ice_type}" in st.session_state:
-                del st.session_state[f"sell_out_{ice_type}"]
-            
-            # ลบค่าน้ำแข็งที่ละลาย
-            if f"melted_{ice_type}" in st.session_state:
-                del st.session_state[f"melted_{ice_type}"]
-        
         # ตั้งค่าสถานะให้รีเฟรชหน้า
         st.session_state.force_rerun = True
         
@@ -848,40 +842,52 @@ def show_ice_sale_page():
     st.markdown("### 📥 โซนเติมสต็อกน้ำแข็ง")
     cols = st.columns(4)
     
-    for i, ice_type in enumerate(ICE_TYPES):
-        # หาข้อมูลน้ำแข็งโดยใช้การเปรียบเทียบ string อย่างระมัดระวัง
-        mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
-        if not mask.any():
-            st.warning(f"ไม่พบข้อมูลน้ำแข็งชนิด {ice_type}")
-            continue
-            
-        row = df_ice[mask].iloc[0]
-            idx = row.index[0]
-            received = safe_int(df_ice.at[idx, "รับเข้า"])
-            sold = safe_int(df_ice.at[idx, "ขายออก"])
-            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            remaining = max(0, received - sold - melted)  # ป้องกันค่าติดลบ
-            
-            with cols[i]:
-                st.markdown(f"""
-                <div class="ice-box">
-                    <div class="ice-header">น้ำแข็ง{ice_type}</div>
-                    <div class="ice-metric">
-                        <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
-                        <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
-                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
-                        </div>
-                    </div>
+    # ในฟังก์ชัน show_ice_sale_page() ประมาณบรรทัดเดียวกัน
+for i, ice_type in enumerate(ICE_TYPES):
+    # วิธีใหม่: ใช้การเปรียบเทียบ string อย่างระมัดระวัง + ตรวจสอบข้อมูล
+    mask = (
+        df_ice["ชนิดน้ำแข็ง"]
+        .str.strip()  # ลบช่องว่าง
+        .str.lower()  # แปลงเป็นตัวเล็ก
+        .fillna("")   # เติมค่าสำหรับ NaN
+        .str.contains(ice_type.lower(), regex=False)  # เปรียบเทียบแบบตรงๆ
+    )
+    
+    if not mask.any():  # ตรวจสอบว่ามีข้อมูลหรือไม่
+        st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
+        continue  # ข้ามไปหากไม่มีข้อมูล
+    
+    # ใช้ iloc แทนการเข้าถึง index โดยตรง
+    row = df_ice[mask].iloc[0]  # <- วิธีที่ปลอดภัยกว่า
+    
+    # ดึงข้อมูลจาก row โดยตรงแทนการใช้ index
+    received = safe_int(row["รับเข้า"])
+    sold = safe_int(row["ขายออก"])
+    melted = safe_int(row["จำนวนละลาย"])
+    remaining = max(0, received - sold - melted)  # คำนวณยอดคงเหลือ
+    
+    # แสดงผล UI
+    with cols[i]:
+        st.markdown(f"""
+        <div class="ice-box">
+            <div class="ice-header">น้ำแข็ง{ice_type}</div>
+            <div class="ice-metric">
+                <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
+                <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
+                    📦 คงเหลือ: <strong>{remaining}</strong> ถุง
                 </div>
-                """, unsafe_allow_html=True)
-                
-                added_value = st.number_input(
-                    f"เพิ่มเข้า {ice_type}", 
-                    min_value=0, 
-                    step=1, 
-                    key=f"increase_{ice_type}",
-                    help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่รับเข้า"
-                )
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ส่วนเพิ่มเติมข้อมูล
+        added_value = st.number_input(
+            f"เพิ่มเข้า {ice_type}", 
+            min_value=0, 
+            step=1, 
+            key=f"increase_{ice_type}",
+            help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่รับเข้า"
+        )
 
                 if added_value > 0:
                     df_ice.at[idx, "รับเข้า"] = received + added_value
@@ -1016,9 +1022,12 @@ def show_ice_sale_page():
         error_messages = []
         
         for ice_type in ICE_TYPES:
-            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-            if not row.empty:
-                idx = row.index[0]
+    mask = df_ice["ชนิดน้ำแข็ง"].str.strip().str.lower() == ice_type.lower()
+    if not mask.any():
+        st.warning(f"⚠️ ไม่พบข้อมูลน้ำแข็งชนิด '{ice_type}' ในระบบ")
+        continue
+    
+    row = df_ice[mask].iloc[0]
                 received = safe_int(df_ice.at[idx, "รับเข้า"])
                 sold = safe_int(df_ice.at[idx, "ขายออก"])
                 melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
