@@ -436,7 +436,7 @@ def show_dashboard():
 
 # แสดงกราฟยอดขายรายวัน
 st.subheader("📈 ยอดขายรายวัน")
-if 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
     try:
         sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
         sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
@@ -452,15 +452,10 @@ if 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df
                 ax.set_ylabel('ยอดขาย (บาท)')
                 ax.grid(True)
                 st.pyplot(fig)
-            else:
-                st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
-        else:
-            st.warning("ไม่มีข้อมูลยอดขายที่ถูกต้องเพื่อสร้างกราฟ")
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
-        logger.error(f"Error creating sales chart: {e}")
 else:
-    st.warning("ไม่มีข้อมูลวันที่หรือยอดขายเพื่อสร้างกราฟ")
+    st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
         
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
@@ -511,7 +506,10 @@ product_names = df["ชื่อสินค้า"].dropna().unique().tolist()
 
 # กรองสินค้าตามคำค้นหา
 filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
-    
+
+# เลือกสินค้า (เพิ่มบรรทัดนี้)
+selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
+
     if selected_product:
         # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
         if selected_product not in st.session_state.quantities:
@@ -1081,14 +1079,13 @@ def main():
             show_product_sale_page()
         elif st.session_state.page == "ขายน้ำแข็ง":
             show_ice_sale_page()
-      except Exception as page_error:
-      logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
+            
+        except Exception as page_error:  # <-- ตรงนี้คือส่วนที่แก้ไข
+            logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
             st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
-            show_error_details(page_error)
-
-    except Exception as main_error:
-        # บันทึกข้อผิดพลาดหลักพร้อม traceback เต็มรูปแบบ
-        logger.critical("Critical error in main function", exc_info=True)
+            with st.expander("รายละเอียดข้อผิดพลาด"):
+                st.error(str(page_error))
+                st.text(traceback.format_exc())
         
         # แสดงข้อความผิดพลาดแบบอ่านง่ายให้ผู้ใช้
         st.error("""
