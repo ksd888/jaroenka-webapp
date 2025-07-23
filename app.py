@@ -182,20 +182,24 @@ def set_custom_css():
 
 def safe_int(val):
     """แปลงค่าเป็น integer อย่างปลอดภัย"""
-    if pd.isna(val) or val == '':
+    if val is None or pd.isna(val) or val == '':
         return 0
     try:
-        return int(float(val))
-    except:
+        if isinstance(val, str):
+            val = val.replace(',', '')  # ลบ comma สำหรับตัวเลขที่มี comma
+        return int(float(val))  # แปลงเป็น float ก่อนเพื่อจัดการค่าทศนิยม
+    except (ValueError, TypeError):
         return 0
 
 def safe_float(val):
     """แปลงค่าเป็น float อย่างปลอดภัย"""
-    if pd.isna(val) or val == '':
+    if val is None or pd.isna(val) or val == '':
         return 0.0
     try:
+        if isinstance(val, str):
+            val = val.replace(',', '')  # ลบ comma สำหรับตัวเลขที่มี comma
         return float(val)
-    except:
+    except (ValueError, TypeError):
         return 0.0
 
 def safe_key(text):
@@ -1024,50 +1028,45 @@ def main():
             show_ice_sale_page()
 
     except Exception as e:
-    logger.error(f"Critical error in main: {e}", exc_info=True)
-    st.error("⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ")
-    
-    error_msg = f"""
-    ข้อผิดพลาด:
-    {str(e)}
-    
-    Traceback:
-    {traceback.format_exc()}
-    """
-    
-    st.code(error_msg, language='text')
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
-            st.cache_data.clear()
-            st.rerun()
-    with col2:
-        if PYPERCLIP_AVAILABLE and st.button("📋 คัดลอกข้อผิดพลาด"):
-            pyperclip.copy(error_msg)
-            st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+        logger.error(f"Critical error in main: {e}", exc_info=True)  # แก้ไขเยื้องตรงนี้
+        st.error("⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ")
+        
+        error_msg = f"""
+        ข้อผิดพลาด:
+        {str(e)}
+        
+        Traceback:
+        {traceback.format_exc()}
+        """
+        
+        st.code(error_msg, language='text')
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
+                st.cache_data.clear()
+                st.rerun()
+        with col2:
+            if PYPERCLIP_AVAILABLE and st.button("📋 คัดลอกข้อผิดพลาด"):
+                pyperclip.copy(error_msg)
+                st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
 
-        st.markdown("""
-        <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
-            <h4>❓ วิธีแก้ไขปัญหาเบื้องต้น</h4>
-            <ol>
-                <li>ลองรีเฟรชหน้าเว็บ</li>
-                <li>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต</li>
-                <li>ติดต่อผู้ดูแลระบบ พร้อมส่งรายละเอียดข้อผิดพลาด</li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
+            st.markdown("""
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
+                <h4>❓ วิธีแก้ไขปัญหาเบื้องต้น</h4>
+                <ol>
+                    <li>ลองรีเฟรชหน้าเว็บ</li>
+                    <li>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต</li>
+                    <li>ติดต่อผู้ดูแลระบบ พร้อมส่งรายละเอียดข้อผิดพลาด</li>
+                </ol>
+            </div>
+            """, unsafe_allow_html=True)
+            
 if __name__ == "__main__":
     try:
         # ตั้งค่าเริ่มต้น
         set_custom_css()
         initialize_session_state()
-        
-        # เชื่อมต่อ Google Sheets
-        gc = connect_google_sheets()
-        if not gc:
-            st.error("❌ การเชื่อมต่อล้มเหลว: กรุณาตรวจสอบอินเทอร์เน็ตและสิทธิ์การเข้าถึง")
-            st.stop()
         
         # เริ่มการทำงานหลัก
         main()
