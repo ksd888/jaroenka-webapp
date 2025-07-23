@@ -1067,8 +1067,7 @@ def main():
         """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    main()
-    
+    try:
         set_custom_css()
         initialize_session_state()
         main()
@@ -1084,8 +1083,11 @@ if __name__ == "__main__":
                 st.rerun()
         with col2:
             if st.button("📋 คัดลอกข้อผิดพลาด", key="copy_error"):
-                pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
-                st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+                if pyperclip:
+                    pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
+                    st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+                else:
+                    st.warning("ไม่สามารถคัดลอกข้อผิดพลาดได้ (โมดูล pyperclip ไม่ติดตั้ง)")
         
         st.markdown("""
         <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
