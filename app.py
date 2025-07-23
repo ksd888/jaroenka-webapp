@@ -10,13 +10,13 @@ import numpy as np
 import logging
 import traceback 
 
-# เพิ่มการตรวจสอบ dependencies
+# ตรวจสอบและจัดการโมดูลเสริม
 try:
     import pyperclip
+    PYPERCLIP_AVAILABLE = True
 except ImportError:
     st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
-    pyperclip = None
-
+    PYPERCLIP_AVAILABLE = False
 
 # ตั้งค่าการบันทึกข้อผิดพลาด
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 ICE_TYPES = ['โม่', 'หลอดเล็ก', 'หลอดใหญ่', 'ก้อน']
 SHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
 TIMEZONE = "Asia/Bangkok"
+
 # ตั้งค่าพื้นฐา
 def set_custom_css():
     """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
@@ -180,9 +181,10 @@ def set_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-# ฟังก์ชันช่วยเหลือ
 def safe_int(val):
     """แปลงค่าเป็น integer อย่างปลอดภัย"""
+    if pd.isna(val) or val == '':
+        return 0
     try:
         return int(float(val))
     except:
@@ -190,6 +192,8 @@ def safe_int(val):
 
 def safe_float(val):
     """แปลงค่าเป็น float อย่างปลอดภัย"""
+    if pd.isna(val) or val == '':
+        return 0.0
     try:
         return float(val)
     except:
@@ -242,6 +246,7 @@ def initialize_session_state():
         st.session_state.ice_data = {}
     if 'ice_sales' not in st.session_state:  
         st.session_state.ice_sales = {}
+
 def clear_cart():
     """ล้างตะกร้าสินค้าทั้งหมด"""
     st.session_state.cart = []
@@ -256,7 +261,7 @@ def reset_ice_session_state():
         st.session_state.pop(f"in_{ice_type}", None)
         st.session_state.pop(f"sell_out_{ice_type}", None)
     st.session_state.pop("force_rerun", None)
-
+    
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
 def connect_google_sheets():
@@ -303,8 +308,11 @@ def load_product_data():
         df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
         numeric_cols = ["ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
         for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-            
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            else:
+                df[col] = 0
+                
         return df
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูล: {str(e)}")
@@ -326,19 +334,26 @@ def load_ice_data():
         if df_ice.empty:
             return pd.DataFrame()
             
-        # ตรวจสอบคอลัมน์ที่จำเป็น
-        required_cols = ["ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย"]
-        for col in required_cols:
+        # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
+        required_cols = {
+            "ชนิดน้ำแข็ง": "",
+            "ราคาขายต่อหน่วย": 0,
+            "ต้นทุนต่อหน่วย": 0,
+            "รับเข้า": 0,
+            "ขายออก": 0,
+            "จำนวนละลาย": 0,
+            "กำไรสุทธิ": 0,
+            "กำไรรวม": 0,
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+        }
+        
+        for col, default_val in required_cols.items():
             if col not in df_ice.columns:
-                df_ice[col] = 0
-            
-        # เพิ่มคอลัมน์วันที่หากไม่มี
-        if "วันที่" not in df_ice.columns:
-            df_ice["วันที่"] = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
-            
+                df_ice[col] = default_val
+                
         # ทำความสะอาดข้อมูล
         df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
-        numeric_cols = ["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย"]
+        numeric_cols = ["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "กำไรรวม"]
         for col in numeric_cols:
             df_ice[col] = pd.to_numeric(df_ice[col], errors='coerce').fillna(0)
             
@@ -348,37 +363,10 @@ def load_ice_data():
         logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=60)
-def load_sales_data():
-    """โหลดข้อมูลยอดขายจาก Google Sheets"""
-    try:
-        gc = connect_google_sheets()
-        if not gc:
-            return pd.DataFrame()
-            
-        sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("ยอดขาย")
-        sales_df = pd.DataFrame(worksheet.get_all_records())
-        
-        if sales_df.empty:
-            return pd.DataFrame()
-            
-        # ทำความสะอาดข้อมูล
-        sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-        sales_df['รายการ'] = sales_df['รายการ'].astype(str)
-        sales_df['ยอดขาย'] = pd.to_numeric(sales_df['ยอดขาย'], errors='coerce').fillna(0)
-        sales_df['กำไร'] = pd.to_numeric(sales_df['กำไร'], errors='coerce').fillna(0)
-        sales_df['ประเภท'] = sales_df['ประเภท'].astype(str)
-            
-        return sales_df
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
-        logger.error(f"Error loading sales data: {e}")
-        return pd.DataFrame()
-
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
-      # เพิ่มการแสดงสถานะการเชื่อมต่อ
+    
+    # แสดงสถานะการเชื่อมต่อ
     conn_status = st.empty()
     try:
         gc = connect_google_sheets()
@@ -393,7 +381,7 @@ def show_dashboard():
     sales_df = load_sales_data()
     df_ice = load_ice_data()
 
-     # ปุ่มรีเฟรชข้อมูล
+    # ปุ่มรีเฟรชข้อมูล
     if st.button("🔄 โหลดข้อมูลใหม่", key="refresh_data"):
         st.cache_data.clear()
         st.rerun()
@@ -401,50 +389,43 @@ def show_dashboard():
     # ตรวจสอบข้อมูลก่อนแสดงผล
     if sales_df.empty:
         st.warning("ไม่มีข้อมูลยอดขาย")
-        return
-
-    # ตรวจสอบคอลัมน์ที่จำเป็น
-    required_sales_columns = ['วันที่', 'ยอดขาย']
-    if not all(col in sales_df.columns for col in required_sales_columns):
-        st.error("รูปแบบข้อมูลยอดขายไม่ถูกต้อง")
-        return
-    
-    if not sales_df.empty:
+    else:
+        # แสดงเมตริกหลัก
         col1, col2, col3 = st.columns(3)
         with col1:
             total_sales = sales_df['ยอดขาย'].sum()
             st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
 
         with col2:
-            total_profit = sales_df['กำไร'].sum()
+            total_profit = sales_df['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
             st.metric("🟢 กำไรรวม", f"{total_profit:,.2f} บาท")
 
         with col3:
             avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
             st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
 
-        st.markdown("### 📊 สรุปยอดขาย")
-        for ice_type in ICE_TYPES:
-            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-            if not row.empty:
-                idx = row.index[0]
-                profit = safe_float(row.at[idx, 'กำไรสุทธิ']) if 'กำไรสุทธิ' in row else 0.0
-                st.write(f"- น้ำแข็ง{ice_type}: ขาย {safe_int(row.at[idx, 'ขายออก'])} ถุง, กำไร {profit:.2f} บาท")
-
-        # กราฟยอดขายรายวัน
+        # แสดงกราฟยอดขายรายวัน
         st.subheader("📈 ยอดขายรายวัน")
-        try:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
-            ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-            ax.set_title('ยอดขายรายวัน')
-            ax.set_xlabel('วันที่')
-            ax.set_ylabel('ยอดขาย (บาท)')
-            ax.grid(True)
-            st.pyplot(fig)
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
-            logger.error(f"Error creating sales chart: {e}")
+        if 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+            try:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'])
+                daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+                
+                if not daily_sales.empty:
+                    ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+                    ax.set_title('ยอดขายรายวัน')
+                    ax.set_xlabel('วันที่')
+                    ax.set_ylabel('ยอดขาย (บาท)')
+                    ax.grid(True)
+                    st.pyplot(fig)
+                else:
+                    st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+                logger.error(f"Error creating sales chart: {e}")
+        else:
+            st.warning("ไม่มีข้อมูลวันที่หรือยอดขายเพื่อสร้างกราฟ")
         
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
@@ -467,23 +448,22 @@ def show_product_sale_page():
         return
     
     # แจ้งเตือนสินค้าใกล้หมด
-    low_stock_products = df[df["คงเหลือในตู้"] < 5]["ชื่อสินค้า"].tolist()
-    if low_stock_products:
-        st.warning(f"⚠️ สินค้าใกล้หมด: {', '.join(low_stock_products)}")
+    if "คงเหลือในตู้" in df.columns:
+        low_stock_products = df[df["คงเหลือในตู้"] < 5]["ชื่อสินค้า"].tolist()
+        if low_stock_products:
+            st.warning(f"⚠️ สินค้าใกล้หมด: {', '.join(low_stock_products)}")
     
     product_names = df["ชื่อสินค้า"].tolist()
     
     # ระบบค้นหาสินค้า
     st.subheader("🔍 ค้นหาสินค้า")
-    search_term = st.text_input("พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term", 
-                              help="ค้นหาด้วยชื่อสินค้า หรือส่วนหนึ่งของชื่อ")
+    search_term = st.text_input("พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term")
     
     # กรองสินค้าตามคำค้นหา
     filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
     
     # เลือกสินค้า
-    selected_product = st.selectbox("เลือกสินค้า", [""] + filtered_products, 
-                                  key="product_select", index=0)
+    selected_product = st.selectbox("เลือกสินค้า", [""] + filtered_products, key="product_select", index=0)
     
     if selected_product:
         # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
@@ -492,50 +472,50 @@ def show_product_sale_page():
         
         qty = st.session_state.quantities[selected_product]
         row = df[df["ชื่อสินค้า"] == selected_product]
-        stock = int(row["คงเหลือในตู้"].values[0]) if not row.empty else 0
-        price = float(row["ราคาขาย"].values[0]) if not row.empty else 0
         
-        # แสดงข้อมูลสินค้า
-        st.markdown(f"### {selected_product}")
-        st.markdown(f"**ราคา:** {price:,.2f} บาท")
+        if not row.empty:
+            stock = safe_int(row["คงเหลือในตู้"].values[0])
+            price = safe_float(row["ราคาขาย"].values[0])
+            
+            # แสดงข้อมูลสินค้า
+            st.markdown(f"### {selected_product}")
+            st.markdown(f"**ราคา:** {price:,.2f} บาท")
 
-        # ปุ่มปรับจำนวน
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-        with col1: 
-            st.button("➖", key=f"dec_{safe_key(selected_product)}", 
-                    on_click=decrease_quantity, args=(selected_product,))
-        with col2: 
-            st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
-                       unsafe_allow_html=True)
-        with col3: 
-            st.button("➕", key=f"inc_{safe_key(selected_product)}", 
-                    on_click=increase_quantity, args=(selected_product,))
-        with col4:
-            stock_status = "🟢 พอ" if stock >= 5 else "🟡 ใกล้หมด" if stock > 0 else "🔴 หมด"
-            st.markdown(f"**สต็อก:** {stock} ชิ้น ({stock_status})")
-               # ในฟังก์ชัน show_product_sale_page()
-            stock_status = (
-            "🟢 พอ" if stock >= 10 
-            else "🟡 ใกล้หมด" if stock >= 5 
-            else "🔴 หมด" if stock == 0 
-            else "⚠️ น้อยมาก"
-        )
-        stock_color = (
-            "#28a745" if stock >= 10  # สีเขียว
-            else "#ffc107" if stock >= 5  # สีเหลือง
-            else "#dc3545" if stock == 0  # สีแดง
-            else "#fd7e14"  # สีส้ม
-        )
-
-        st.markdown(
-            f"<div style='display: flex; align-items: center;'>"
-            f"<div style='margin-right: 10px;'>"
-            f"<strong>สต็อก:</strong> {stock} ชิ้น"
-            f"</div>"
-            f"<div style='color: {stock_color}; font-weight: bold;'>{stock_status}</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
+            # ปุ่มปรับจำนวน
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+            with col1: 
+                st.button("➖", key=f"dec_{safe_key(selected_product)}", 
+                        on_click=decrease_quantity, args=(selected_product,))
+            with col2: 
+                st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
+                           unsafe_allow_html=True)
+            with col3: 
+                st.button("➕", key=f"inc_{safe_key(selected_product)}", 
+                        on_click=increase_quantity, args=(selected_product,))
+            with col4:
+                # แสดงสถานะสต็อก
+                if stock >= 10:
+                    status = "🟢 พอ"
+                    color = "#28a745"
+                elif stock >= 5:
+                    status = "🟡 ใกล้หมด"
+                    color = "#ffc107"
+                elif stock > 0:
+                    status = "⚠️ น้อยมาก"
+                    color = "#fd7e14"
+                else:
+                    status = "🔴 หมด"
+                    color = "#dc3545"
+                
+                st.markdown(
+                    f"<div style='display: flex; align-items: center;'>"
+                    f"<div style='margin-right: 10px;'>"
+                    f"<strong>สต็อก:</strong> {stock} ชิ้น"
+                    f"</div>"
+                    f"<div style='color: {color}; font-weight: bold;'>{status}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
                 
         # ปุ่มเพิ่มลงตะกร้า
         if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
@@ -709,22 +689,6 @@ def show_ice_sale_page():
         st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
         return
 
-    # ตรวจสอบคอลัมน์ที่จำเป็น
-    required_columns = ["ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก"]
-    if not all(col in df_ice.columns for col in required_columns):
-        st.error("รูปแบบข้อมูลน้ำแข็งไม่ถูกต้อง")
-        return
-
-    # เพิ่มคอลัมน์กำไรหากไม่มี
-    if 'กำไรสุทธิ' not in df_ice.columns:
-        df_ice['กำไรสุทธิ'] = 0.0
-    if 'กำไรรวม' not in df_ice.columns:
-        df_ice['กำไรรวม'] = 0.0
-    
-    if df_ice.empty:
-        st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
-        return
-    
     # ตรวจสอบและรีเซ็ตข้อมูลหากเป็นวันใหม่
     if 'วันที่' in df_ice.columns and df_ice["วันที่"].iloc[0] != today_str:
         try:
@@ -770,7 +734,7 @@ def show_ice_sale_page():
             received = safe_int(df_ice.at[idx, "รับเข้า"])
             sold = safe_int(df_ice.at[idx, "ขายออก"])
             melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
-            remaining = received - sold - melted
+            remaining = max(0, received - sold - melted)  # ป้องกันค่าติดลบ
             
             with cols[i]:
                 st.markdown(f"""
@@ -994,11 +958,11 @@ if st.button("✅ บันทึกการขายน้ำแข็ง", ty
                 
 def main():
     try:
-        # 1. ตั้งค่าพื้นฐาน
+        # ตั้งค่าพื้นฐาน
         set_custom_css()
         initialize_session_state()
         
-        # 2. แสดงสถานะการเชื่อมต่อ (เพิ่มส่วนนี้เพื่อให้ผู้ใช้เห็นสถานะการเชื่อมต่อ)
+        # แสดงสถานะการเชื่อมต่อ
         conn_status = st.empty()
         try:
             gc = connect_google_sheets()
@@ -1010,7 +974,7 @@ def main():
             conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
             logger.error(f"Connection error in main: {e}")
 
-        # 3. แสดงเมนูหลัก
+        # แสดงเมนูหลัก
         st.markdown("### 🚀 เมนูหลัก")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1026,7 +990,7 @@ def main():
                 st.session_state.page = "Dashboard"
                 st.rerun()
 
-        # 4. แสดงหน้าเว็บตามสถานะปัจจุบัน
+        # แสดงหน้าเว็บตามสถานะปัจจุบัน
         if st.session_state.page == "Dashboard":
             show_dashboard()
         elif st.session_state.page == "ขายสินค้า":
@@ -1035,7 +999,7 @@ def main():
             show_ice_sale_page()
 
     except Exception as e:
-        # 5. จัดการกับข้อผิดพลาดหลัก
+        # จัดการกับข้อผิดพลาดหลัก
         logger.error(f"Critical error in main: {e}", exc_info=True)
         st.error("⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ")
         st.error(f"รายละเอียด: {str(e)}")
@@ -1048,11 +1012,10 @@ def main():
                 st.rerun()
         with col2:
             if st.button("📋 คัดลอกข้อผิดพลาด", key="copy_error"):
-                try:
-                    import pyperclip
+                if PYPERCLIP_AVAILABLE:
                     pyperclip.copy(f"Error: {str(e)}\n\nTraceback:\n{traceback.format_exc()}")
                     st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
-                except:
+                else:
                     st.warning("ไม่สามารถคัดลอกข้อผิดพลาดได้ (โมดูล pyperclip ไม่ติดตั้ง)")
 
         # คำแนะนำแก้ไขปัญหา
