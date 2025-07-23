@@ -434,29 +434,27 @@ def show_dashboard():
             avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
             st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
 
-# แสดงกราฟยอดขายรายวัน
-st.subheader("📈 ยอดขายรายวัน")
-if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
-    try:
-        sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-        sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
-        
-        if not sales_df.empty:
-            fig, ax = plt.subplots(figsize=(10, 6))
-            daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
-            
-            if not daily_sales.empty:
-                ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-                ax.set_title('ยอดขายรายวัน')
-                ax.set_xlabel('วันที่')
-                ax.set_ylabel('ยอดขาย (บาท)')
-                ax.grid(True)
-                st.pyplot(fig)
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
-else:
-    st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
-        
+        # แสดงกราฟยอดขายรายวัน
+        st.subheader("📈 ยอดขายรายวัน")
+        if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
+            try:
+                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
+                sales_df = sales_df.dropna(subset=['วันที่'])
+                
+                if not sales_df.empty:
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
+                    
+                    if not daily_sales.empty:
+                        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
+                        ax.set_title('ยอดขายรายวัน')
+                        ax.set_xlabel('วันที่')
+                        ax.set_ylabel('ยอดขาย (บาท)')
+                        ax.grid(True)
+                        st.pyplot(fig)
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+
         # สินค้าขายดี
         st.subheader("🏆 สินค้าขายดี")
         try:
@@ -475,40 +473,31 @@ def show_product_sale_page():
         st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
         return
     
-# แจ้งเตือนสินค้าใกล้หมด
-if "คงเหลือในตู้" in df.columns:
-    # กรองสินค้าที่มีสต็อกน้อยกว่า 5 แต่ไม่ใช่ 0 และลบค่าว่าง
-    low_stock_df = df[
-        (df["คงเหลือในตู้"] < 5) & 
-        (df["คงเหลือในตู้"] > 0) & 
-        (df["ชื่อสินค้า"].notna())
-    ]
-    
-    # แปลงเป็นลิสต์และลบช่องว่าง
-    low_stock_products = low_stock_df["ชื่อสินค้า"].str.strip().tolist()
+    # แจ้งเตือนสินค้าใกล้หมด
+    if "คงเหลือในตู้" in df.columns:
+        low_stock_df = df[
+            (df["คงเหลือในตู้"] < 5) & 
+            (df["คงเหลือในตู้"] > 0) & 
+            (df["ชื่อสินค้า"].notna())
+        ]
+        low_stock_products = low_stock_df["ชื่อสินค้า"].str.strip().tolist()
 
-    # แสดงเฉพาะเมื่อมีสินค้าใกล้หมดจริงๆ
-    if low_stock_products:
-        # สร้างข้อความแจ้งเตือนแบบจัดรูปแบบ
-        warning_message = "⚠️ สินค้าใกล้หมด:\n"
-        for product in low_stock_products:
-            stock = low_stock_df[low_stock_df["ชื่อสินค้า"] == product]["คงเหลือในตู้"].values[0]
-            warning_message += f"- {product} (เหลือ {int(stock)} ชิ้น)\n"
-        
-        st.warning(warning_message)
+        if low_stock_products:
+            warning_message = "⚠️ สินค้าใกล้หมด:\n"
+            for product in low_stock_products:
+                stock = low_stock_df[low_stock_df["ชื่อสินค้า"] == product]["คงเหลือในตู้"].values[0]
+                warning_message += f"- {product} (เหลือ {int(stock)} ชิ้น)\n"
+            st.warning(warning_message)
 
-# ระบบค้นหาสินค้า
-st.subheader("🔍 ค้นหาสินค้า")
-search_term = st.text_input("พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term")
+    # ระบบค้นหาสินค้า
+    st.subheader("🔍 ค้นหาสินค้า")
+    search_term = st.text_input("พิมพ์ชื่อสินค้าเพื่อค้นหา", key="search_term")
+    product_names = df["ชื่อสินค้า"].dropna().unique().tolist()
+    filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
+    selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
 
-# กำหนด product_names ก่อนใช้งาน
-product_names = df["ชื่อสินค้า"].dropna().unique().tolist()
-
-# กรองสินค้าตามคำค้นหา
-filtered_products = [p for p in product_names if search_term.lower() in p.lower()] if search_term else product_names
-
-# เลือกสินค้า (เพิ่มบรรทัดนี้)
-selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
+    if selected_product:
+        # ... (โค้ดส่วนที่เหลือของฟังก์ชัน)
 
     if selected_product:
         # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
@@ -1028,15 +1017,6 @@ def show_ice_sale_page():
                                     float(df_ice.at[idx, "กำไรสุทธิ"]),
                                     "ice"
                                 ])
-                    
-                    reset_ice_session_state()
-                    st.cache_data.clear()
-                    st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
-                    time.sleep(1)
-                    st.rerun()
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-                logger.error(f"Error saving ice sale: {e}")
                 
 def main():
     try:
@@ -1080,14 +1060,13 @@ def main():
         elif st.session_state.page == "ขายน้ำแข็ง":
             show_ice_sale_page()
             
-        except Exception as page_error:  # <-- ตรงนี้คือส่วนที่แก้ไข
-            logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
-            st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
-            with st.expander("รายละเอียดข้อผิดพลาด"):
-                st.error(str(page_error))
-                st.text(traceback.format_exc())
+    except Exception as e:
+        logger.error(f"Page error in {st.session_state.page}: {str(e)}", exc_info=True)
+        st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
+        with st.expander("รายละเอียดข้อผิดพลาด"):
+            st.error(str(e))
+            st.text(traceback.format_exc())
         
-        # แสดงข้อความผิดพลาดแบบอ่านง่ายให้ผู้ใช้
         st.error("""
         ⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ
         กรุณาทำตามขั้นตอนต่อไปนี้:
@@ -1096,16 +1075,6 @@ def main():
         3. ติดต่อผู้ดูแลระบบ
         """)
         
-        # แสดงรายละเอียดข้อผิดพลาดแบบเต็ม (สำหรับ debugging)
-        with st.expander("รายละเอียดข้อผิดพลาด (สำหรับผู้ดูแลระบบ)"):
-            st.code(f"""
-            ข้อผิดพลาดหลัก:
-            {str(main_error)}
-            
-            Traceback:
-            {traceback.format_exc()}
-            """, language='text')
-        
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
@@ -1113,7 +1082,8 @@ def main():
                 st.rerun()
         with col2:
             if PYPERCLIP_AVAILABLE and st.button("📋 คัดลอกข้อผิดพลาด"):
-                pyperclip.copy(error_msg)
+                error_details = f"ข้อผิดพลาด:\n{e}\n\nTraceback:\n{traceback.format_exc()}"
+                pyperclip.copy(error_details)
                 st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
 
             st.markdown("""
