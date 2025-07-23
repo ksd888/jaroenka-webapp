@@ -109,6 +109,14 @@ def initialize_session_state():
     if 'force_rerun' not in st.session_state:
         st.session_state.force_rerun = False
 
+def clear_cart():
+    """ล้างตะกร้าสินค้าทั้งหมด"""
+    st.session_state.cart = []
+    st.session_state.quantities = {}
+    st.session_state.paid_input = 0.0
+    st.session_state.last_paid_click = 0
+    st.session_state.prev_paid_input = 0.0
+
 def reset_ice_session_state():
     """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
     for ice_type in ICE_TYPES:
@@ -237,6 +245,17 @@ def load_sales_data():
 
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
+      # เพิ่มการแสดงสถานะการเชื่อมต่อ
+    conn_status = st.empty()
+    try:
+        gc = connect_google_sheets()
+        if gc:
+            conn_status.success("✅ เชื่อมต่อกับ Google Sheets แล้ว")
+        else:
+            conn_status.error("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
+    except Exception as e:
+        conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
+        logger.error(f"Connection error: {e}")
     
     sales_df = load_sales_data()
     df_ice = load_ice_data()
@@ -297,6 +316,11 @@ def show_product_sale_page():
     if df.empty:
         st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
         return
+    
+    # แจ้งเตือนสินค้าใกล้หมด
+    low_stock_products = df[df["คงเหลือในตู้"] < 5]["ชื่อสินค้า"].tolist()
+    if low_stock_products:
+        st.warning(f"⚠️ สินค้าใกล้หมด: {', '.join(low_stock_products)}")
     
     product_names = df["ชื่อสินค้า"].tolist()
     
@@ -382,6 +406,14 @@ def show_product_sale_page():
                         st.success("ลบรายการออกจากตะกร้าแล้ว")
                         time.sleep(0.5)
                         st.rerun()
+                        
+# ในส่วนแสดงรายการในตะกร้า หลังจากลูปแสดงสินค้า
+if st.session_state.cart:
+    if st.button("🗑️ ล้างตะกร้าทั้งหมด", type="secondary", key="clear_cart"):
+        clear_cart()
+        st.success("ล้างตะกร้าเรียบร้อยแล้ว")
+        time.sleep(0.5)
+        st.rerun()
 
     # ระบบรับเงิน
     st.subheader("💰 การชำระเงิน")
@@ -692,7 +724,7 @@ def show_ice_sale_page():
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
                 df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - safe_int(df_ice.at[idx, "ขายออก"]) - melted_qty
 
-    # สรุปยอดขาย
+   # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
     with col1:
@@ -701,7 +733,41 @@ def show_ice_sale_page():
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
 
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
-        if total_income > 0:
+        # เพิ่มการตรวจสอบข้อมูลก่อนบันทึก
+        validation_passed = True
+        error_messages = []
+        
+        # ตรวจสอบแต่ละประเภทน้ำแข็ง
+        for ice_type in ICE_TYPES:
+            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+            if not row.empty:
+                idx = row.index[0]
+                received = safe_int(df_ice.at[idx, "รับเข้า"])
+                sold = safe_int(df_ice.at[idx, "ขายออก"])
+                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+                remaining = received - sold - melted
+                
+                # ตรวจสอบว่ายอดไม่เป็นลบ
+                if remaining < 0:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
+                
+                # ตรวจสอบว่ายอดขายไม่เกินยอดรับเข้า
+                if sold > received:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+                
+                # ตรวจสอบว่ายอดละลายไม่เกินยอดรับเข้า
+                if melted > received:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+
+        if not validation_passed:
+            st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
+            for msg in error_messages:
+                st.error(msg)
+            st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
+        else:
             try:
                 with st.spinner("กำลังบันทึกการขาย..."):
                     gc = connect_google_sheets()
@@ -743,7 +809,6 @@ def show_ice_sale_page():
                 logger.error(f"Error saving ice sale: {e}")
         else:
             st.warning("⚠️ ไม่มียอดขายที่จะบันทึก")
-
                 
 # หน้าหลัก
 def main():
@@ -773,4 +838,11 @@ def main():
         show_ice_sale_page()
 
 if __name__ == "__main__":
-    main()
+    try:
+        set_custom_css()
+        initialize_session_state()
+        main()
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดร้ายแรงในระบบ: {str(e)}")
+        logger.critical(f"Critical error in main: {e}", exc_info=True)
+        st.button("รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด")
