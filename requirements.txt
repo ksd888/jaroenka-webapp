@@ -1,15 +1,9 @@
-# Core
 streamlit==1.29.0
 pandas==2.0.3
-
-# Google Sheets
 gspread==5.11.3
 google-auth==2.22.0
-
-# Visualization
-matplotlib==3.7.2
 plotly==5.15.0
-
-# Optional
+matplotlib==3.7.2
+numpy==1.24.0
 pyperclip==1.8.2
 pytz==2023.3
