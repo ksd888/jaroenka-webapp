@@ -19,36 +19,99 @@ SHEET_ID = "1HVA9mDcDmyxfKvxQd4V5ZkWh4niq33PwVGY6gwoKnAE"
 TIMEZONE = "Asia/Bangkok"
 
 # ตั้งค่าพื้นฐาน CSS
-def set_custom_css():
-    st.markdown("""
-    <style>
-    .ice-box {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 20px;
-        background-color: #f9f9f9;
-    }
-    .ice-header {
-        font-weight: bold;
-        font-size: 18px;
-        margin-bottom: 10px;
-        color: #333;
-    }
-    .ice-metric {
-        font-size: 14px;
-    }
-    .stock-high {
-        color: #28a745;
-    }
-    .stock-ok {
-        color: #ffc107;
-    }
-    .stock-low {
-        color: #dc3545;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+/* พื้นหลังขาว ตัวหนังสือดำเข้ม */
+body, .main, .block-container {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ปุ่ม */
+.stButton > button {
+    color: white !important;
+    background-color: #007aff !important;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    padding: 0.5em 1.2em;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+.stButton > button:hover {
+    background-color: #0062cc !important;
+    transform: scale(1.02);
+}
+
+/* Input */
+input, textarea, .stTextInput > div > div > input, .stNumberInput input {
+    background-color: #f2f2f7 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    font-size: 18px;
+    border-radius: 8px !important;
+    padding: 10px !important;
+}
+
+/* Custom Checkbox UI */
+.stCheckbox > div {
+    display: flex;
+    align-items: center;
+}
+.stCheckbox input[type="checkbox"] {
+    display: none;
+}
+.stCheckbox > div > label {
+    position: relative;
+    padding-left: 28px;
+    cursor: pointer;
+    font-size: 18px;
+    color: #000000 !important;
+    font-weight: bold;
+}
+.stCheckbox > div > label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #000;
+    background-color: white;
+    border-radius: 4px;
+}
+.stCheckbox input[type="checkbox"]:checked + label::before {
+    background-color: #007aff;
+    border-color: #007aff;
+}
+.stCheckbox input[type="checkbox"]:checked + label::after {
+    content: "✓";
+    position: absolute;
+    left: 5px;
+    top: 0px;
+    font-size: 16px;
+    color: white;
+    font-weight: bold;
+}
+
+/* Alert สินค้าใกล้หมด */
+.stMarkdown span[style*="color:red"] {
+    font-size: 20px !important;
+    font-weight: bold !important;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+/* กล่องข้อมูล */
+.css-1kyxreq {
+    background-color: #f9f9f9 !important;
+    border-radius: 10px !important;
+    padding: 15px !important;
+    margin-bottom: 15px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ฟังก์ชันช่วยเหลือ
 def safe_int(val):
