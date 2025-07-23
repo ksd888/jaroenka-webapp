@@ -863,37 +863,37 @@ def show_ice_sale_page():
                 )
                 
                 # คำนวณยอดขายและกำไร
-                if full_bag_sold > 0 or divided_amount > 0:
-                    # ขายแบบเต็มถุง
-                    income = full_bag_sold * price_per_bag
-                    profit = full_bag_sold * (price_per_bag - cost_per_bag)
-                    stock_decrease = full_bag_sold
-                    
-                    # ขายแบบแบ่ง
-if divided_amount > 0:
-    if ice_type == "ก้อน":
-        pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
-        divided_income = divided_amount
-        divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
-        stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
-    else:
-        divided_income = divided_amount
-        partial_bags = divided_amount / price_per_bag
-        divided_profit = divided_amount - (partial_bags * cost_per_bag)
-        stock_decrease += partial_bags
+if full_bag_sold > 0 or divided_amount > 0:
+    # ขายแบบเต็มถุง
+    income = full_bag_sold * price_per_bag
+    profit = full_bag_sold * (price_per_bag - cost_per_bag)
+    stock_decrease = full_bag_sold
     
-    income += divided_income
-    profit += divided_profit
-                    
-                    # อัปเดตข้อมูลใน DataFrame
-                    df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
-                    df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_int(df_ice.at[idx, "จำนวนละลาย"])
-                    df_ice.at[idx, "กำไรรวม"] = income
-                    df_ice.at[idx, "กำไรสุทธิ"] = profit
-                    
-                    total_income += income
-                    total_profit += profit
-
+    # ขายแบบแบ่ง
+    if divided_amount > 0:
+        if ice_type == "ก้อน":
+            pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
+            divided_income = divided_amount
+            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
+            stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
+        else:
+            divided_income = divided_amount
+            partial_bags = divided_amount / price_per_bag
+            divided_profit = divided_amount - (partial_bags * cost_per_bag)
+            stock_decrease += partial_bags
+        
+        income += divided_income
+        profit += divided_profit
+    
+    # อัปเดตข้อมูลใน DataFrame
+    df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
+    df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_int(df_ice.at[idx, "จำนวนละลาย"])
+    df_ice.at[idx, "กำไรรวม"] = income
+    df_ice.at[idx, "กำไรสุทธิ"] = profit
+    
+    total_income += income
+    total_profit += profit
+    
     # ส่วนจัดการน้ำแข็งที่ละลาย
     st.markdown("### 🧊 การจัดการน้ำแข็งที่ละลาย")
     melted_cols = st.columns(4)
