@@ -457,8 +457,8 @@ def load_sales_data():
         if df.empty:
             return pd.DataFrame()
             
-        # ทำความสะอาดข้อมูล
-        numeric_cols = ["ยอดขาย", "กำไร"]
+        # 🔁 ใช้ชื่อคอลัมน์จริงจากชีท
+        numeric_cols = ["total_price", "total_profit"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -468,6 +468,7 @@ def load_sales_data():
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
         logger.error(f"Error loading sales data: {e}")
         return pd.DataFrame()
+
 
 @st.cache_data(ttl=60)
 def load_ice_data():
