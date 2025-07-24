@@ -1,26 +1,22 @@
-# Standard library
-import datetime
-import time
-import logging
-import traceback
-from concurrent.futures import ThreadPoolExecutor
-
-# Third-party
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import gspread
+import datetime
 from pytz import timezone
+import gspread
 from google.oauth2.service_account import Credentials
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
+import numpy as np
+import logging
+import traceback 
 
-# Local/Try imports
+# ตรวจสอบและจัดการโมดูลเสริม
 try:
     import pyperclip
     PYPERCLIP_AVAILABLE = True
 except ImportError:
-    PYPERCLIP_AVAILABLE = False
     st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
+    PYPERCLIP_AVAILABLE = False
     
 # ตั้งค่าการบันทึกข้อผิดพลาด
 logging.basicConfig(level=logging.INFO)
@@ -184,21 +180,16 @@ def set_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-def safe_int(val: str | float | None) -> int:
-    """แปลงค่าเป็น integer อย่างปลอดภัย
-    
-    Args:
-        val: ค่าที่จะแปลง อาจเป็นสตริง, ตัวเลข, หรือ None
-        
-    Returns:
-        ค่า integer ที่แปลงแล้ว หรือ 0 หากแปลงไม่ได้
-        
-    Examples:
-        >>> safe_int("10")
-        10
-        >>> safe_int(None)
-        0
-    """
+def set_custom_css():
+    """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
+    st.markdown("""
+    <style>
+    /* CSS styles here... */
+    </style>
+    """, unsafe_allow_html=True)
+
+def safe_int(val):
+    """แปลงค่าเป็น integer อย่างปลอดภัย"""
     if val is None or pd.isna(val) or val == '':
         return 0
     try:
@@ -275,60 +266,11 @@ def clear_cart():
     st.session_state.prev_paid_input = 0.0
 
 def reset_ice_session_state():
-    """รีเซ็ต Session State ที่เกี่ยวข้องกับระบบน้ำแข็ง"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            for prefix in ["in_", "sell_out_", "melted_"]:
-                key = f"{prefix}{ice_type}"
-                if key in st.session_state:
-                    del st.session_state[key]
-        
-        # ลบค่าเก็บข้อมูลน้ำแข็ง
-        for key in ['ice_data', 'ice_sales']:
-            if key in st.session_state:
-                del st.session_state[key]
-        
-        st.session_state.force_rerun = True
-        logger.info("Ice session state reset successfully")
-        st.rerun()
-    except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
-
-def handle_error(error: Exception, context: str = "") -> None:
-    """ฟังก์ชันกลางสำหรับจัดการข้อผิดพลาดทุกประเภท"""
-    error_type = type(error).__name__
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # บันทึกข้อผิดพลาด
-    error_msg = f"[{timestamp}] {error_type} in {context}: {str(error)}"
-    logger.error(error_msg, exc_info=True)
-    
-    # แสดงข้อความผิดพลาดแบบอ่านง่าย
-    error_mapping = {
-        "APIError": "⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google Sheets",
-        "WorksheetNotFound": "⚠️ ไม่พบแผ่นงานที่ระบุในระบบ",
-        "EmptyDataError": "⚠️ ไม่พบข้อมูลในแผ่นงาน",
-        "ValueError": "⚠️ ข้อมูลไม่ถูกต้อง",
-        "RequestException": "⚠️ เกิดปัญหาการเชื่อมต่ออินเทอร์เน็ต"
-    }
-    
-    user_message = error_mapping.get(error_type, "⚠️ เกิดข้อผิดพลาดในระบบ")
-    st.error(f"{user_message}\n\nรายละเอียด: {str(error)}")
-    
-    # แสดงปุ่มแก้ไขปัญหา
-    with st.expander("แนวทางการแก้ไขปัญหา"):
-        st.markdown("""
-        1. รีเฟรชหน้าจอ (F5)
-        2. ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต
-        3. ติดต่อผู้ดูแลระบบหากปัญหายังคงอยู่
-        """)
-        
-        if PYPERCLIP_AVAILABLE:
-            if st.button("📋 คัดลอกรายละเอียดข้อผิดพลาด"):
-                pyperclip.copy(error_msg)
-                st.success("คัดลอกข้อมูลไปยังคลิปบอร์ดแล้ว")
+    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
+    for ice_type in ICE_TYPES:
+        st.session_state.pop(f"in_{ice_type}", None)
+        st.session_state.pop(f"sell_out_{ice_type}", None)
+    st.session_state.force_rerun = True
     
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
@@ -352,94 +294,83 @@ def connect_google_sheets():
         logger.info("Connected to Google Sheets successfully")
         return gc
     except Exception as e:
-        handle_error(e, "การเชื่อมต่อ Google Sheets")
+        st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: {str(e)}")
+        logger.error(f"Error connecting to Google Sheets: {e}")
         return None
 
 # โหลดข้อมูล
-@st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
-def load_product_data() -> pd.DataFrame:
-    """
-    โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets
-    
-    Returns:
-        pd.DataFrame: DataFrame ที่ประกอบด้วยข้อมูลสินค้าที่ผ่านการตรวจสอบแล้ว
-                      หรือ DataFrame ว่างหากเกิดข้อผิดพลาด
-    """
+@st.cache_data(ttl=60)
+def load_product_data():
+    """โหลดและทำความสะอาดข้อมูลสินค้าจาก Google Sheets"""
     try:
-        # เชื่อมต่อ Google Sheets
         gc = connect_google_sheets()
         if not gc:
-            st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
             return pd.DataFrame()
             
-        # โหลดข้อมูลจากแผ่นงาน
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ตู้เย็น")
-        raw_data = worksheet.get_all_records()
+        df = pd.DataFrame(worksheet.get_all_records())
         
-        # ตรวจสอบว่ามีข้อมูลหรือไม่
-        if not raw_data:
-            st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'ตู้เย็น'")
+        if df.empty:
             return pd.DataFrame()
             
-        df = pd.DataFrame(raw_data)
-
-        # 1. ตรวจสอบคอลัมน์ที่จำเป็น
-        REQUIRED_COLUMNS = {
-            "ชื่อสินค้า": "text",
-            "ราคาขาย": "numeric",
-            "ต้นทุน": "numeric", 
-            "เข้า": "numeric",
-            "ออก": "numeric",
-            "คงเหลือในตู้": "numeric"
-        }
-        
-        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-        if missing_cols:
-            st.error(f"❌ โครงสร้างข้อมูลไม่ครบถ้วน: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
-            return pd.DataFrame()
-        
-        # 2. ตรวจสอบประเภทข้อมูล
-        type_errors = []
-        for col, dtype in REQUIRED_COLUMNS.items():
-            if dtype == "numeric":
-                if not pd.api.types.is_numeric_dtype(df[col]):
-                    type_errors.append(f"{col} ต้องเป็นตัวเลข")
-        
-        if type_errors:
-            st.error("❌ ข้อผิดพลาดประเภทข้อมูล:\n- " + "\n- ".join(type_errors))
-            return pd.DataFrame()
-            
-        # 3. ตรวจสอบค่าที่ขาดหาย
-        if df["ชื่อสินค้า"].isnull().any():
-            st.warning("⚠️ พบชื่อสินค้าที่เป็นค่าว่าง")
-                
-        # ทำความสะอาดชื่อสินค้า
+        # ทำความสะอาดข้อมูล
         df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
-        
-        # แปลงคอลัมน์ตัวเลข
         numeric_cols = ["ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
         for col in numeric_cols:
-            df[col] = (
-                pd.to_numeric(df[col], errors="coerce")
-                .fillna(0)
-                .astype(int)
-            )
-            
-        # ตรวจสอบค่าติดลบ
-        negative_values = df[numeric_cols].lt(0).any()
-        if negative_values.any():
-            problematic_cols = negative_values[negative_values].index.tolist()
-            st.warning(f"⚠️ พบค่าติดลบในคอลัมน์: {', '.join(problematic_cols)}")
-            
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            else:
+                df[col] = 0
+                
         return df
-        
-    except gspread.exceptions.APIError as e:
-        handle_error(e, "Google API")
-        return pd.DataFrame()
-        
     except Exception as e:
-        handle_error(e, "การโหลดข้อมูลสินค้า")
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูล: {str(e)}")
+        logger.error(f"Error loading product data: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def load_ice_data():
+    """โหลดและทำความสะอาดข้อมูลน้ำแข็งจาก Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("iceflow")
+        df_ice = pd.DataFrame(worksheet.get_all_records())
+        
+        if df_ice.empty:
+            return pd.DataFrame()
+            
+        # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
+        required_cols = {
+            "ชนิดน้ำแข็ง": "",
+            "ราคาขายต่อหน่วย": 0,
+            "ต้นทุนต่อหน่วย": 0,
+            "รับเข้า": 0,
+            "ขายออก": 0,
+            "จำนวนละลาย": 0,
+            "กำไรสุทธิ": 0,
+            "กำไรรวม": 0,
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+        }
+        
+        for col, default_val in required_cols.items():
+            if col not in df_ice.columns:
+                df_ice[col] = default_val
+                
+        # ทำความสะอาดข้อมูล
+        df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
+        numeric_cols = ["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "กำไรรวม"]
+        for col in numeric_cols:
+            df_ice[col] = pd.to_numeric(df_ice[col], errors='coerce').fillna(0)
+            
+        return df_ice
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
+        logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
@@ -449,41 +380,24 @@ def load_sales_data():
         gc = connect_google_sheets()
         if not gc:
             return pd.DataFrame()
-
+            
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ยอดขาย")
         df = pd.DataFrame(worksheet.get_all_records())
-
+        
         if df.empty:
             return pd.DataFrame()
-
+            
         # ทำความสะอาดข้อมูล
         numeric_cols = ["ยอดขาย", "กำไร"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
+                
         return df
-
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
         logger.error(f"Error loading sales data: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(ttl=60)
-def load_ice_data():
-    """โหลดข้อมูลน้ำแข็งจาก Google Sheets"""
-    try:
-        gc = connect_google_sheets()
-        if not gc:
-            return pd.DataFrame()
-        sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("iceflow")
-        df = pd.DataFrame(worksheet.get_all_records())
-        return df
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
-        logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
 def show_dashboard():
@@ -736,9 +650,9 @@ def show_product_sale_page():
                 st.rerun()
 
         # ปุ่มยืนยันการขาย
-        if st.button("✅ ยืนยันการขาย", type="primary", \
-             disabled=not st.session_state.cart or paid_input < total_price, \
-             key="confirm_sale"):
+        if st.button("✅ ยืนยันการขาย", type="primary", 
+                    disabled=not st.session_state.cart or paid_input < total_price,
+                    key="confirm_sale"):
             try:
                 with st.spinner("กำลังบันทึกการขาย..."):
                     gc = connect_google_sheets()
@@ -791,6 +705,36 @@ def show_product_sale_page():
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
                 logger.error(f"Error confirming sale: {e}")
+
+def reset_ice_session_state():
+    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
+    try:
+        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
+        for ice_type in ICE_TYPES:
+            # ลบค่าป้อนเข้า
+            if f"in_{ice_type}" in st.session_state:
+                del st.session_state[f"in_{ice_type}"]
+            
+            # ลบค่าขายออก
+            if f"sell_out_{ice_type}" in st.session_state:
+                del st.session_state[f"sell_out_{ice_type}"]
+            
+            # ลบค่าน้ำแข็งที่ละลาย
+            if f"melted_{ice_type}" in st.session_state:
+                del st.session_state[f"melted_{ice_type}"]
+        
+        # ตั้งค่าสถานะให้รีเฟรชหน้า
+        st.session_state.force_rerun = True
+        
+        # แจ้งเตือนใน console สำหรับ debugging
+        logger.info("Ice session state reset successfully")
+        
+        # รีเฟรชหน้าทันที
+        st.rerun()
+        
+    except Exception as e:
+        logger.error(f"Error resetting ice session state: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
 
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
@@ -1060,8 +1004,8 @@ def show_ice_sale_page():
                             
                             if sold_in_this_session > 0:
                                 summary_ws.append_row([
-                        today_str,
-                        f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง รวมแบ่ง)" if divided_amount > 0 else f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                                    today_str,
+                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
                                     float(df_ice.at[idx, "กำไรรวม"]),
                                     float(df_ice.at[idx, "กำไรสุทธิ"]),
                                     "ice"
@@ -1081,70 +1025,80 @@ def main():
         # ตั้งค่าพื้นฐาน
         set_custom_css()
         initialize_session_state()
-
-        @st.cache_resource
-        def initialize_data_loading():
-            """จัดการการโหลดข้อมูลแบบครั้งเดียวและแคชผลลัพธ์"""
-            data_state = {
-                'loaded': False,
-                'products': pd.DataFrame(),
-                'ice': pd.DataFrame(),
-                'sales': pd.DataFrame()
-            }
-            
-            # โหลดข้อมูลแบบขนานด้วย ThreadPool
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                future_products = executor.submit(load_product_data)
-                future_ice = executor.submit(load_ice_data)
-                future_sales = executor.submit(load_sales_data)
-                
-                data_state['products'] = future_products.result()
-                data_state['ice'] = future_ice.result()
-                data_state['sales'] = future_sales.result()
-            
-            data_state['loaded'] = True
-            return data_state
-
-        # ตรวจสอบและโหลดข้อมูลหากยังไม่ได้โหลด
-        if 'data_state' not in st.session_state:
-            with st.spinner("🔄 กำลังโหลดข้อมูลครั้งแรก..."):
-                try:
-                    st.session_state.data_state = initialize_data_loading()
-                    
-                    # ตรวจสอบข้อมูลที่โหลดมา
-                    if st.session_state.data_state['products'].empty:
-                        st.error("ไม่พบข้อมูลสินค้า")
-                    if st.session_state.data_state['ice'].empty:
-                        st.warning("ไม่พบข้อมูลน้ำแข็ง")
-                    if st.session_state.data_state['sales'].empty:
-                        st.warning("ไม่พบข้อมูลยอดขาย")
-                        
-                except Exception as e:
-                    handle_error(e, "การโหลดข้อมูลครั้งแรก")
-                    st.session_state.data_state = {
-                        'loaded': False,
-                        'products': pd.DataFrame(),
-                        'ice': pd.DataFrame(),
-                        'sales': pd.DataFrame()
-                    }
             
         # แสดงสถานะการเชื่อมต่อ
         conn_status = st.empty()
         try:
             gc = connect_google_sheets()
-            if not gc:
-                raise ConnectionError("ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
-            conn_status.success("✅ เชื่อมต่อกับ Google Sheets แล้ว")
+            if gc:
+                conn_status.success("✅ เชื่อมต่อกับ Google Sheets แล้ว")
+            else:
+                conn_status.error("❌ ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
         except Exception as e:
-            handle_error(e, "การเชื่อมต่อ Google Sheets")
-            conn_status.empty()  # ลบสถานะการเชื่อมต่อหากล้มเหลว
+            conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
+            logger.error(f"Connection error in main: {e}")
 
-        # ส่วนแสดงเมนูหลักและหน้าเว็บ
-        # ... (โค้ดส่วนนี้ไม่เปลี่ยนแปลง)
+        # แสดงเมนูหลัก
+        st.markdown("### 🚀 เมนูหลัก")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🏪 ขายสินค้า"):
+                st.session_state.page = "ขายสินค้า"
+                st.rerun()
+        with col2:
+            if st.button("🧊 ขายน้ำแข็ง"):
+                st.session_state.page = "ขายน้ำแข็ง"
+                st.rerun()
+        with col3:
+            if st.button("📊 Dashboard"):
+                st.session_state.page = "Dashboard"
+                st.rerun()
 
+        # แสดงหน้าเว็บตามสถานะปัจจุบัน
+        if st.session_state.page == "Dashboard":
+            show_dashboard()
+        elif st.session_state.page == "ขายสินค้า":
+            show_product_sale_page()
+        elif st.session_state.page == "ขายน้ำแข็ง":
+            show_ice_sale_page()
+            
     except Exception as page_error:
-        handle_error(page_error, f"หน้า {st.session_state.page}")
+        logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
+        st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
+        with st.expander("รายละเอียดข้อผิดพลาด"):
+            st.error(str(page_error))
+            st.text(traceback.format_exc())
         
+        # แสดงข้อความผิดพลาดแบบอ่านง่ายให้ผู้ใช้
+        st.error("""
+        ⚠️ เกิดข้อผิดพลาดร้ายแรงในระบบ
+        กรุณาทำตามขั้นตอนต่อไปนี้:
+        1. รีเฟรชหน้าเว็บ
+        2. ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต
+        3. ติดต่อผู้ดูแลระบบ
+        """)
+        
+        # แสดงรายละเอียดข้อผิดพลาดแบบเต็ม (สำหรับ debugging)
+        error_msg = f"""
+        ข้อผิดพลาดหลัก:
+        {str(page_error)}
+        
+        Traceback:
+        {traceback.format_exc()}
+        """
+        with st.expander("รายละเอียดข้อผิดพลาด (สำหรับผู้ดูแลระบบ)"):
+            st.code(error_msg, language='text')
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 รีเฟรชหน้า", help="ลองรีเฟรชหน้าเว็บหากเกิดข้อผิดพลาด"):
+                st.cache_data.clear()
+                st.rerun()
+        with col2:
+            if PYPERCLIP_AVAILABLE and st.button("📋 คัดลอกข้อผิดพลาด"):
+                pyperclip.copy(error_msg)
+                st.success("คัดลอกข้อผิดพลาดไปยังคลิปบอร์ดแล้ว")
+
         st.markdown("""
         <div style="background-color: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 20px;">
             <h4>❓ วิธีแก้ไขปัญหาเบื้องต้น</h4>
