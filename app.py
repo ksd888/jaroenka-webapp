@@ -481,11 +481,6 @@ def load_ice_data():
         logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
-        logger.error(f"Error loading sales data: {e}")
-        return pd.DataFrame()
-
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
     
