@@ -464,6 +464,10 @@ def load_sales_data():
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
                 
         return df
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
+        logger.error(f"Error loading sales data: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def load_ice_data():
