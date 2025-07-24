@@ -340,7 +340,7 @@ def load_sales_data() -> pd.DataFrame:
             return pd.DataFrame()
 
         # ✅ ทำความสะอาดคอลัมน์ตัวเลข (ใช้ชื่อจริงจาก Sheet)
-        numeric_cols = ["total_price", "total_profit"]
+        numeric_cols = ["ยอดขาย", "กำไร"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -350,7 +350,6 @@ def load_sales_data() -> pd.DataFrame:
     except Exception as e:
         handle_error(e, "การโหลดข้อมูลยอดขาย")
         return pd.DataFrame()
-
 
 @st.cache_data(ttl=60)
 def load_ice_data():
