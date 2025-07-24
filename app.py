@@ -454,6 +454,18 @@ def show_dashboard():
             st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
             logger.error(f"Error showing top products: {e}")
 
+def increase_quantity(product_name):
+    """เพิ่มจำนวนสินค้าใน session_state"""
+    if product_name in st.session_state.quantities:
+        st.session_state.quantities[product_name] += 1
+    else:
+        st.session_state.quantities[product_name] = 1
+
+def decrease_quantity(product_name):
+    """ลดจำนวนสินค้าใน session_state"""
+    if product_name in st.session_state.quantities and st.session_state.quantities[product_name] > 1:
+        st.session_state.quantities[product_name] -= 1
+
 def show_product_sale_page():
     st.title("🛒 ระบบขายสินค้า")
     
