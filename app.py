@@ -1,22 +1,26 @@
-import streamlit as st
+# Standard library
 import datetime
-from pytz import timezone
-import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
-import matplotlib.pyplot as plt
 import time
-import numpy as np
 import logging
-import traceback 
+import traceback
+from concurrent.futures import ThreadPoolExecutor
 
-# ตรวจสอบและจัดการโมดูลเสริม
+# Third-party
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import gspread
+from pytz import timezone
+from google.oauth2.service_account import Credentials
+
+# Local/Try imports
 try:
     import pyperclip
     PYPERCLIP_AVAILABLE = True
 except ImportError:
-    st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
     PYPERCLIP_AVAILABLE = False
+    st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
     
 # ตั้งค่าการบันทึกข้อผิดพลาด
 logging.basicConfig(level=logging.INFO)
