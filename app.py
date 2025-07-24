@@ -449,26 +449,26 @@ def load_sales_data():
         gc = connect_google_sheets()
         if not gc:
             return pd.DataFrame()
-            
+
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ยอดขาย")
         df = pd.DataFrame(worksheet.get_all_records())
-        
+
         if df.empty:
             return pd.DataFrame()
-            
-        # 🔁 ใช้ชื่อคอลัมน์จริงจากชีท
-        numeric_cols = ["total_price", "total_profit"]
+
+        # ทำความสะอาดข้อมูล
+        numeric_cols = ["ยอดขาย", "กำไร"]
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-                
+
         return df
+
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
         logger.error(f"Error loading sales data: {e}")
         return pd.DataFrame()
-
 
 @st.cache_data(ttl=60)
 def load_ice_data():
