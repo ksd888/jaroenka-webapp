@@ -180,14 +180,22 @@ def set_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
+def set_custom_css():
+    """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
+    st.markdown("""
+    <style>
+    /* CSS styles here... */
+    </style>
+    """, unsafe_allow_html=True)
+
 def safe_int(val):
     """แปลงค่าเป็น integer อย่างปลอดภัย"""
     if val is None or pd.isna(val) or val == '':
         return 0
     try:
         if isinstance(val, str):
-            val = val.replace(',', '')  # ลบ comma สำหรับตัวเลขที่มี comma
-        return int(float(val))  # แปลงเป็น float ก่อนเพื่อจัดการค่าทศนิยม
+            val = val.replace(',', '')
+        return int(float(val))
     except (ValueError, TypeError):
         return 0
 
@@ -197,7 +205,7 @@ def safe_float(val):
         return 0.0
     try:
         if isinstance(val, str):
-            val = val.replace(',', '')  # ลบ comma สำหรับตัวเลขที่มี comma
+            val = val.replace(',', '')
         return float(val)
     except (ValueError, TypeError):
         return 0.0
@@ -224,7 +232,6 @@ def add_money(amount):
     st.session_state.last_paid_click = amount
     st.session_state.prev_paid_input = st.session_state.paid_input
     
-# การจัดการ Session State
 def initialize_session_state():
     """Initialize all required session state variables"""
     if 'page' not in st.session_state:
@@ -439,7 +446,7 @@ def show_dashboard():
         if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
             try:
                 sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-                sales_df = sales_df.dropna(subset=['วันที่'])  # ลบแถวที่มีวันที่ไม่ถูกต้อง
+                sales_df = sales_df.dropna(subset=['วันที่'])
                 
                 if not sales_df.empty:
                     fig, ax = plt.subplots(figsize=(10, 6))
@@ -541,72 +548,92 @@ def show_dashboard():
             st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
             logger.error(f"Error showing top products: {e}")
 
-# เลือกสินค้า (เพิ่มบรรทัดนี้)
-selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
+def show_product_sale_page():
+    st.title("🛒 ระบบขายสินค้า")
+    
+    df = load_product_data()
+    if df.empty:
+        st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
+        return
 
-    if selected_product:
-        # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
-        if selected_product not in st.session_state.quantities:
-            st.session_state.quantities[selected_product] = 1
-        
-        qty = st.session_state.quantities[selected_product]
-        row = df[df["ชื่อสินค้า"] == selected_product]
-        
-        if not row.empty:
-            stock = safe_int(row["คงเหลือในตู้"].values[0])
-            price = safe_float(row["ราคาขาย"].values[0])
+    # ส่วนค้นหาสินค้า
+    st.subheader("🔍 ค้นหาสินค้า")
+    search_term = st.text_input("ค้นหาสินค้า:", key="search_product")
+    
+    if search_term:
+        filtered_products = df[df["ชื่อสินค้า"].str.contains(search_term, case=False)]["ชื่อสินค้า"].tolist()
+    else:
+        filtered_products = df["ชื่อสินค้า"].tolist()
+
+    # ส่วนเลือกสินค้า
+    if not filtered_products:
+        st.warning("ไม่พบสินค้าที่ตรงกับคำค้นหา")
+    else:
+        selected_product = st.selectbox("เลือกสินค้า", filtered_products, key="product_select")
+
+        if selected_product:
+            # ตั้งค่าจำนวนเริ่มต้นหากยังไม่มีใน session
+            if selected_product not in st.session_state.quantities:
+                st.session_state.quantities[selected_product] = 1
             
-            # แสดงข้อมูลสินค้า
-            st.markdown(f"### {selected_product}")
-            st.markdown(f"**ราคา:** {price:,.2f} บาท")
+            qty = st.session_state.quantities[selected_product]
+            row = df[df["ชื่อสินค้า"] == selected_product]
+            
+            if not row.empty:
+                stock = safe_int(row["คงเหลือในตู้"].values[0])
+                price = safe_float(row["ราคาขาย"].values[0])
+                
+                # แสดงข้อมูลสินค้า
+                st.markdown(f"### {selected_product}")
+                st.markdown(f"**ราคา:** {price:,.2f} บาท")
 
-            # ปุ่มปรับจำนวน
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-            with col1: 
-                st.button("➖", key=f"dec_{safe_key(selected_product)}", 
-                        on_click=decrease_quantity, args=(selected_product,))
-            with col2: 
-                st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
-                           unsafe_allow_html=True)
-            with col3: 
-                st.button("➕", key=f"inc_{safe_key(selected_product)}", 
-                        on_click=increase_quantity, args=(selected_product,))
-            with col4:
-                # แสดงสถานะสต็อก
-                if stock >= 10:
-                    status = "🟢 พอ"
-                    color = "#28a745"
-                elif stock >= 5:
-                    status = "🟡 ใกล้หมด"
-                    color = "#ffc107"
-                elif stock > 0:
-                    status = "⚠️ น้อยมาก"
-                    color = "#fd7e14"
-                else:
-                    status = "🔴 หมด"
-                    color = "#dc3545"
-                
-                st.markdown(
-                    f"<div style='display: flex; align-items: center;'>"
-                    f"<div style='margin-right: 10px;'>"
-                    f"<strong>สต็อก:</strong> {stock} ชิ้น"
-                    f"</div>"
-                    f"<div style='color: {color}; font-weight: bold;'>{status}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-                
-        # ปุ่มเพิ่มลงตะกร้า
-        if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
-            if qty > 0:
-                if stock >= qty:
-                    st.session_state.cart.append((selected_product, qty, price))
-                    st.success(f"✅ เพิ่ม {selected_product} จำนวน {qty} ชิ้นลงตะกร้าแล้ว")
-                    st.session_state.quantities[selected_product] = 1  # รีเซ็ตจำนวนหลังเพิ่ม
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error(f"⚠️ สินค้ามีไม่พอในสต็อก (เหลือ {stock} ชิ้น)")
+                # ปุ่มปรับจำนวน
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+                with col1: 
+                    st.button("➖", key=f"dec_{safe_key(selected_product)}", 
+                            on_click=decrease_quantity, args=(selected_product,))
+                with col2: 
+                    st.markdown(f"<div style='text-align:center; font-size:24px'>{qty}</div>", 
+                               unsafe_allow_html=True)
+                with col3: 
+                    st.button("➕", key=f"inc_{safe_key(selected_product)}", 
+                            on_click=increase_quantity, args=(selected_product,))
+                with col4:
+                    # แสดงสถานะสต็อก
+                    if stock >= 10:
+                        status = "🟢 พอ"
+                        color = "#28a745"
+                    elif stock >= 5:
+                        status = "🟡 ใกล้หมด"
+                        color = "#ffc107"
+                    elif stock > 0:
+                        status = "⚠️ น้อยมาก"
+                        color = "#fd7e14"
+                    else:
+                        status = "🔴 หมด"
+                        color = "#dc3545"
+                    
+                    st.markdown(
+                        f"<div style='display: flex; align-items: center;'>"
+                        f"<div style='margin-right: 10px;'>"
+                        f"<strong>สต็อก:</strong> {stock} ชิ้น"
+                        f"</div>"
+                        f"<div style='color: {color}; font-weight: bold;'>{status}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                    
+            # ปุ่มเพิ่มลงตะกร้า
+            if st.button("➕ เพิ่มลงตะกร้า", type="primary", key="add_to_cart"):
+                if qty > 0:
+                    if stock >= qty:
+                        st.session_state.cart.append((selected_product, qty, price))
+                        st.success(f"✅ เพิ่ม {selected_product} จำนวน {qty} ชิ้นลงตะกร้าแล้ว")
+                        st.session_state.quantities[selected_product] = 1  # รีเซ็ตจำนวนหลังเพิ่ม
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        st.error(f"⚠️ สินค้ามีไม่พอในสต็อก (เหลือ {stock} ชิ้น)")
 
     # แสดงรายการในตะกร้า
     st.subheader("📋 รายการขาย")
@@ -638,8 +665,6 @@ selected_product = st.selectbox("เลือกสินค้า", filtered_pr
                         time.sleep(0.5)
                         st.rerun()
                         
-    # ในส่วนแสดงรายการในตะกร้า หลังจากลูปแสดงสินค้า
-    if st.session_state.cart:
         if st.button("🗑️ ล้างตะกร้าทั้งหมด", type="secondary", key="clear_cart"):
             clear_cart()
             st.success("ล้างตะกร้าเรียบร้อยแล้ว")
@@ -742,10 +767,7 @@ selected_product = st.selectbox("เลือกสินค้า", filtered_pr
                     ])
                     
                     # รีเซ็ตข้อมูลหลังขายสำเร็จ
-                    st.session_state.cart = []
-                    st.session_state.paid_input = 0.0
-                    st.session_state.prev_paid_input = 0.0
-                    st.session_state.last_paid_click = 0
+                    clear_cart()
                     
                     # ล้าง cache เพื่อโหลดข้อมูลใหม่
                     st.cache_data.clear()
@@ -992,7 +1014,7 @@ def show_ice_sale_page():
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
                 df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - safe_int(df_ice.at[idx, "ขายออก"]) - melted_qty
 
-       # สรุปยอดขาย
+    # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
     col1, col2 = st.columns(2)
     with col1:
@@ -1000,7 +1022,7 @@ def show_ice_sale_page():
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit:,.2f} บาท")
 
-    # ส่วนบันทึกการขายน้ำแข็ง (แก้ไขการเยื้องให้ถูกต้อง)
+    # ส่วนบันทึกการขายน้ำแข็ง
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
         validation_passed = True
         error_messages = []
