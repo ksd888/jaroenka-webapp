@@ -731,9 +731,9 @@ def show_product_sale_page():
                 st.rerun()
 
         # ปุ่มยืนยันการขาย
-        if st.button("✅ ยืนยันการขาย", type="primary", 
-                    disabled=not st.session_state.cart or paid_input < total_price,
-                    key="confirm_sale"):
+        if st.button("✅ ยืนยันการขาย", type="primary", \
+             disabled=not st.session_state.cart or paid_input < total_price, \
+             key="confirm_sale"):
             try:
                 with st.spinner("กำลังบันทึกการขาย..."):
                     gc = connect_google_sheets()
