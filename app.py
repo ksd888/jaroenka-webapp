@@ -464,6 +464,23 @@ def load_sales_data():
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
                 
         return df
+
+@st.cache_data(ttl=60)
+def load_ice_data():
+    """โหลดข้อมูลน้ำแข็งจาก Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("iceflow")
+        df = pd.DataFrame(worksheet.get_all_records())
+        return df
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
+        logger.error(f"Error loading ice data: {e}")
+        return pd.DataFrame()
+
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
         logger.error(f"Error loading sales data: {e}")
@@ -775,36 +792,6 @@ def show_product_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
                 logger.error(f"Error confirming sale: {e}")
 
-def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            # ลบค่าป้อนเข้า
-            if f"in_{ice_type}" in st.session_state:
-                del st.session_state[f"in_{ice_type}"]
-            
-            # ลบค่าขายออก
-            if f"sell_out_{ice_type}" in st.session_state:
-                del st.session_state[f"sell_out_{ice_type}"]
-            
-            # ลบค่าน้ำแข็งที่ละลาย
-            if f"melted_{ice_type}" in st.session_state:
-                del st.session_state[f"melted_{ice_type}"]
-        
-        # ตั้งค่าสถานะให้รีเฟรชหน้า
-        st.session_state.force_rerun = True
-        
-        # แจ้งเตือนใน console สำหรับ debugging
-        logger.info("Ice session state reset successfully")
-        
-        # รีเฟรชหน้าทันที
-        st.rerun()
-        
-    except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
-
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
@@ -1073,8 +1060,8 @@ def show_ice_sale_page():
                             
                             if sold_in_this_session > 0:
                                 summary_ws.append_row([
-                                    today_str,
-                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                        today_str,
+                        f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง รวมแบ่ง)" if divided_amount > 0 else f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
                                     float(df_ice.at[idx, "กำไรรวม"]),
                                     float(df_ice.at[idx, "กำไรสุทธิ"]),
                                     "ice"
