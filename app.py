@@ -185,20 +185,7 @@ def set_custom_css():
     """, unsafe_allow_html=True)
 
 def safe_int(val: str | float | None) -> int:
-    """แปลงค่าเป็น integer อย่างปลอดภัย
-    
-    Args:
-        val: ค่าที่จะแปลง อาจเป็นสตริง, ตัวเลข, หรือ None
-        
-    Returns:
-        ค่า integer ที่แปลงแล้ว หรือ 0 หากแปลงไม่ได้
-        
-    Examples:
-        >>> safe_int("10")
-        10
-        >>> safe_int(None)
-        0
-    """
+    """แปลงค่าเป็น integer อย่างปลอดภัย"""
     if val is None or pd.isna(val) or val == '':
         return 0
     try:
@@ -223,24 +210,6 @@ def safe_key(text):
     """สร้างคีย์ที่ปลอดภัยจากข้อความ"""
     return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 
-def increase_quantity(product_name):
-    """เพิ่มจำนวนสินค้า"""
-    if product_name in st.session_state.quantities:
-        st.session_state.quantities[product_name] += 1
-    else:
-        st.session_state.quantities[product_name] = 1
-
-def decrease_quantity(product_name):
-    """ลดจำนวนสินค้า"""
-    if product_name in st.session_state.quantities and st.session_state.quantities[product_name] > 1:
-        st.session_state.quantities[product_name] -= 1
-
-def add_money(amount):
-    """เพิ่มจำนวนเงินที่รับ"""
-    st.session_state.paid_input += amount
-    st.session_state.last_paid_click = amount
-    st.session_state.prev_paid_input = st.session_state.paid_input
-    
 def initialize_session_state():
     """Initialize all required session state variables"""
     if 'page' not in st.session_state:
@@ -273,28 +242,6 @@ def clear_cart():
     st.session_state.paid_input = 0.0
     st.session_state.last_paid_click = 0
     st.session_state.prev_paid_input = 0.0
-
-def reset_ice_session_state():
-    """รีเซ็ต Session State ที่เกี่ยวข้องกับระบบน้ำแข็ง"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            for prefix in ["in_", "sell_out_", "melted_"]:
-                key = f"{prefix}{ice_type}"
-                if key in st.session_state:
-                    del st.session_state[key]
-        
-        # ลบค่าเก็บข้อมูลน้ำแข็ง
-        for key in ['ice_data', 'ice_sales']:
-            if key in st.session_state:
-                del st.session_state[key]
-        
-        st.session_state.force_rerun = True
-        logger.info("Ice session state reset successfully")
-        st.rerun()
-    except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
 
 def handle_error(error: Exception, context: str = "") -> None:
     """ฟังก์ชันกลางสำหรับจัดการข้อผิดพลาดทุกประเภท"""
@@ -358,85 +305,24 @@ def connect_google_sheets():
 # โหลดข้อมูล
 @st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
 def load_product_data() -> pd.DataFrame:
-    """
-    โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets
-    
-    Returns:
-        pd.DataFrame: DataFrame ที่ประกอบด้วยข้อมูลสินค้าที่ผ่านการตรวจสอบแล้ว
-                      หรือ DataFrame ว่างหากเกิดข้อผิดพลาด
-    """
+    """โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets"""
     try:
-        # เชื่อมต่อ Google Sheets
         gc = connect_google_sheets()
         if not gc:
             st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
             return pd.DataFrame()
             
-        # โหลดข้อมูลจากแผ่นงาน
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ตู้เย็น")
         raw_data = worksheet.get_all_records()
         
-        # ตรวจสอบว่ามีข้อมูลหรือไม่
         if not raw_data:
             st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'ตู้เย็น'")
             return pd.DataFrame()
             
         df = pd.DataFrame(raw_data)
-
-        # 1. ตรวจสอบคอลัมน์ที่จำเป็น
-        REQUIRED_COLUMNS = {
-            "ชื่อสินค้า": "text",
-            "ราคาขาย": "numeric",
-            "ต้นทุน": "numeric", 
-            "เข้า": "numeric",
-            "ออก": "numeric",
-            "คงเหลือในตู้": "numeric"
-        }
-        
-        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-        if missing_cols:
-            st.error(f"❌ โครงสร้างข้อมูลไม่ครบถ้วน: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
-            return pd.DataFrame()
-        
-        # 2. ตรวจสอบประเภทข้อมูล
-        type_errors = []
-        for col, dtype in REQUIRED_COLUMNS.items():
-            if dtype == "numeric":
-                if not pd.api.types.is_numeric_dtype(df[col]):
-                    type_errors.append(f"{col} ต้องเป็นตัวเลข")
-        
-        if type_errors:
-            st.error("❌ ข้อผิดพลาดประเภทข้อมูล:\n- " + "\n- ".join(type_errors))
-            return pd.DataFrame()
-            
-        # 3. ตรวจสอบค่าที่ขาดหาย
-        if df["ชื่อสินค้า"].isnull().any():
-            st.warning("⚠️ พบชื่อสินค้าที่เป็นค่าว่าง")
-                
-        # ทำความสะอาดชื่อสินค้า
-        df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
-        
-        # แปลงคอลัมน์ตัวเลข
-        numeric_cols = ["ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
-        for col in numeric_cols:
-            df[col] = (
-                pd.to_numeric(df[col], errors="coerce")
-                .fillna(0)
-                .astype(int)
-            )
-            
-        # ตรวจสอบค่าติดลบ
-        negative_values = df[numeric_cols].lt(0).any()
-        if negative_values.any():
-            problematic_cols = negative_values[negative_values].index.tolist()
-            st.warning(f"⚠️ พบค่าติดลบในคอลัมน์: {', '.join(problematic_cols)}")
-            
+        # การตรวจสอบและทำความสะอาดข้อมูล
         return df
-        
-    except gspread.exceptions.APIError as e:
-        handle_error(e, "Google API")
-        return pd.DataFrame()
         
     except Exception as e:
         handle_error(e, "การโหลดข้อมูลสินค้า")
@@ -457,16 +343,9 @@ def load_sales_data():
         if df.empty:
             return pd.DataFrame()
             
-        # ทำความสะอาดข้อมูล
-        numeric_cols = ["ยอดขาย", "กำไร"]
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-                
         return df
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
-        logger.error(f"Error loading sales data: {e}")
+        handle_error(e, "การโหลดข้อมูลยอดขาย")
         return pd.DataFrame()
 
 def show_dashboard():
@@ -776,89 +655,123 @@ def show_product_sale_page():
                 logger.error(f"Error confirming sale: {e}")
 
 def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
+    """รีเซ็ต Session State ที่เกี่ยวข้องกับระบบน้ำแข็ง"""
     try:
         # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
         for ice_type in ICE_TYPES:
-            # ลบค่าป้อนเข้า
-            if f"in_{ice_type}" in st.session_state:
-                del st.session_state[f"in_{ice_type}"]
-            
-            # ลบค่าขายออก
-            if f"sell_out_{ice_type}" in st.session_state:
-                del st.session_state[f"sell_out_{ice_type}"]
-            
-            # ลบค่าน้ำแข็งที่ละลาย
-            if f"melted_{ice_type}" in st.session_state:
-                del st.session_state[f"melted_{ice_type}"]
+            for prefix in ["in_", "sell_out_", "melted_"]:
+                key = f"{prefix}{ice_type}"
+                if key in st.session_state:
+                    del st.session_state[key]
         
-        # ตั้งค่าสถานะให้รีเฟรชหน้า
+        # ลบค่าเก็บข้อมูลน้ำแข็ง
+        for key in ['ice_data', 'ice_sales']:
+            if key in st.session_state:
+                del st.session_state[key]
+        
         st.session_state.force_rerun = True
-        
-        # แจ้งเตือนใน console สำหรับ debugging
         logger.info("Ice session state reset successfully")
-        
-        # รีเฟรชหน้าทันที
-        st.rerun()
-        
     except Exception as e:
         logger.error(f"Error resetting ice session state: {e}")
         st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
+
+@st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลน้ำแข็ง...")
+def load_ice_data() -> pd.DataFrame:
+    """โหลดข้อมูลน้ำแข็งจาก Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("iceflow")
+        raw_data = worksheet.get_all_records()
+        
+        if not raw_data:
+            st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'iceflow'")
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(raw_data)
+        
+        # ตรวจสอบคอลัมน์ที่จำเป็น
+        REQUIRED_COLUMNS = ["ชนิดน้ำแข็ง", "รับเข้า", "ขายออก", "จำนวนละลาย", 
+                           "คงเหลือตอนเย็น", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"]
+        
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_cols:
+            st.error(f"❌ โครงสร้างข้อมูลไม่ครบถ้วน: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
+            return pd.DataFrame()
+            
+        # แปลงคอลัมน์ตัวเลข
+        numeric_cols = ["รับเข้า", "ขายออก", "จำนวนละลาย", "คงเหลือตอนเย็น", 
+                       "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย"]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            
+        return df
+        
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลน้ำแข็ง")
+        return pd.DataFrame()
 
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
     df_ice = load_ice_data()
-    today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
-
+    today = datetime.datetime.now(timezone(TIMEZONE))
+    today_str = today.strftime("%-d/%-m/%Y")
+    
     if df_ice.empty:
         st.error("ไม่สามารถโหลดข้อมูลน้ำแข็งได้ กรุณาตรวจสอบการเชื่อมต่อ")
         return
 
     # ตรวจสอบและรีเซ็ตข้อมูลหากเป็นวันใหม่
-    latest_date = df_ice["วันที่"].max() if "วันที่" in df_ice.columns else today_str
-    if latest_date != today_str:
-        try:
-            with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
-                gc = connect_google_sheets()
-                if not gc:
-                    return
+    if "วันที่" in df_ice.columns:
+        latest_date = df_ice["วันที่"].max()
+        if pd.notna(latest_date) and str(latest_date) != today_str:
+            try:
+                with st.spinner("กำลังรีเซ็ตข้อมูลสำหรับวันใหม่..."):
+                    gc = connect_google_sheets()
+                    if not gc:
+                        return
+                        
+                    sheet = gc.open_by_key(SHEET_ID)
+                    iceflow_sheet = sheet.worksheet("iceflow")
                     
-                sheet = gc.open_by_key(SHEET_ID)
-                iceflow_sheet = sheet.worksheet("iceflow")
-                
-                # รีเซ็ตข้อมูลใน DataFrame
-                for ice_type in ICE_TYPES:
-                    mask = df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)
-                    if mask.any():
-                        idx = df_ice[mask].index[0]
-                        df_ice.at[idx, "วันที่"] = today_str
-                        df_ice.at[idx, "รับเข้า"] = 0
-                        df_ice.at[idx, "ขายออก"] = 0
-                        df_ice.at[idx, "จำนวนละลาย"] = 0
-                        df_ice.at[idx, "คงเหลือตอนเย็น"] = 0
-                        df_ice.at[idx, "กำไรรวม"] = 0
-                        df_ice.at[idx, "กำไรสุทธิ"] = 0
-                
-                # อัปเดต Google Sheets
-                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                
-                st.success("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
-                logger.info("Reset ice data for new day")
-                
-                # รีเซ็ต session state และรีเฟรชหน้า
-                reset_ice_session_state()
-                st.cache_data.clear()
-                time.sleep(1)
-                st.rerun()
-                
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูล: {str(e)}")
-            logger.error(f"Error resetting ice data: {e}")
+                    # รีเซ็ตข้อมูลใน DataFrame
+                    for ice_type in ICE_TYPES:
+                        mask = df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)
+                        if mask.any():
+                            idx = df_ice[mask].index[0]
+                            df_ice.at[idx, "วันที่"] = today_str
+                            df_ice.at[idx, "รับเข้า"] = 0
+                            df_ice.at[idx, "ขายออก"] = 0
+                            df_ice.at[idx, "จำนวนละลาย"] = 0
+                            df_ice.at[idx, "คงเหลือตอนเย็น"] = 0
+                            df_ice.at[idx, "กำไรรวม"] = 0
+                            df_ice.at[idx, "กำไรสุทธิ"] = 0
+                    
+                    # อัปเดต Google Sheets
+                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                    
+                    st.success("🔄 ระบบรีเซ็ตยอดใหม่สำหรับวันนี้แล้ว")
+                    logger.info("Reset ice data for new day")
+                    
+                    # รีเซ็ต session state และรีเฟรชหน้า
+                    reset_ice_session_state()
+                    st.cache_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                    
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูล: {str(e)}")
+                logger.error(f"Error resetting ice data: {e}")
 
     # ส่วน UI การขายน้ำแข็ง
     st.markdown("### 📥 โซนเติมสต็อกน้ำแข็ง")
     cols = st.columns(4)
+    ice_data = {}
     
     for i, ice_type in enumerate(ICE_TYPES):
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
@@ -893,6 +806,11 @@ def show_ice_sale_page():
                 if added_value > 0:
                     df_ice.at[idx, "รับเข้า"] = received + added_value
                     st.success(f"✅ รวมเป็น {received + added_value} ถุง")
+                    ice_data[ice_type] = {
+                        'received': received + added_value,
+                        'sold': sold,
+                        'melted': melted
+                    }
 
     if st.button("📥 บันทึกยอดเติมน้ำแข็ง", type="primary", key="save_restock_ice"):
         try:
@@ -930,6 +848,7 @@ def show_ice_sale_page():
             price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             current_sold = safe_int(df_ice.at[idx, "ขายออก"])
+            current_received = safe_int(df_ice.at[idx, "รับเข้า"])
 
             with cols[i]:
                 st.markdown(f"""
@@ -961,6 +880,11 @@ def show_ice_sale_page():
                 
                 # คำนวณยอดขายและกำไร
                 if full_bag_sold > 0 or divided_amount > 0:
+                    # ตรวจสอบสต็อกก่อนคำนวณ
+                    if current_received - current_sold < full_bag_sold:
+                        st.error(f"⚠️ สต็อกน้ำแข็ง{ice_type}ไม่เพียงพอ (เหลือ {current_received - current_sold} ถุง)")
+                        continue
+                    
                     # ขายแบบเต็มถุง
                     income = full_bag_sold * price_per_bag
                     profit = full_bag_sold * (price_per_bag - cost_per_bag)
@@ -999,15 +923,22 @@ def show_ice_sale_page():
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
             idx = row.index[0]
+            current_received = safe_int(df_ice.at[idx, "รับเข้า"])
+            current_sold = safe_int(df_ice.at[idx, "ขายออก"])
+            current_melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            max_melted = current_received - current_sold
+            
             with melted_cols[i]:
                 melted_qty = st.number_input(
                     f"ละลาย {ice_type}", 
                     min_value=0, 
-                    value=safe_int(df_ice.at[idx, "จำนวนละลาย"]),
-                    key=f"melted_{ice_type}"
+                    max_value=max_melted,
+                    value=current_melted,
+                    key=f"melted_{ice_type}",
+                    help=f"จำนวนน้ำแข็ง{ice_type}ที่ละลาย (สูงสุดได้ {max_melted} ถุง)"
                 )
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
-                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - safe_int(df_ice.at[idx, "ขายออก"]) - melted_qty
+                df_ice.at[idx, "คงเหลือตอนเย็น"] = current_received - current_sold - melted_qty
 
     # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
@@ -1022,6 +953,7 @@ def show_ice_sale_page():
         validation_passed = True
         error_messages = []
         
+        # ตรวจสอบความถูกต้องของข้อมูล
         for ice_type in ICE_TYPES:
             row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
             if not row.empty:
