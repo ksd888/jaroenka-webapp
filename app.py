@@ -180,14 +180,6 @@ def set_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-def set_custom_css():
-    """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
-    st.markdown("""
-    <style>
-    /* CSS styles here... */
-    </style>
-    """, unsafe_allow_html=True)
-
 def safe_int(val):
     """แปลงค่าเป็น integer อย่างปลอดภัย"""
     if val is None or pd.isna(val) or val == '':
