@@ -322,19 +322,24 @@ def load_sales_data():
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
-def load_ice_data():
-    """โหลดและทำความสะอาดข้อมูลน้ำแข็งจาก Google Sheets"""
+def load_sales_data():
+    """โหลดข้อมูลยอดขายจาก Google Sheets"""
     try:
         gc = connect_google_sheets()
         if not gc:
             return pd.DataFrame()
             
         sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("iceflow")
-        df_ice = pd.DataFrame(worksheet.get_all_records())
+        worksheet = sheet.worksheet("ยอดขาย")
+        df = pd.DataFrame(worksheet.get_all_records())
         
-        if df_ice.empty:
+        if df.empty:
             return pd.DataFrame()
+            
+        return df
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลยอดขาย")
+        return pd.DataFrame()
             
         # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
         required_cols = {
