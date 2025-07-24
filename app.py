@@ -277,15 +277,12 @@ def handle_error(error: Exception, context: str = "") -> None:
                 pyperclip.copy(error_msg)
                 st.success("คัดลอกข้อมูลไปยังคลิปบอร์ดแล้ว")
     
-# การเชื่อมต่อ Google Sheets
 @st.cache_resource
-def connect_google_sheets():
-    """เชื่อมต่อกับ Google Sheets API"""
+def get_google_sheets_client():
+    """Initialize and return Google Sheets client"""
     try:
         if 'GCP_SERVICE_ACCOUNT' not in st.secrets:
-            st.error("ไม่พบข้อมูลการเชื่อมต่อ Google Sheets ใน secrets")
-            logger.error("Google Sheets connection info not found in secrets")
-            return None
+            raise ValueError("Missing Google Sheets credentials in secrets")
             
         scope = [
             "https://spreadsheets.google.com/feeds",
@@ -295,37 +292,25 @@ def connect_google_sheets():
             st.secrets["GCP_SERVICE_ACCOUNT"],
             scopes=scope
         )
-        gc = gspread.authorize(credentials)
-        logger.info("Connected to Google Sheets successfully")
-        return gc
+        return gspread.authorize(credentials)
     except Exception as e:
-        handle_error(e, "การเชื่อมต่อ Google Sheets")
+        handle_error(e, "Google Sheets connection")
         return None
 
-# โหลดข้อมูล
-@st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
-def load_product_data() -> pd.DataFrame:
-    """โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets"""
+@st.cache_data(ttl=300)
+def load_sheet_data(sheet_name: str) -> pd.DataFrame:
+    """Load data from specified worksheet"""
     try:
-        gc = connect_google_sheets()
+        gc = get_google_sheets_client()
         if not gc:
-            st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
             return pd.DataFrame()
             
         sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("ตู้เย็น")
-        raw_data = worksheet.get_all_records()
-        
-        if not raw_data:
-            st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'ตู้เย็น'")
-            return pd.DataFrame()
-            
-        df = pd.DataFrame(raw_data)
-        # การตรวจสอบและทำความสะอาดข้อมูล
-        return df
+        worksheet = sheet.worksheet(sheet_name)
+        return pd.DataFrame(worksheet.get_all_records())
         
     except Exception as e:
-        handle_error(e, "การโหลดข้อมูลสินค้า")
+        handle_error(e, f"Loading {sheet_name} data")
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
