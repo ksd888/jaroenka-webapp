@@ -184,15 +184,7 @@ def set_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-def set_custom_css():
-    """ตั้งค่า CSS แบบกำหนดเองสำหรับแอปพลิเคชัน"""
-    st.markdown("""
-    <style>
-    /* CSS styles here... */
-    </style>
-    """, unsafe_allow_html=True)
-
-def safe_int(val):
+def safe_int(val: str | float | None) -> int:
     """แปลงค่าเป็น integer อย่างปลอดภัย"""
     if val is None or pd.isna(val) or val == '':
         return 0
@@ -218,24 +210,6 @@ def safe_key(text):
     """สร้างคีย์ที่ปลอดภัยจากข้อความ"""
     return text.replace(" ", "_").replace(".", "_").replace("/", "_").lower()
 
-def increase_quantity(product_name):
-    """เพิ่มจำนวนสินค้า"""
-    if product_name in st.session_state.quantities:
-        st.session_state.quantities[product_name] += 1
-    else:
-        st.session_state.quantities[product_name] = 1
-
-def decrease_quantity(product_name):
-    """ลดจำนวนสินค้า"""
-    if product_name in st.session_state.quantities and st.session_state.quantities[product_name] > 1:
-        st.session_state.quantities[product_name] -= 1
-
-def add_money(amount):
-    """เพิ่มจำนวนเงินที่รับ"""
-    st.session_state.paid_input += amount
-    st.session_state.last_paid_click = amount
-    st.session_state.prev_paid_input = st.session_state.paid_input
-    
 def initialize_session_state():
     """Initialize all required session state variables"""
     if 'page' not in st.session_state:
