@@ -1,4 +1,4 @@
-ฤ# Standard library
+# Standard library
 import datetime
 import time
 import logging
