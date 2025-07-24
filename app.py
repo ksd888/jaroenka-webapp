@@ -466,6 +466,12 @@ def decrease_quantity(product_name):
     if product_name in st.session_state.quantities and st.session_state.quantities[product_name] > 1:
         st.session_state.quantities[product_name] -= 1
 
+def add_money(amount: float):
+    """เพิ่มจำนวนเงินรับจากลูกค้า"""
+    st.session_state.paid_input += amount
+    st.session_state.prev_paid_input = st.session_state.paid_input
+    st.session_state.last_paid_click = amount
+
 def show_product_sale_page():
     st.title("🛒 ระบบขายสินค้า")
     
