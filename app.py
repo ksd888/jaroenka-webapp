@@ -275,54 +275,39 @@ def connect_google_sheets():
         handle_error(e, "การเชื่อมต่อ Google Sheets")
         return None
 
-@st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
-def load_product_data() -> pd.DataFrame:
-    """โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets"""
+@st.cache_data(ttl=60)
+def load_product_data():
+    """โหลดและทำความสะอาดข้อมูลสินค้าจาก Google Sheets"""
     try:
         gc = connect_google_sheets()
         if not gc:
-            st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
             return pd.DataFrame()
             
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ตู้เย็น")
-        raw_data = worksheet.get_all_records()
+        df = pd.DataFrame(worksheet.get_all_records())
         
-        if not raw_data:
-            st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'ตู้เย็น'")
+        if df.empty:
             return pd.DataFrame()
-            
-        df = pd.DataFrame(raw_data)
-
-        # ✅ การตรวจสอบและทำความสะอาดข้อมูล
-        REQUIRED_COLUMNS = {
-            "ชื่อสินค้า": "text",
-            "ราคาขาย": "numeric",
-            "ต้นทุน": "numeric", 
-            "เข้า": "numeric",
-            "ออก": "numeric",
-            "คงเหลือในตู้": "numeric"
-        }
         
-        # ตรวจสอบคอลัมน์
-        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-        if missing_cols:
-            st.error(f"❌ โครงสร้างข้อมูลไม่ครบถ้วน: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
+        # ✅ ตรวจสอบคอลัมน์ที่จำเป็น
+        required_cols = ["ชื่อสินค้า", "ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            st.error(f"❌ โครงสร้างข้อมูลไม่ครบ: ขาดคอลัมน์ {', '.join(missing)}")
+            st.write("คอลัมน์ที่มี:", list(df.columns))
             return pd.DataFrame()
 
-        # ตรวจสอบและแปลงประเภทข้อมูล
-        for col, dtype in REQUIRED_COLUMNS.items():
-            if dtype == "numeric":
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-            elif dtype == "text":
-                df[col] = df[col].astype(str).str.strip()
+        # ✅ ทำความสะอาดข้อมูล
+        df["ชื่อสินค้า"] = df["ชื่อสินค้า"].astype(str).str.strip()
+        for col in required_cols[1:]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
         return df
-        
     except Exception as e:
-        handle_error(e, "การโหลดข้อมูลสินค้า")
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า: {str(e)}")
+        logger.error(f"Error loading product data: {e}")
         return pd.DataFrame()
-
 
 @st.cache_data(ttl=60)
 def load_sales_data() -> pd.DataFrame:
