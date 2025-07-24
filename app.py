@@ -272,8 +272,7 @@ def connect_google_sheets():
         logger.info("Connected to Google Sheets successfully")
         return gc
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheets: {str(e)}")
-        logger.error(f"Error connecting to Google Sheets: {e}")
+        handle_error(e, "การเชื่อมต่อ Google Sheets")
         return None
 
 # โหลดข้อมูล
