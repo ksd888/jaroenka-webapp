@@ -275,7 +275,6 @@ def connect_google_sheets():
         handle_error(e, "การเชื่อมต่อ Google Sheets")
         return None
 
-# โหลดข้อมูล
 @st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
 def load_product_data() -> pd.DataFrame:
     """โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets"""
@@ -294,15 +293,39 @@ def load_product_data() -> pd.DataFrame:
             return pd.DataFrame()
             
         df = pd.DataFrame(raw_data)
-        # การตรวจสอบและทำความสะอาดข้อมูล
+
+        # ✅ การตรวจสอบและทำความสะอาดข้อมูล
+        REQUIRED_COLUMNS = {
+            "ชื่อสินค้า": "text",
+            "ราคาขาย": "numeric",
+            "ต้นทุน": "numeric", 
+            "เข้า": "numeric",
+            "ออก": "numeric",
+            "คงเหลือในตู้": "numeric"
+        }
+        
+        # ตรวจสอบคอลัมน์
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_cols:
+            st.error(f"❌ โครงสร้างข้อมูลไม่ครบถ้วน: ไม่พบคอลัมน์ {', '.join(missing_cols)}")
+            return pd.DataFrame()
+
+        # ตรวจสอบและแปลงประเภทข้อมูล
+        for col, dtype in REQUIRED_COLUMNS.items():
+            if dtype == "numeric":
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+            elif dtype == "text":
+                df[col] = df[col].astype(str).str.strip()
+
         return df
         
     except Exception as e:
         handle_error(e, "การโหลดข้อมูลสินค้า")
         return pd.DataFrame()
 
+
 @st.cache_data(ttl=60)
-def load_sales_data():
+def load_sales_data() -> pd.DataFrame:
     """โหลดข้อมูลยอดขายจาก Google Sheets"""
     try:
         gc = connect_google_sheets()
@@ -315,31 +338,34 @@ def load_sales_data():
         
         if df.empty:
             return pd.DataFrame()
-            
+
+        # ✅ ทำความสะอาดคอลัมน์ตัวเลข (ใช้ชื่อจริงจาก Sheet)
+        numeric_cols = ["total_price", "total_profit"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
         return df
+
     except Exception as e:
         handle_error(e, "การโหลดข้อมูลยอดขาย")
         return pd.DataFrame()
 
+
 @st.cache_data(ttl=60)
-def load_sales_data():
-    """โหลดข้อมูลยอดขายจาก Google Sheets"""
+def load_ice_data():
+    """โหลดและทำความสะอาดข้อมูลน้ำแข็งจาก Google Sheets"""
     try:
         gc = connect_google_sheets()
         if not gc:
             return pd.DataFrame()
             
         sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("ยอดขาย")
-        df = pd.DataFrame(worksheet.get_all_records())
+        worksheet = sheet.worksheet("iceflow")
+        df_ice = pd.DataFrame(worksheet.get_all_records())
         
-        if df.empty:
+        if df_ice.empty:
             return pd.DataFrame()
-            
-        return df
-    except Exception as e:
-        handle_error(e, "การโหลดข้อมูลยอดขาย")
-        return pd.DataFrame()
             
         # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
         required_cols = {
@@ -368,33 +394,6 @@ def load_sales_data():
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
         logger.error(f"Error loading ice data: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(ttl=60)
-def load_sales_data():
-    """โหลดข้อมูลยอดขายจาก Google Sheets"""
-    try:
-        gc = connect_google_sheets()
-        if not gc:
-            return pd.DataFrame()
-            
-        sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("ยอดขาย")
-        df = pd.DataFrame(worksheet.get_all_records())
-        
-        if df.empty:
-            return pd.DataFrame()
-            
-        # ทำความสะอาดข้อมูล
-        numeric_cols = ["ยอดขาย", "กำไร"]
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-                
-        return df
-    except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลยอดขาย: {str(e)}")
-        logger.error(f"Error loading sales data: {e}")
         return pd.DataFrame()
 
 def show_dashboard():
