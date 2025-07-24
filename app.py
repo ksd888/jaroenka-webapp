@@ -476,7 +476,6 @@ def load_ice_data():
         worksheet = sheet.worksheet("iceflow")
         df = pd.DataFrame(worksheet.get_all_records())
         return df
-        
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
         logger.error(f"Error loading ice data: {e}")
