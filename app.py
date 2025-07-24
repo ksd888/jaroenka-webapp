@@ -276,34 +276,49 @@ def connect_google_sheets():
         return None
 
 # โหลดข้อมูล
+@st.cache_data(ttl=300, show_spinner="กำลังโหลดข้อมูลสินค้า...")
+def load_product_data() -> pd.DataFrame:
+    """โหลดและตรวจสอบข้อมูลสินค้าจาก Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            st.error("❌ การเชื่อมต่อกับ Google Sheets ล้มเหลว")
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("ตู้เย็น")
+        raw_data = worksheet.get_all_records()
+        
+        if not raw_data:
+            st.error("❌ ไม่พบข้อมูลในแผ่นงาน 'ตู้เย็น'")
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(raw_data)
+        # การตรวจสอบและทำความสะอาดข้อมูล
+        return df
+        
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลสินค้า")
+        return pd.DataFrame()
+
 @st.cache_data(ttl=60)
-def load_product_data():
-    """โหลดและทำความสะอาดข้อมูลสินค้าจาก Google Sheets"""
+def load_sales_data():
+    """โหลดข้อมูลยอดขายจาก Google Sheets"""
     try:
         gc = connect_google_sheets()
         if not gc:
             return pd.DataFrame()
             
         sheet = gc.open_by_key(SHEET_ID)
-        worksheet = sheet.worksheet("ตู้เย็น")
+        worksheet = sheet.worksheet("ยอดขาย")
         df = pd.DataFrame(worksheet.get_all_records())
         
         if df.empty:
             return pd.DataFrame()
             
-        # ทำความสะอาดข้อมูล
-        df["ชื่อสินค้า"] = df["ชื่อสินค้า"].str.strip()
-        numeric_cols = ["ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-            else:
-                df[col] = 0
-                
         return df
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูล: {str(e)}")
-        logger.error(f"Error loading product data: {e}")
+        handle_error(e, "การโหลดข้อมูลยอดขาย")
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
