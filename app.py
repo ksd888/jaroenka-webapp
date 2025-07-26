@@ -734,6 +734,29 @@ def reset_ice_session_state():
         logger.error(f"Error resetting ice session state: {e}")
         st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
 
+def reset_ice_session_state():
+    """รีเซ็ตฟอร์มน้ำแข็งหลังบันทึกข้อมูล"""
+    try:
+        # ลบค่าใน session state ที่เกี่ยวข้องกับฟอร์มน้ำแข็ง
+        for ice_type in ICE_TYPES:
+            # ลบค่าฟอร์ม
+            keys_to_delete = [
+                f"increase_{ice_type}",
+                f"add_sell_{ice_type}",
+                f"divided_{ice_type}",
+                f"melted_{ice_type}"
+            ]
+            for key in keys_to_delete:
+                if key in st.session_state:
+                    del st.session_state[key]
+        
+        # ตั้งค่าสถานะให้รีเฟรชหน้า
+        st.session_state.force_rerun = True
+        logger.info("Ice form inputs reset successfully")
+    except Exception as e:
+        logger.error(f"Error resetting ice session state: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
+
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
@@ -835,7 +858,11 @@ def show_ice_sale_page():
                 iceflow_sheet = sheet.worksheet("iceflow")
                 iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                 
-                reset_ice_session_state()
+                # รีเซ็ตเฉพาะฟอร์มเติมสต็อก
+                for ice_type in ICE_TYPES:
+                    if f"increase_{ice_type}" in st.session_state:
+                        del st.session_state[f"increase_{ice_type}"]
+                
                 st.cache_data.clear()
                 st.success("✅ บันทึกยอดเติมน้ำแข็งแล้ว")
                 time.sleep(1)
@@ -1009,6 +1036,7 @@ def show_ice_sale_page():
                                     "ice"
                                 ])
                     
+                    # รีเซ็ตฟอร์มทั้งหมดหลังบันทึก
                     reset_ice_session_state()
                     st.cache_data.clear()
                     st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
