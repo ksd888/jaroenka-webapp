@@ -957,21 +957,21 @@ def show_ice_sale_page():
                 df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - safe_float(df_ice.at[idx, "ขายออก"]) - melted_qty
 
            # ✅ สรุปยอดขายจากข้อมูลรวมในชีท iceflow
-    total_income_all = 0
-    total_profit_all = 0
-    for _, row in df_ice.iterrows():
-        price = safe_float(row["ราคาขายต่อหน่วย"])
-        cost = safe_float(row["ต้นทุนต่อหน่วย"])
-        sold = safe_float(row["ขายออก"])
-        total_income_all += price * sold
-        total_profit_all += (price - cost) * sold
+total_income_all = 0
+total_profit_all = 0
+for _, row in df_ice.iterrows():
+    price = safe_float(row["ราคาขายต่อหน่วย"])
+    cost = safe_float(row["ต้นทุนต่อหน่วย"])
+    sold = safe_float(row["ขายออก"])
+    total_income_all += price * sold
+    total_profit_all += (price - cost) * sold
 
-            st.markdown("### 📊 สรุปยอดขาย (รวมทั้งหมด)")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("💰 ยอดขายรวม", f"{total_income_all:,.2f} บาท")
-    with col2:
-        st.metric("🟢 กำไรสุทธิ", f"{total_profit_all:,.2f} บาท")
+st.markdown("### 📊 สรุปยอดขาย (รวมทั้งหมด)")
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("💰 ยอดขายรวม", f"{total_income_all:,.2f} บาท")
+with col2:
+    st.metric("🟢 กำไรสุทธิ", f"{total_profit_all:,.2f} บาท")
     
     # ส่วนบันทึกการขายน้ำแข็ง
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
