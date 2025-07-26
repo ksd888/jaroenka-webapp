@@ -244,12 +244,25 @@ def clear_cart():
     st.session_state.prev_paid_input = 0.0
 
 def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออก"""
-    for ice_type in ICE_TYPES:
-        st.session_state.pop(f"in_{ice_type}", None)
-        st.session_state.pop(f"sell_out_{ice_type}", None)
-    st.session_state.force_rerun = True
-    
+    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
+    try:
+        for ice_type in ICE_TYPES:
+            keys_to_delete = [
+                f"increase_{ice_type}",
+                f"add_sell_{ice_type}",
+                f"divided_{ice_type}",
+                f"melted_{ice_type}"  # เพิ่มคีย์สำหรับน้ำแข็งที่ละลาย
+            ]
+            for key in keys_to_delete:
+                if key in st.session_state:
+                    del st.session_state[key]
+        
+        st.session_state.force_rerun = True
+        logger.info("Ice form inputs reset successfully")
+    except Exception as e:
+        logger.error(f"Error resetting ice session state: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
+
 # การเชื่อมต่อ Google Sheets
 @st.cache_resource
 def connect_google_sheets():
@@ -379,6 +392,19 @@ def load_ice_data():
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
         logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
+
+def handle_error(e, context):
+    """จัดการและบันทึกข้อผิดพลาด"""
+    error_msg = f"เกิดข้อผิดพลาดใน {context}: {str(e)}\n{traceback.format_exc()}"
+    logger.error(error_msg)
+    st.error(f"⚠️ เกิดข้อผิดพลาดใน {context}: {str(e)}")
+    
+    if PYPERCLIP_AVAILABLE:
+        try:
+            pyperclip.copy(error_msg)
+            st.info("📋 ข้อผิดพลาดถูกคัดลอกไปยังคลิปบอร์ดแล้ว")
+        except:
+            st.warning("ไม่สามารถคัดลอกข้อผิดพลาดได้")
 
 def show_dashboard():
     st.title("📊 Dashboard สถิติการขาย")
@@ -704,59 +730,6 @@ def show_product_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
                 logger.error(f"Error confirming sale: {e}")
 
-def reset_ice_session_state():
-    """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            # ลบค่าป้อนเข้า
-            if f"in_{ice_type}" in st.session_state:
-                del st.session_state[f"in_{ice_type}"]
-            
-            # ลบค่าขายออก
-            if f"sell_out_{ice_type}" in st.session_state:
-                del st.session_state[f"sell_out_{ice_type}"]
-            
-            # ลบค่าน้ำแข็งที่ละลาย
-            if f"melted_{ice_type}" in st.session_state:
-                del st.session_state[f"melted_{ice_type}"]
-        
-        # ตั้งค่าสถานะให้รีเฟรชหน้า
-        st.session_state.force_rerun = True
-        
-        # แจ้งเตือนใน console สำหรับ debugging
-        logger.info("Ice session state reset successfully")
-        
-        # รีเฟรชหน้าทันที
-        st.rerun()
-        
-    except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
-
-def reset_ice_session_state():
-    """รีเซ็ตฟอร์มน้ำแข็งหลังบันทึกข้อมูล"""
-    try:
-        # ลบค่าใน session state ที่เกี่ยวข้องกับฟอร์มน้ำแข็ง
-        for ice_type in ICE_TYPES:
-            # ลบค่าฟอร์ม
-            keys_to_delete = [
-                f"increase_{ice_type}",
-                f"add_sell_{ice_type}",
-                f"divided_{ice_type}",
-                f"melted_{ice_type}"
-            ]
-            for key in keys_to_delete:
-                if key in st.session_state:
-                    del st.session_state[key]
-        
-        # ตั้งค่าสถานะให้รีเฟรชหน้า
-        st.session_state.force_rerun = True
-        logger.info("Ice form inputs reset successfully")
-    except Exception as e:
-        logger.error(f"Error resetting ice session state: {e}")
-        st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
-
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
     
@@ -821,11 +794,11 @@ def show_ice_sale_page():
             melted = safe_float(df_ice.at[idx, "จำนวนละลาย"])
             remaining = max(0, received - sold - melted)  # ป้องกันค่าติดลบ
             
+            # แสดงผลแบบมีทศนิยมเมื่อจำเป็น
+            received_display = f"{received:.1f}" if received % 1 != 0 else f"{int(received)}"
+            remaining_display = f"{remaining:.1f}" if remaining % 1 != 0 else f"{int(remaining)}"
+            
             with cols[i]:
-                # จัดรูปแบบการแสดงผลให้เหมาะสม
-                received_display = f"{received:.2f}" if received % 1 != 0 else f"{int(received)}"
-                remaining_display = f"{remaining:.2f}" if remaining % 1 != 0 else f"{int(remaining)}"
-                
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">น้ำแข็ง{ice_type}</div>
@@ -891,10 +864,10 @@ def show_ice_sale_page():
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             current_sold = safe_float(df_ice.at[idx, "ขายออก"])
 
+            # แสดงผลแบบมีทศนิยมเมื่อจำเป็น
+            current_sold_display = f"{current_sold:.1f}" if current_sold % 1 != 0 else f"{int(current_sold)}"
+            
             with cols[i]:
-                # จัดรูปแบบการแสดงผลให้เหมาะสม
-                current_sold_display = f"{current_sold:.2f}" if current_sold % 1 != 0 else f"{int(current_sold)}"
-                
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
@@ -966,11 +939,17 @@ def show_ice_sale_page():
         if not row.empty:
             idx = row.index[0]
             with melted_cols[i]:
+                # ลบ session state ที่มีอยู่เพื่อหลีกเลี่ยงข้อผิดพลาด
+                melted_key = f"melted_{ice_type}"
+                if melted_key in st.session_state:
+                    del st.session_state[melted_key]
+                    
                 melted_qty = st.number_input(
                     f"ละลาย {ice_type}", 
-                    min_value=0, 
-                    value=safe_float(df_ice.at[idx, "จำนวนละลาย"]),  # ใช้ float
-                    key=f"melted_{ice_type}"
+                    min_value=0.0,  # เปลี่ยนเป็นทศนิยม
+                    value=safe_float(df_ice.at[idx, "จำนวนละลาย"]),
+                    step=0.1,       # อนุญาตให้ป้อนทศนิยม
+                    key=melted_key
                 )
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
                 df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - safe_float(df_ice.at[idx, "ขายออก"]) - melted_qty
