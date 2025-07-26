@@ -816,19 +816,23 @@ def show_ice_sale_page():
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
             idx = row.index[0]
-            received = safe_int(df_ice.at[idx, "รับเข้า"])
-            sold = safe_int(df_ice.at[idx, "ขายออก"])
-            melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+            received = safe_float(df_ice.at[idx, "รับเข้า"])  # ใช้ float เพื่อรองรับค่าทศนิยม
+            sold = safe_float(df_ice.at[idx, "ขายออก"])
+            melted = safe_float(df_ice.at[idx, "จำนวนละลาย"])
             remaining = max(0, received - sold - melted)  # ป้องกันค่าติดลบ
             
             with cols[i]:
+                # จัดรูปแบบการแสดงผลให้เหมาะสม
+                received_display = f"{received:.2f}" if received % 1 != 0 else f"{int(received)}"
+                remaining_display = f"{remaining:.2f}" if remaining % 1 != 0 else f"{int(remaining)}"
+                
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">น้ำแข็ง{ice_type}</div>
                     <div class="ice-metric">
-                        <div>📥 ยอดรับเข้า: <strong>{received}</strong> ถุง</div>
+                        <div>📥 ยอดรับเข้า: <strong>{received_display}</strong> ถุง</div>
                         <div class="{'stock-low' if remaining < 5 else 'stock-ok' if remaining < 15 else 'stock-high'}">
-                            📦 คงเหลือ: <strong>{remaining}</strong> ถุง
+                            📦 คงเหลือ: <strong>{remaining_display}</strong> ถุง
                         </div>
                     </div>
                 </div>
@@ -882,18 +886,21 @@ def show_ice_sale_page():
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
             idx = row.index[0]
-            initial_sales[ice_type] = safe_int(df_ice.at[idx, "ขายออก"])
+            initial_sales[ice_type] = safe_float(df_ice.at[idx, "ขายออก"])  # ใช้ float เพื่อรองรับค่าทศนิยม
             price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
-            current_sold = safe_int(df_ice.at[idx, "ขายออก"])
+            current_sold = safe_float(df_ice.at[idx, "ขายออก"])
 
             with cols[i]:
+                # จัดรูปแบบการแสดงผลให้เหมาะสม
+                current_sold_display = f"{current_sold:.2f}" if current_sold % 1 != 0 else f"{int(current_sold)}"
+                
                 st.markdown(f"""
                 <div class="ice-box">
                     <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
                     <div class="ice-metric">
                         <div>💰 ราคา: <strong>{price_per_bag:,.2f}</strong> บาท/ถุง</div>
-                        <div>📤 ยอดขาย: <strong>{current_sold}</strong> ถุง</div>
+                        <div>📤 ยอดขาย: <strong>{current_sold_display}</strong> ถุง</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -927,10 +934,12 @@ def show_ice_sale_page():
                         if ice_type == "ก้อน":
                             pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
                             divided_income = divided_amount
-                            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))  # 1 ถุงมี 10 ก้อน
+                            # 1 ถุงมี 10 ก้อน, ต้นทุนต่อก้อน = cost_per_bag / 10
+                            divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))
                             stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
                         else:
                             divided_income = divided_amount
+                            # คำนวณจำนวนถุงที่ขาย (ทศนิยม)
                             partial_bags = divided_amount / price_per_bag
                             divided_profit = divided_amount - (partial_bags * cost_per_bag)
                             stock_decrease += partial_bags
@@ -939,8 +948,9 @@ def show_ice_sale_page():
                         profit += divided_profit
                     
                     # อัปเดตข้อมูลใน DataFrame
+                    # บันทึกเป็นทศนิยมเพื่อความแม่นยำ
                     df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
-                    df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_int(df_ice.at[idx, "จำนวนละลาย"])
+                    df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_float(df_ice.at[idx, "จำนวนละลาย"])
                     df_ice.at[idx, "กำไรรวม"] = income
                     df_ice.at[idx, "กำไรสุทธิ"] = profit
                     
@@ -959,11 +969,11 @@ def show_ice_sale_page():
                 melted_qty = st.number_input(
                     f"ละลาย {ice_type}", 
                     min_value=0, 
-                    value=safe_int(df_ice.at[idx, "จำนวนละลาย"]),
+                    value=safe_float(df_ice.at[idx, "จำนวนละลาย"]),  # ใช้ float
                     key=f"melted_{ice_type}"
                 )
                 df_ice.at[idx, "จำนวนละลาย"] = melted_qty
-                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_int(df_ice.at[idx, "รับเข้า"]) - safe_int(df_ice.at[idx, "ขายออก"]) - melted_qty
+                df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - safe_float(df_ice.at[idx, "ขายออก"]) - melted_qty
 
     # สรุปยอดขาย
     st.markdown("### 📊 สรุปยอดขาย")
@@ -982,22 +992,22 @@ def show_ice_sale_page():
             row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
             if not row.empty:
                 idx = row.index[0]
-                received = safe_int(df_ice.at[idx, "รับเข้า"])
-                sold = safe_int(df_ice.at[idx, "ขายออก"])
-                melted = safe_int(df_ice.at[idx, "จำนวนละลาย"])
+                received = safe_float(df_ice.at[idx, "รับเข้า"])  # ใช้ float
+                sold = safe_float(df_ice.at[idx, "ขายออก"])
+                melted = safe_float(df_ice.at[idx, "จำนวนละลาย"])
                 remaining = received - sold - melted
                 
                 if remaining < 0:
                     validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining} ถุง)")
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining:.2f} ถุง)")
                 
                 if sold > received:
                     validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
                 
                 if melted > received:
                     validation_passed = False
-                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted} ถุง) เกินยอดรับเข้า ({received} ถุง)")
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
 
         if not validation_passed:
             st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
@@ -1024,7 +1034,7 @@ def show_ice_sale_page():
                         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
                         if not row.empty:
                             idx = row.index[0]
-                            current_sold = safe_int(df_ice.at[idx, "ขายออก"])
+                            current_sold = safe_float(df_ice.at[idx, "ขายออก"])
                             sold_in_this_session = max(0, current_sold - initial_sales.get(ice_type, 0))
                             
                             if sold_in_this_session > 0:
