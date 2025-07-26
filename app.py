@@ -246,6 +246,7 @@ def clear_cart():
 def reset_ice_session_state():
     """รีเซ็ตเฉพาะค่าที่ป้อนเข้าและออกสำหรับระบบน้ำแข็ง"""
     try:
+        # แก้ไข: ลบเฉพาะ input fields ไม่ลบข้อมูลน้ำแข็ง
         for ice_type in ICE_TYPES:
             keys_to_delete = [
                 f"increase_{ice_type}",
@@ -863,6 +864,7 @@ def show_ice_sale_page():
             price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             current_sold = safe_float(df_ice.at[idx, "ขายออก"])
+            current_profit = safe_float(df_ice.at[idx, "กำไรสุทธิ"])  # เก็บค่ากำไรปัจจุบัน
 
             # แสดงผลแบบมีทศนิยมเมื่อจำเป็น
             current_sold_display = f"{current_sold:.1f}" if current_sold % 1 != 0 else f"{int(current_sold)}"
@@ -921,11 +923,11 @@ def show_ice_sale_page():
                         profit += divided_profit
                     
                     # อัปเดตข้อมูลใน DataFrame
-                    # บันทึกเป็นทศนิยมเพื่อความแม่นยำ
+                    # แก้ไข: บวกเพิ่มจากค่าปัจจุบัน ไม่ใช่ตั้งค่าใหม่
                     df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
                     df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_float(df_ice.at[idx, "จำนวนละลาย"])
-                    df_ice.at[idx, "กำไรรวม"] = income
-                    df_ice.at[idx, "กำไรสุทธิ"] = profit
+                    df_ice.at[idx, "กำไรรวม"] += income  # บวกเพิ่มจากยอดเดิม
+                    df_ice.at[idx, "กำไรสุทธิ"] += profit  # บวกเพิ่มจากยอดเดิม
                     
                     total_income += income
                     total_profit += profit
@@ -1025,8 +1027,6 @@ def show_ice_sale_page():
                                     "ice"
                                 ])
                     
-                    # รีเซ็ตฟอร์มทั้งหมดหลังบันทึก
-                    reset_ice_session_state()
                     st.cache_data.clear()
                     st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
                     time.sleep(1)
