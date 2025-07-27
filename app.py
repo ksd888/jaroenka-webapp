@@ -990,9 +990,11 @@ def show_ice_sale_page():
 
    # ส่วนบันทึกการขายน้ำแข็ง
     if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+        # ประกาศตัวแปรสำหรับตรวจสอบ
         validation_passed = True
         error_messages = []
         
+        # ตรวจสอบข้อมูลน้ำแข็งทุกประเภท
         for ice_type in ICE_TYPES:
             row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
             if not row.empty:
@@ -1002,24 +1004,24 @@ def show_ice_sale_page():
                 melted = safe_float(df_ice.at[idx, "จำนวนละลาย"])
                 remaining = received - sold - melted
             
-            if remaining < 0:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining:.2f} ถุง)")
-            
-            if sold > received:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
-            
-            if melted > received:
-                validation_passed = False
-                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
+                if remaining < 0:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining:.2f} ถุง)")
+                
+                if sold > received:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
+                
+                if melted > received:
+                    validation_passed = False
+                    error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
 
-    if not validation_passed:
-        st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
-        for msg in error_messages:
-            st.error(msg)
-        st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
-    else:
+        if not validation_passed:
+            st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
+            for msg in error_messages:
+                st.error(msg)
+            st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
+        else:
             try:
                 with st.spinner("กำลังบันทึกการขาย..."):
                     gc = connect_google_sheets()
