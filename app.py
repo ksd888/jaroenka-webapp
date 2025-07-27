@@ -737,13 +737,16 @@ def show_ice_sale_page():
     df_ice = load_ice_data()
     today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
 
-     # เก็บยอดเริ่มต้นของยอดขายรวมและกำไรสุทธิ
+    # เก็บยอดเริ่มต้นของยอดขายรวมและกำไรสุทธิ
+    initial_sales = {}
     initial_income = {}
     initial_profit = {}
+    
     for ice_type in ICE_TYPES:
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
             idx = row.index[0]
+            initial_sales[ice_type] = safe_float(df_ice.at[idx, "ขายออก"])
             initial_income[ice_type] = safe_float(df_ice.at[idx, "ยอดขายรวม"])
             initial_profit[ice_type] = safe_float(df_ice.at[idx, "กำไรสุทธิ"])
             
@@ -986,52 +989,80 @@ def show_ice_sale_page():
     with col2:
         st.metric("🟢 กำไรสุทธิ", f"{total_profit_today:,.2f} บาท")
 
-    # ส่วนบันทึกการขายน้ำแข็ง
-    if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
-        # ... [โค้ดตรวจสอบ validation เหมือนเดิม] ...
-        else:
-            try:
-                with st.spinner("กำลังบันทึกการขาย..."):
-                    gc = connect_google_sheets()
-                    if not gc:
-                        st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                        return
-                    
-                    sheet = gc.open_by_key(SHEET_ID)
-                    iceflow_sheet = sheet.worksheet("iceflow")
-                    summary_ws = sheet.worksheet("ยอดขาย")
-                    
-                    # บันทึกข้อมูลน้ำแข็ง
-                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                    
-                    # บันทึกรายการขาย (แก้ไขใหม่)
-                    for ice_type in ICE_TYPES:
-                        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-                        if not row.empty:
-                            idx = row.index[0]
-                            current_sold = safe_float(df_ice.at[idx, "ขายออก"])
-                            sold_in_this_session = max(0, current_sold - initial_sales.get(ice_type, 0))
+   # ส่วนบันทึกการขายน้ำแข็ง
+if st.button("✅ บันทึกการขายน้ำแข็ง", type="primary", key="save_ice_sale"):
+    validation_passed = True
+    error_messages = []
+    
+    for ice_type in ICE_TYPES:
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+        if not row.empty:
+            idx = row.index[0]
+            received = safe_float(df_ice.at[idx, "รับเข้า"])  # ใช้ float
+            sold = safe_float(df_ice.at[idx, "ขายออก"])
+            melted = safe_float(df_ice.at[idx, "จำนวนละลาย"])
+            remaining = received - sold - melted
+            
+            if remaining < 0:
+                validation_passed = False
+                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดคงเหลือติดลบ ({remaining:.2f} ถุง)")
+            
+            if sold > received:
+                validation_passed = False
+                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดขาย ({sold:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
+            
+            if melted > received:
+                validation_passed = False
+                error_messages.append(f"น้ำแข็ง{ice_type}: ยอดละลาย ({melted:.2f} ถุง) เกินยอดรับเข้า ({received:.2f} ถุง)")
+
+    if not validation_passed:
+        st.error("⚠️ พบข้อผิดพลาดในการตรวจสอบข้อมูล:")
+        for msg in error_messages:
+            st.error(msg)
+        st.warning("กรุณาตรวจสอบข้อมูลก่อนบันทึกอีกครั้ง")
+    else:
+        try:
+            with st.spinner("กำลังบันทึกการขาย..."):
+                gc = connect_google_sheets()
+                if not gc:
+                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+                    return
+                
+                sheet = gc.open_by_key(SHEET_ID)
+                iceflow_sheet = sheet.worksheet("iceflow")
+                summary_ws = sheet.worksheet("ยอดขาย")
+                
+                # บันทึกข้อมูลน้ำแข็ง
+                iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                
+                # บันทึกรายการขาย (แก้ไขใหม่)
+                for ice_type in ICE_TYPES:
+                    row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+                    if not row.empty:
+                        idx = row.index[0]
+                        current_sold = safe_float(df_ice.at[idx, "ขายออก"])
+                        sold_in_this_session = max(0, current_sold - initial_sales.get(ice_type, 0))
+                        
+                        if sold_in_this_session > 0:
+                            # คำนวณยอดขายและกำไรเฉพาะในรอบนี้
+                            income_in_this_session = df_ice.at[idx, "ยอดขายรวม"] - initial_income.get(ice_type, 0)
+                            profit_in_this_session = df_ice.at[idx, "กำไรสุทธิ"] - initial_profit.get(ice_type, 0)
                             
-                            if sold_in_this_session > 0:
-                                # คำนวณยอดขายและกำไรเฉพาะในรอบนี้
-                                income_in_this_session = df_ice.at[idx, "ยอดขายรวม"] - initial_income.get(ice_type, 0)
-                                profit_in_this_session = df_ice.at[idx, "กำไรสุทธิ"] - initial_profit.get(ice_type, 0)
-                                
-                                summary_ws.append_row([
-                                    today_str,
-                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
-                                    float(income_in_this_session),
-                                    float(profit_in_this_session),
-                                    "ice"
-                                ])
-                    
-                    st.cache_data.clear()
-                    st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
-                    time.sleep(1)
-                    st.rerun()
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
-                logger.error(f"Error saving ice sale: {e}")
+                            summary_ws.append_row([
+                                today_str,
+                                f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
+                                float(income_in_this_session),
+                                float(profit_in_this_session),
+                                "ice"
+                            ])
+                
+                st.cache_data.clear()
+                st.success("✅ บันทึกการขายน้ำแข็งเรียบร้อย")
+                time.sleep(1)
+                st.rerun()
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
+            logger.error(f"Error saving ice sale: {e}")
                 
 def main():
     try:
