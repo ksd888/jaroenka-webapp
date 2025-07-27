@@ -394,6 +394,109 @@ def load_ice_data():
         logger.error(f"Error loading ice data: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=60)
+def load_delivery_data(chain_name: str) -> pd.DataFrame:
+    """โหลดข้อมูลการส่งน้ำแข็งสำหรับสายส่งที่ระบุ"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet(chain_name)
+            df = pd.DataFrame(worksheet.get_all_records())
+        except gspread.WorksheetNotFound:
+            # สร้างชีทใหม่หากไม่พบ
+            worksheet = sheet.add_worksheet(title=chain_name, rows=100, cols=20)
+            df = pd.DataFrame(columns=[
+                "วันที่",
+                "น้ำแข็งโม่_ใช้",
+                "น้ำแข็งโม่_เหลือ",
+                "น้ำแข็งโม่_ค้าง",
+                "น้ำแข็งโม่_ละลาย",
+                "น้ำแข็งหลอดเล็ก_ใช้",
+                "น้ำแข็งหลอดเล็ก_เหลือ",
+                "น้ำแข็งหลอดเล็ก_ค้าง",
+                "น้ำแข็งหลอดเล็ก_ละลาย",
+                "น้ำแข็งหลอดใหญ่_ใช้",
+                "น้ำแข็งหลอดใหญ่_เหลือ",
+                "น้ำแข็งหลอดใหญ่_ค้าง",
+                "น้ำแข็งหลอดใหญ่_ละลาย",
+                "น้ำแข็งก้อน_ใช้",
+                "น้ำแข็งก้อน_เหลือ",
+                "น้ำแข็งก้อน_ค้าง",
+                "น้ำแข็งก้อน_ละลาย",
+                "ยอดขายสุทธิ"
+            ])
+            worksheet.update([df.columns.tolist()] + df.values.tolist())
+            return df
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        return df
+    except Exception as e:
+        handle_error(e, f"การโหลดข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
+        return pd.DataFrame()
+
+def save_delivery_data(chain_name: str, data: dict):
+    """บันทึกข้อมูลการส่งน้ำแข็งลงใน Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet(chain_name)
+        except gspread.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title=chain_name, rows=100, cols=20)
+        
+        # โหลดข้อมูลปัจจุบัน
+        df = load_delivery_data(chain_name)
+        
+        # เพิ่มข้อมูลใหม่
+        new_row = {
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+        }
+        
+        for ice_type in ICE_TYPES:
+            for field in ["ใช้", "เหลือ", "ค้าง", "ละลาย"]:
+                key = f"{ice_type}_{field}"
+                new_row[f"น้ำแข็ง{key}"] = data.get(key, 0)
+        
+        # คำนวณยอดขายสุทธิ
+        net_sales = 0
+        ice_data = load_ice_data()
+        for ice_type in ICE_TYPES:
+            # หาราคาขายต่อถุง
+            price = 0
+            row = ice_data[ice_data["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+            if not row.empty:
+                price = safe_float(row.iloc[0]["ราคาขายต่อหน่วย"])
+            
+            # คำนวณยอดขาย
+            used = data.get(f"{ice_type}_ใช้", 0)
+            returned = data.get(f"{ice_type}_เหลือ", 0)
+            melted = data.get(f"{ice_type}_ละลาย", 0)
+            debt = data.get(f"{ice_type}_ค้าง", 0)
+            
+            actual_sold = used - returned - melted
+            net_sales += (actual_sold * price) - debt
+        
+        new_row["ยอดขายสุทธิ"] = net_sales
+        
+        # เพิ่มข้อมูลใหม่ลง DataFrame
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # บันทึกลง Google Sheets
+        worksheet.update([df.columns.tolist()] + df.values.tolist())
+        return True
+    except Exception as e:
+        handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
+        return False
+
 def handle_error(e, context):
     """จัดการและบันทึกข้อผิดพลาด"""
     error_msg = f"เกิดข้อผิดพลาดใน {context}: {str(e)}\n{traceback.format_exc()}"
@@ -1066,6 +1169,231 @@ def show_ice_sale_page():
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
+
+            def save_delivery_data(chain_name: str, data: dict):
+    """บันทึกข้อมูลการส่งน้ำแข็งลงใน Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet(chain_name)
+        except gspread.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title=chain_name, rows=100, cols=20)
+        
+        # โหลดข้อมูลปัจจุบัน
+        df = load_delivery_data(chain_name)
+        
+        # เพิ่มข้อมูลใหม่
+        new_row = {
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+        }
+        
+        for ice_type in ICE_TYPES:
+            for field in ["ใช้", "เหลือ", "ค้าง", "ละลาย"]:
+                key = f"{ice_type}_{field}"
+                new_row[f"น้ำแข็ง{key}"] = data.get(key, 0)
+        
+        # คำนวณยอดขายสุทธิ
+        net_sales = 0
+        ice_data = load_ice_data()
+        for ice_type in ICE_TYPES:
+            # หาราคาขายต่อถุง
+            price = 0
+            row = ice_data[ice_data["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+            if not row.empty:
+                price = safe_float(row.iloc[0]["ราคาขายต่อหน่วย"])
+            
+            # คำนวณยอดขาย
+            used = data.get(f"{ice_type}_ใช้", 0)
+            returned = data.get(f"{ice_type}_เหลือ", 0)
+            melted = data.get(f"{ice_type}_ละลาย", 0)
+            debt = data.get(f"{ice_type}_ค้าง", 0)
+            
+            actual_sold = used - returned - melted
+            net_sales += (actual_sold * price) - debt
+        
+        new_row["ยอดขายสุทธิ"] = net_sales
+        
+        # เพิ่มข้อมูลใหม่ลง DataFrame
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # บันทึกลง Google Sheets
+        worksheet.update([df.columns.tolist()] + df.values.tolist())
+        return True
+    except Exception as e:
+        handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
+        return False
+
+# เพิ่มฟังก์ชันแสดงหน้าส่งน้ำแข็ง
+def show_delivery_page():
+    st.title("🚚 ระบบจัดการการส่งน้ำแข็ง")
+    
+    # เลือกสายส่ง
+    selected_chain = st.selectbox("เลือกสายส่ง", DELIVERY_CHAINS, key="delivery_chain")
+    
+    # ดึงข้อมูลราคาน้ำแข็ง
+    ice_data = load_ice_data()
+    ice_prices = {}
+    for ice_type in ICE_TYPES:
+        row = ice_data[ice_data["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+        if not row.empty:
+            ice_prices[ice_type] = safe_float(row.iloc[0]["ราคาขายต่อหน่วย"])
+        else:
+            ice_prices[ice_type] = 0
+            st.warning(f"ไม่พบราคาน้ำแข็ง{ice_type} ในระบบ")
+    
+    # สร้างฟอร์มกรอกข้อมูล
+    delivery_data = {}
+    
+    st.subheader("📝 กรอกข้อมูลการส่งน้ำแข็ง")
+    st.write(f"สำหรับสาย: **{selected_chain}**")
+    
+    # สร้างตารางสำหรับน้ำแข็งแต่ละชนิด
+    for ice_type in ICE_TYPES:
+        st.markdown(f"### น้ำแข็ง{ice_type}")
+        cols = st.columns(4)
+        with cols[0]:
+            delivery_data[f"{ice_type}_ใช้"] = st.number_input(
+                f"จำนวนที่ใช้ (ถุง)", 
+                min_value=0, 
+                step=1, 
+                key=f"used_{ice_type}_{selected_chain}"
+            )
+        with cols[1]:
+            delivery_data[f"{ice_type}_เหลือ"] = st.number_input(
+                f"เหลือกลับ (ถุง)", 
+                min_value=0, 
+                step=1, 
+                key=f"returned_{ice_type}_{selected_chain}"
+            )
+        with cols[2]:
+            delivery_data[f"{ice_type}_ค้าง"] = st.number_input(
+                f"ค้างจ่าย (บาท)", 
+                min_value=0.0, 
+                step=10.0,
+                format="%.2f",
+                key=f"debt_{ice_type}_{selected_chain}"
+            )
+        with cols[3]:
+            delivery_data[f"{ice_type}_ละลาย"] = st.number_input(
+                f"ละลาย (ถุง)", 
+                min_value=0, 
+                step=1, 
+                key=f"melted_{ice_type}_{selected_chain}"
+            )
+    
+    # คำนวณยอดขายสุทธิ
+    net_sales = 0
+    for ice_type in ICE_TYPES:
+        used = delivery_data.get(f"{ice_type}_ใช้", 0)
+        returned = delivery_data.get(f"{ice_type}_เหลือ", 0)
+        melted = delivery_data.get(f"{ice_type}_ละลาย", 0)
+        debt = delivery_data.get(f"{ice_type}_ค้าง", 0)
+        
+        actual_sold = used - returned - melted
+        net_sales += (actual_sold * ice_prices[ice_type]) - debt
+    
+    st.subheader("📊 สรุปยอดขาย")
+    st.markdown(f"""
+    <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px;'>
+        <h4 style='margin-bottom:5px;'>ยอดขายสุทธิสำหรับสาย {selected_chain}</h4>
+        <p style='font-size:24px; color:#007aff; font-weight:bold;'>{net_sales:,.2f} บาท</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ปุ่มบันทึก
+    if st.button("💾 บันทึกข้อมูล", type="primary", key=f"save_delivery_{selected_chain}"):
+        if save_delivery_data(selected_chain, delivery_data):
+            st.success(f"✅ บันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {selected_chain} เรียบร้อยแล้ว")
+            
+            # อัปเดตข้อมูลน้ำแข็งหลัก
+            try:
+                gc = connect_google_sheets()
+                if gc:
+                    sheet = gc.open_by_key(SHEET_ID)
+                    iceflow_sheet = sheet.worksheet("iceflow")
+                    df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+                    
+                    for ice_type in ICE_TYPES:
+                        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+                        if not row.empty:
+                            idx = row.index[0]
+                            # เพิ่มยอดขายในข้อมูลหลัก
+                            used = delivery_data.get(f"{ice_type}_ใช้", 0)
+                            returned = delivery_data.get(f"{ice_type}_เหลือ", 0)
+                            melted = delivery_data.get(f"{ice_type}_ละลาย", 0)
+                            
+                            # คำนวณยอดขายใหม่
+                            sold_main = safe_float(df_ice.at[idx, "ขายออก"])
+                            df_ice.at[idx, "ขายออก"] = sold_main + (used - returned)
+                            
+                            # เพิ่มน้ำแข็งที่ละลาย
+                            melted_main = safe_float(df_ice.at[idx, "จำนวนละลาย"])
+                            df_ice.at[idx, "จำนวนละลาย"] = melted_main + melted
+                            
+                    # อัปเดต Google Sheets
+                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                    st.cache_data.clear()
+                    logger.info(f"อัปเดตข้อมูลน้ำแข็งหลักสำหรับสาย {selected_chain} เรียบร้อย")
+            except Exception as e:
+                st.error(f"⚠️ ไม่สามารถอัปเดตข้อมูลน้ำแข็งหลักได้: {str(e)}")
+                logger.error(f"Error updating main ice data: {e}")
+            
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("❌ ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง")
+    
+    # แสดงข้อมูลย้อนหลัง
+    st.subheader("📜 ประวัติการส่ง")
+    delivery_history = load_delivery_data(selected_chain)
+    if not delivery_history.empty:
+        # กรองคอลัมน์ที่สำคัญ
+        display_cols = ["วันที่"]
+        for ice_type in ICE_TYPES:
+            display_cols.extend([
+                f"น้ำแข็ง{ice_type}_ใช้",
+                f"น้ำแข็ง{ice_type}_เหลือ",
+                f"น้ำแข็ง{ice_type}_ค้าง",
+                f"น้ำแข็ง{ice_type}_ละลาย"
+            ])
+        display_cols.append("ยอดขายสุทธิ")
+        
+        # แสดงตารางข้อมูล
+        st.dataframe(
+            delivery_history[display_cols].rename(columns=lambda x: x.replace("น้ำแข็ง", "")),
+            height=300,
+            use_container_width=True
+        )
+        
+        # แสดงกราฟยอดขาย
+        st.subheader("📈 กราฟยอดขายย้อนหลัง")
+        if "ยอดขายสุทธิ" in delivery_history.columns and "วันที่" in delivery_history.columns:
+            try:
+                # คัดลอกข้อมูลเพื่อป้องกันการแก้ไขข้อมูลต้นฉบับ
+                plot_df = delivery_history.copy()
+                
+                # แปลงคอลัมน์วันที่
+                plot_df["วันที่"] = pd.to_datetime(plot_df["วันที่"], errors='coerce', dayfirst=True)
+                plot_df = plot_df.dropna(subset=["วันที่"])
+                plot_df = plot_df.sort_values("วันที่")
+                
+                # สร้างกราฟ
+                fig, ax = plt.subplots(figsize=(10, 4))
+                ax.plot(plot_df["วันที่"], plot_df["ยอดขายสุทธิ"], marker='o', color='#007aff')
+                ax.set_title(f'ยอดขายสุทธิสำหรับสาย {selected_chain}')
+                ax.set_xlabel('วันที่')
+                ax.set_ylabel('ยอดขาย (บาท)')
+                ax.grid(True)
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+            except Exception as e:
+                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
+    else:
+        st.info("ℹ️ ยังไม่มีข้อมูลประวัติการส่งสำหรับสายนี้")
                 
 def main():
     try:
@@ -1087,21 +1415,21 @@ def main():
 
         # แสดงเมนูหลัก
         st.markdown("### 🚀 เมนูหลัก")
-        col1, col2, col3, col4 = st.columns(4)  # เพิ่มเป็น 4 columns
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            if st.button("🏪 ขายสินค้า"):
+            if st.button("🏪 ขายสินค้า", use_container_width=True):
                 st.session_state.page = "ขายสินค้า"
                 st.rerun()
         with col2:
-            if st.button("🧊 ขายน้ำแข็ง"):
+            if st.button("🧊 ขายน้ำแข็ง", use_container_width=True):
                 st.session_state.page = "ขายน้ำแข็ง"
                 st.rerun()
         with col3:
-            if st.button("📊 Dashboard"):
+            if st.button("📊 Dashboard", use_container_width=True):
                 st.session_state.page = "Dashboard"
                 st.rerun()
         with col4:
-            if st.button("🚚 ส่งน้ำแข็ง"):  # เพิ่มปุ่มใหม่
+            if st.button("🚚 ส่งน้ำแข็ง", use_container_width=True):
                 st.session_state.page = "ส่งน้ำแข็ง"
                 st.rerun()
 
@@ -1112,7 +1440,7 @@ def main():
             show_product_sale_page()
         elif st.session_state.page == "ขายน้ำแข็ง":
             show_ice_sale_page()
-        elif st.session_state.page == "ส่งน้ำแข็ง":  # เพิ่มหน้าใหม่
+        elif st.session_state.page == "ส่งน้ำแข็ง":
             show_delivery_page()
             
     except Exception as page_error:
