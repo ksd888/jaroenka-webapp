@@ -1144,7 +1144,7 @@ def show_ice_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
 
-                def save_delivery_data(chain_name: str, data: dict):
+def save_delivery_data(chain_name: str, data: dict):
     """บันทึกข้อมูลการส่งน้ำแข็งลงใน Google Sheets"""
     try:
         gc = connect_google_sheets()
