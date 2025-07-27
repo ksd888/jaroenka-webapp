@@ -1087,7 +1087,7 @@ def main():
 
         # แสดงเมนูหลัก
         st.markdown("### 🚀 เมนูหลัก")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)  # เพิ่มเป็น 4 columns
         with col1:
             if st.button("🏪 ขายสินค้า"):
                 st.session_state.page = "ขายสินค้า"
@@ -1100,6 +1100,10 @@ def main():
             if st.button("📊 Dashboard"):
                 st.session_state.page = "Dashboard"
                 st.rerun()
+        with col4:
+            if st.button("🚚 ส่งน้ำแข็ง"):  # เพิ่มปุ่มใหม่
+                st.session_state.page = "ส่งน้ำแข็ง"
+                st.rerun()
 
         # แสดงหน้าเว็บตามสถานะปัจจุบัน
         if st.session_state.page == "Dashboard":
@@ -1108,6 +1112,8 @@ def main():
             show_product_sale_page()
         elif st.session_state.page == "ขายน้ำแข็ง":
             show_ice_sale_page()
+        elif st.session_state.page == "ส่งน้ำแข็ง":  # เพิ่มหน้าใหม่
+            show_delivery_page()
             
     except Exception as page_error:
         logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
