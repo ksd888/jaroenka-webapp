@@ -324,6 +324,38 @@ def load_product_data():
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
+def load_customer_debt_data():
+    """โหลดข้อมูลลูกค้าค้างเงิน"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet("ลูกค้าค้างเงิน")
+            df = pd.DataFrame(worksheet.get_all_records())
+        except gspread.WorksheetNotFound:
+            # สร้างชีทใหม่หากไม่พบ
+            worksheet = sheet.add_worksheet(title="ลูกค้าค้างเงิน", rows=100, cols=10)
+            df = pd.DataFrame(columns=[
+                "วันที่",
+                "ชื่อลูกค้า",
+                "สายส่ง",
+                "ยอดค้าง",
+                "ชำระแล้ว",
+                "คงค้าง",
+                "หมายเหตุ"
+            ])
+            worksheet.update([df.columns.tolist()] + df.values.tolist())
+            return df
+        
+        return df
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลลูกค้าค้างเงิน")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
 def load_sales_data() -> pd.DataFrame:
     """โหลดข้อมูลยอดขายจาก Google Sheets"""
     try:
