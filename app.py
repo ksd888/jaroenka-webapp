@@ -1176,8 +1176,8 @@ def show_ice_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
 
-def save_customer_debt(customer_name, chain, amount, note=""):
-    """บันทึกข้อมูลการชำระค้างของลูกค้า"""
+def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note=""):
+    """บันทึกข้อมูลลูกค้าค้างเงินตามข้อกำหนดใหม่"""
     try:
         gc = connect_google_sheets()
         if not gc:
@@ -1191,22 +1191,22 @@ def save_customer_debt(customer_name, chain, amount, note=""):
         
         df = pd.DataFrame(worksheet.get_all_records())
         
-        # คำนวณยอดคงค้าง
+        # คำนวณยอดค้างใหม่ (รวมยอดค้างเก่า + ยอดค้างใหม่)
         current_debt = 0
         if not df.empty:
             customer_history = df[(df["ชื่อลูกค้า"] == customer_name) & (df["สายส่ง"] == chain)]
             if not customer_history.empty:
                 current_debt = customer_history.iloc[-1]["คงค้าง"]
         
-        new_debt = current_debt - amount
+        new_debt = current_debt + debt_amount - payment_amount
         
         # เพิ่มข้อมูลใหม่
         new_row = {
             "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y"),
             "ชื่อลูกค้า": customer_name,
             "สายส่ง": chain,
-            "ยอดค้าง": current_debt,
-            "ชำระแล้ว": amount,
+            "ยอดค้าง": current_debt + debt_amount,  # รวมยอดค้างเก่าและใหม่
+            "ชำระแล้ว": payment_amount,
             "คงค้าง": new_debt,
             "หมายเหตุ": note
         }
@@ -1281,7 +1281,7 @@ def show_delivery_page():
                 key=f"melted_{ice_type}_{selected_chain}"
             )
     
-    # ส่วนจัดการลูกค้าค้างเงิน (แก้ไข)
+    # ส่วนจัดการลูกค้าค้างเงิน (แก้ไขแล้ว)
     st.subheader("🧾 การจัดการลูกค้าค้างเงิน")
     
     # โหลดข้อมูลลูกค้าค้างเงิน
@@ -1310,14 +1310,23 @@ def show_delivery_page():
     
     # ฟิลด์กรอกข้อมูลการชำระ (แก้ไขใหม่)
     if customer_name:
-        # คำนวณยอดค้างปัจจุบัน
+        # คำนวณยอดค้างปัจจุบัน (รวมยอดค้างใหม่จากฟอร์มน้ำแข็ง)
         current_debt = 0
         if not debt_df.empty and customer_name in customer_options:
             customer_history = debt_df[debt_df["ชื่อลูกค้า"] == customer_name]
             if not customer_history.empty:
                 current_debt = customer_history.iloc[-1]["คงค้าง"]
         
-        st.markdown(f"**ยอดค้างปัจจุบัน:** {current_debt:,.2f} บาท")
+        # รวมยอดค้างใหม่จากฟอร์มน้ำแข็ง
+        additional_debt = 0
+        for ice_type in ICE_TYPES:
+            debt_key = f"{ice_type}_ค้าง"
+            if debt_key in delivery_data:
+                additional_debt += delivery_data[debt_key]
+        
+        total_debt = current_debt + additional_debt
+        
+        st.markdown(f"**ยอดค้างปัจจุบัน (รวมค้างใหม่):** {total_debt:,.2f} บาท")
         
         # ใช้แบบฟอร์มเพื่อจัดการสถานะการรีเซ็ต
         with st.form(key=f"payment_form_{selected_chain}"):
@@ -1326,13 +1335,13 @@ def show_delivery_page():
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                value=0.0,  # ค่าเริ่มต้น 0
+                value=0.0,
                 key=f"payment_amount_{selected_chain}"
             )
             
             payment_note = st.text_input(
                 "หมายเหตุ",
-                value="",  # ค่าเริ่มต้นว่าง
+                value="",
                 key=f"payment_note_{selected_chain}",
                 help="เช่น วันที่ชำระ, วิธีการชำระ"
             )
@@ -1340,15 +1349,23 @@ def show_delivery_page():
             submitted = st.form_submit_button("💳 บันทึกการชำระ")
             
             if submitted:
-                if payment_amount > 0:
-                    if save_customer_debt(customer_name, selected_chain, payment_amount, payment_note):
-                        st.success(f"✅ บันทึกการชำระ {payment_amount:,.2f} บาทสำหรับ {customer_name} เรียบร้อย")
+                if payment_amount > 0 or additional_debt > 0:
+                    if save_customer_debt(
+                        customer_name, 
+                        selected_chain, 
+                        payment_amount, 
+                        additional_debt,  # ส่งยอดค้างใหม่
+                        payment_note
+                    ):
+                        st.success(f"✅ บันทึกการชำระ {payment_amount:,.2f} บาทและยอดค้าง {additional_debt:,.2f} บาทสำหรับ {customer_name} เรียบร้อย")
                         # รีเซ็ตแคชข้อมูลหนี้
                         st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
                     else:
                         st.error("❌ ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง")
                 else:
-                    st.warning("⚠️ กรุณากรอกจำนวนเงินที่ชำระ")
+                    st.warning("⚠️ กรุณากรอกจำนวนเงินที่ชำระหรือยอดค้างใหม่")
     
     # คำนวณยอดขายสุทธิ
     net_sales = 0
