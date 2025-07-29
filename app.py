@@ -1176,6 +1176,60 @@ def show_ice_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
 
+                # Local/Try imports
+try:
+    import pyperclip
+    PYPERCLIP_AVAILABLE = True
+except ImportError:
+    PYPERCLIP_AVAILABLE = False
+    st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
+
+# เพิ่มฟังก์ชันนี้เข้าไป
+def save_delivery_data(chain_name: str, data: dict, net_sales: float) -> bool:
+    """บันทึกข้อมูลการส่งน้ำแข็งลง Google Sheets"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet(chain_name)
+        except gspread.WorksheetNotFound:
+            # สร้างชีทใหม่หากไม่พบ
+            worksheet = sheet.add_worksheet(title=chain_name, rows=100, cols=20)
+            headers = [
+                "วันที่",
+                *[f"น้ำแข็ง{ice_type}_{field}" for ice_type in ICE_TYPES for field in ["ใช้", "เหลือ", "ค้าง", "ละลาย"]],
+                "ยอดขายสุทธิ"
+            ]
+            worksheet.append_row(headers)
+        
+        # เตรียมข้อมูลใหม่
+        new_row = {
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+        }
+        
+        for ice_type in ICE_TYPES:
+            new_row[f"น้ำแข็ง{ice_type}_ใช้"] = data.get(f"{ice_type}_ใช้", 0)
+            new_row[f"น้ำแข็ง{ice_type}_เหลือ"] = data.get(f"{ice_type}_เหลือ", 0)
+            new_row[f"น้ำแข็ง{ice_type}_ค้าง"] = 0  # ไม่ใช้แล้ว แต่ยังเก็บโครงสร้างเดิม
+            new_row[f"น้ำแข็ง{ice_type}_ละลาย"] = data.get(f"{ice_type}_ละลาย", 0)
+        
+        new_row["ยอดขายสุทธิ"] = net_sales
+        
+        # แปลงเป็นรายการตามลำดับคอลัมน์
+        headers = worksheet.row_values(1)
+        row_values = [new_row.get(header, "") for header in headers]
+        
+        # บันทึกลงชีท
+        worksheet.append_row(row_values)
+        return True
+        
+    except Exception as e:
+        handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
+        return False
+
 def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note=""):
     """บันทึกข้อมูลลูกค้าค้างเงินตามข้อกำหนดใหม่"""
     try:
