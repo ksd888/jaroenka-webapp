@@ -1247,10 +1247,10 @@ def show_delivery_page():
     st.subheader("📝 กรอกข้อมูลการส่งน้ำแข็ง")
     st.write(f"สำหรับสาย: **{selected_chain}**")
     
-    # สร้างตารางสำหรับน้ำแข็งแต่ละชนิด
+    # สร้างตารางสำหรับน้ำแข็งแต่ละชนิด (เอาช่องค้างจ่ายออก)
     for ice_type in ICE_TYPES:
         st.markdown(f"### น้ำแข็ง{ice_type}")
-        cols = st.columns(4)
+        cols = st.columns(3)  # เปลี่ยนจาก 4 เป็น 3 คอลัมน์
         with cols[0]:
             delivery_data[f"{ice_type}_ใช้"] = st.number_input(
                 f"จำนวนที่ใช้ (ถุง)", 
@@ -1266,14 +1266,6 @@ def show_delivery_page():
                 key=f"returned_{ice_type}_{selected_chain}"
             )
         with cols[2]:
-            delivery_data[f"{ice_type}_ค้าง"] = st.number_input(
-                f"ค้างจ่าย (บาท)", 
-                min_value=0.0, 
-                step=10.0,
-                format="%.2f",
-                key=f"debt_{ice_type}_{selected_chain}"
-            )
-        with cols[3]:
             delivery_data[f"{ice_type}_ละลาย"] = st.number_input(
                 f"ละลาย (ถุง)", 
                 min_value=0, 
@@ -1281,165 +1273,149 @@ def show_delivery_page():
                 key=f"melted_{ice_type}_{selected_chain}"
             )
     
-    # ส่วนจัดการลูกค้าค้างเงิน (แก้ไขแล้ว)
+    # ส่วนจัดการลูกค้าค้างเงิน (ใหม่)
     st.subheader("🧾 การจัดการลูกค้าค้างเงิน")
+    st.info("สามารถเพิ่มลูกค้าค้างจ่ายได้หลายคนในรอบส่งนี้")
     
-    # โหลดข้อมูลลูกค้าค้างเงิน
-    debt_df = load_customer_debt_data()
+    # ระบบจัดการรายการลูกค้าค้างจ่าย
+    if 'customer_debts' not in st.session_state:
+        st.session_state.customer_debts = []
     
-    # ค้นหาลูกค้า
-    customer_options = []
-    if not debt_df.empty:
-        customer_options = debt_df["ชื่อลูกค้า"].unique().tolist()
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        customer_name = st.selectbox(
-            "ค้นหาลูกค้า",
-            options=[""] + customer_options,
-            index=0,
-            key=f"customer_search_{selected_chain}",
-            help="เลือกลูกค้าจากรายการหรือป้อนชื่อใหม่"
-        )
-    
-    with col2:
-        new_customer = st.checkbox("ลูกค้าใหม่", key=f"new_customer_{selected_chain}")
-    
-    if new_customer:
-        customer_name = st.text_input("ชื่อลูกค้า", key=f"new_customer_name_{selected_chain}")
-    
-    # ฟิลด์กรอกข้อมูลการชำระ (แก้ไขใหม่)
-    if customer_name:
-        # คำนวณยอดค้างปัจจุบัน (รวมยอดค้างใหม่จากฟอร์มน้ำแข็ง)
-        current_debt = 0
-        if not debt_df.empty and customer_name in customer_options:
-            customer_history = debt_df[debt_df["ชื่อลูกค้า"] == customer_name]
-            if not customer_history.empty:
-                current_debt = customer_history.iloc[-1]["คงค้าง"]
-        
-        # รวมยอดค้างใหม่จากฟอร์มน้ำแข็ง
-        additional_debt = 0
-        for ice_type in ICE_TYPES:
-            debt_key = f"{ice_type}_ค้าง"
-            if debt_key in delivery_data:
-                additional_debt += delivery_data[debt_key]
-        
-        total_debt = current_debt + additional_debt
-        
-        st.markdown(f"**ยอดค้างปัจจุบัน (รวมค้างใหม่):** {total_debt:,.2f} บาท")
-        
-        # ใช้แบบฟอร์มเพื่อจัดการสถานะการรีเซ็ต
-        with st.form(key=f"payment_form_{selected_chain}"):
-            payment_amount = st.number_input(
-                "จำนวนที่ชำระ (บาท)",
+    # เพิ่มฟอร์มลูกค้าใหม่
+    with st.form(key="new_customer_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_customer_name = st.text_input("ชื่อลูกค้า", key="new_customer_name")
+        with col2:
+            debt_amount = st.number_input(
+                "ยอดค้างจ่าย (บาท)",
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
                 value=0.0,
-                key=f"payment_amount_{selected_chain}"
+                key="new_debt_amount"
             )
-            
-            payment_note = st.text_input(
-                "หมายเหตุ",
-                value="",
-                key=f"payment_note_{selected_chain}",
-                help="เช่น วันที่ชำระ, วิธีการชำระ"
-            )
-            
-            submitted = st.form_submit_button("💳 บันทึกการชำระ")
-            
-            if submitted:
-                if payment_amount > 0 or additional_debt > 0:
-                    if save_customer_debt(
-                        customer_name, 
-                        selected_chain, 
-                        payment_amount, 
-                        additional_debt,  # ส่งยอดค้างใหม่
-                        payment_note
-                    ):
-                        st.success(f"✅ บันทึกการชำระ {payment_amount:,.2f} บาทและยอดค้าง {additional_debt:,.2f} บาทสำหรับ {customer_name} เรียบร้อย")
-                        # รีเซ็ตแคชข้อมูลหนี้
-                        st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง")
-                else:
-                    st.warning("⚠️ กรุณากรอกจำนวนเงินที่ชำระหรือยอดค้างใหม่")
+        
+        if st.form_submit_button("➕ เพิ่มลูกค้า"):
+            if new_customer_name and debt_amount > 0:
+                st.session_state.customer_debts.append({
+                    "customer_name": new_customer_name,
+                    "debt_amount": debt_amount
+                })
+                st.success(f"เพิ่มลูกค้า '{new_customer_name}' เรียบร้อย")
+                st.rerun()
     
-    # คำนวณยอดขายสุทธิ
+    # แสดงรายการลูกค้าค้างจ่าย
+    total_debt = 0.0
+    if st.session_state.customer_debts:
+        st.markdown("### 📝 รายการลูกค้าค้างจ่าย")
+        
+        for i, customer in enumerate(st.session_state.customer_debts):
+            cols = st.columns([3, 2, 1])
+            with cols[0]:
+                st.markdown(f"**{customer['customer_name']}**")
+            with cols[1]:
+                st.markdown(f"ค้างจ่าย: **{customer['debt_amount']:,.2f}** บาท")
+            with cols[2]:
+                if st.button("🗑️", key=f"remove_customer_{i}"):
+                    st.session_state.customer_debts.pop(i)
+                    st.rerun()
+            
+            total_debt += customer['debt_amount']
+        
+        st.markdown(f"**ยอดค้างจ่ายรวม:** {total_debt:,.2f} บาท")
+    
+    # คำนวณยอดขายสุทธิ (รวมค้างจ่าย)
     net_sales = 0
     for ice_type in ICE_TYPES:
         used = delivery_data.get(f"{ice_type}_ใช้", 0)
         returned = delivery_data.get(f"{ice_type}_เหลือ", 0)
         melted = delivery_data.get(f"{ice_type}_ละลาย", 0)
-        debt = delivery_data.get(f"{ice_type}_ค้าง", 0)
         
         actual_sold = used - returned - melted
-        net_sales += (actual_sold * ice_prices[ice_type]) - debt
+        net_sales += (actual_sold * ice_prices[ice_type])
+    
+    # หักยอดค้างจ่ายทั้งหมด
+    net_sales -= total_debt
     
     st.subheader("📊 สรุปยอดขาย")
     st.markdown(f"""
     <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin-bottom:15px;'>
         <h4 style='margin-bottom:5px;'>ยอดขายสุทธิสำหรับสาย {selected_chain}</h4>
         <p style='font-size:24px; color:#007aff; font-weight:bold;'>{net_sales:,.2f} บาท</p>
+        <p>ยอดค้างจ่ายรวม: <span style='color:red;'>{total_debt:,.2f} บาท</span></p>
     </div>
     """, unsafe_allow_html=True)
     
     # ปุ่มบันทึก
     if st.button("💾 บันทึกข้อมูล", type="primary", key=f"save_delivery_{selected_chain}"):
         if save_delivery_data(selected_chain, delivery_data):
-            st.success(f"✅ บันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {selected_chain} เรียบร้อยแล้ว")
-            
-            # อัปเดตข้อมูลน้ำแข็งหลัก
+            # บันทึกข้อมูลลูกค้าค้างจ่าย
             try:
-                gc = connect_google_sheets()
-                if gc:
-                    sheet = gc.open_by_key(SHEET_ID)
-                    iceflow_sheet = sheet.worksheet("iceflow")
-                    df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
-                    
-                    for ice_type in ICE_TYPES:
-                        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-                        if not row.empty:
-                            idx = row.index[0]
-                            # เพิ่มยอดขายในข้อมูลหลัก
-                            used = delivery_data.get(f"{ice_type}_ใช้", 0)
-                            returned = delivery_data.get(f"{ice_type}_เหลือ", 0)
-                            melted = delivery_data.get(f"{ice_type}_ละลาย", 0)
-                            
-                            # คำนวณยอดขายใหม่
-                            sold_main = safe_float(df_ice.at[idx, "ขายออก"])
-                            df_ice.at[idx, "ขายออก"] = sold_main + (used - returned)
-                            
-                            # เพิ่มน้ำแข็งที่ละลาย
-                            melted_main = safe_float(df_ice.at[idx, "จำนวนละลาย"])
-                            df_ice.at[idx, "จำนวนละลาย"] = melted_main + melted
-                            
-                    # อัปเดต Google Sheets
-                    iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
-                    st.cache_data.clear()
-                    logger.info(f"อัปเดตข้อมูลน้ำแข็งหลักสำหรับสาย {selected_chain} เรียบร้อย")
+                for customer in st.session_state.customer_debts:
+                    save_customer_debt(
+                        customer_name=customer['customer_name'],
+                        chain=selected_chain,
+                        payment_amount=0,
+                        debt_amount=customer['debt_amount'],
+                        note=f"ค้างจ่ายจากการส่งน้ำแข็ง {datetime.datetime.now(timezone(TIMEZONE)).strftime('%d/%m/%Y')}"
+                    )
+                
+                st.success(f"✅ บันทึกข้อมูลการส่งน้ำแข็งและค้างจ่ายเรียบร้อย")
+                
+                # รีเซ็ตข้อมูลลูกค้าสำหรับรอบใหม่
+                st.session_state.customer_debts = []
+                
+                # อัปเดตข้อมูลน้ำแข็งหลัก
+                try:
+                    gc = connect_google_sheets()
+                    if gc:
+                        sheet = gc.open_by_key(SHEET_ID)
+                        iceflow_sheet = sheet.worksheet("iceflow")
+                        df_ice = pd.DataFrame(iceflow_sheet.get_all_records())
+                        
+                        for ice_type in ICE_TYPES:
+                            row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+                            if not row.empty:
+                                idx = row.index[0]
+                                # เพิ่มยอดขายในข้อมูลหลัก
+                                used = delivery_data.get(f"{ice_type}_ใช้", 0)
+                                returned = delivery_data.get(f"{ice_type}_เหลือ", 0)
+                                melted = delivery_data.get(f"{ice_type}_ละลาย", 0)
+                                
+                                # คำนวณยอดขายใหม่
+                                sold_main = safe_float(df_ice.at[idx, "ขายออก"])
+                                df_ice.at[idx, "ขายออก"] = sold_main + (used - returned)
+                                
+                                # เพิ่มน้ำแข็งที่ละลาย
+                                melted_main = safe_float(df_ice.at[idx, "จำนวนละลาย"])
+                                df_ice.at[idx, "จำนวนละลาย"] = melted_main + melted
+                                
+                        # อัปเดต Google Sheets
+                        iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
+                        st.cache_data.clear()
+                        logger.info(f"อัปเดตข้อมูลน้ำแข็งหลักสำหรับสาย {selected_chain} เรียบร้อย")
+                except Exception as e:
+                    st.error(f"⚠️ ไม่สามารถอัปเดตข้อมูลน้ำแข็งหลักได้: {str(e)}")
+                    logger.error(f"Error updating main ice data: {e}")
+                
+                time.sleep(1)
+                st.rerun()
             except Exception as e:
-                st.error(f"⚠️ ไม่สามารถอัปเดตข้อมูลน้ำแข็งหลักได้: {str(e)}")
-                logger.error(f"Error updating main ice data: {e}")
-            
-            time.sleep(1)
-            st.rerun()
+                st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูลลูกค้าค้างจ่าย: {str(e)}")
         else:
             st.error("❌ ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง")
     
-    # แสดงข้อมูลย้อนหลัง
+    # แสดงข้อมูลย้อนหลัง (แก้ไขคอลัมน์)
     st.subheader("📜 ประวัติการส่ง")
     delivery_history = load_delivery_data(selected_chain)
     if not delivery_history.empty:
-        # กรองคอลัมน์ที่สำคัญ
+        # กรองคอลัมน์ที่สำคัญ (ไม่มีค้างจ่าย)
         display_cols = ["วันที่"]
         for ice_type in ICE_TYPES:
             display_cols.extend([
                 f"น้ำแข็ง{ice_type}_ใช้",
                 f"น้ำแข็ง{ice_type}_เหลือ",
-                f"น้ำแข็ง{ice_type}_ค้าง",
                 f"น้ำแข็ง{ice_type}_ละลาย"
             ])
         display_cols.append("ยอดขายสุทธิ")
@@ -1476,6 +1452,7 @@ def show_delivery_page():
                 st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
     else:
         st.info("ℹ️ ยังไม่มีข้อมูลประวัติการส่งสำหรับสายนี้")
+
 def main():
     try:
         # ตั้งค่าพื้นฐาน
