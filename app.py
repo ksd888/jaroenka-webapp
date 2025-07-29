@@ -1240,7 +1240,51 @@ def save_delivery_data(chain_name: str, data: dict) -> bool:
         handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
         return False
 
-# เพิ่มฟังก์ชันแสดงหน้าส่งน้ำแข็ง
+        def save_customer_debt(customer_name, chain, amount, note=""):
+    """บันทึกข้อมูลการชำระค้างของลูกค้า"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet("ลูกค้าค้างเงิน")
+        except gspread.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title="ลูกค้าค้างเงิน", rows=100, cols=10)
+        
+        df = pd.DataFrame(worksheet.get_all_records())
+        
+        # คำนวณยอดคงค้าง
+        current_debt = 0
+        if not df.empty:
+            customer_history = df[(df["ชื่อลูกค้า"] == customer_name) & (df["สายส่ง"] == chain)]
+            if not customer_history.empty:
+                current_debt = customer_history.iloc[-1]["คงค้าง"]
+        
+        new_debt = current_debt - amount
+        
+        # เพิ่มข้อมูลใหม่
+        new_row = {
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y"),
+            "ชื่อลูกค้า": customer_name,
+            "สายส่ง": chain,
+            "ยอดค้าง": current_debt,
+            "ชำระแล้ว": amount,
+            "คงค้าง": new_debt,
+            "หมายเหตุ": note
+        }
+        
+        # เพิ่มข้อมูลใหม่ลง DataFrame
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # บันทึกลง Google Sheets
+        worksheet.update([df.columns.tolist()] + df.values.tolist())
+        return True
+    except Exception as e:
+        handle_error(e, "การบันทึกข้อมูลลูกค้าค้างเงิน")
+        return False
+
 def show_delivery_page():
     st.title("🚚 ระบบจัดการการส่งน้ำแข็ง")
     
@@ -1300,6 +1344,72 @@ def show_delivery_page():
                 step=1, 
                 key=f"melted_{ice_type}_{selected_chain}"
             )
+    
+    # ส่วนจัดการลูกค้าค้างเงิน
+    st.subheader("🧾 การจัดการลูกค้าค้างเงิน")
+    
+    # โหลดข้อมูลลูกค้าค้างเงิน
+    debt_df = load_customer_debt_data()
+    
+    # ค้นหาลูกค้า
+    customer_options = []
+    if not debt_df.empty:
+        customer_options = debt_df["ชื่อลูกค้า"].unique().tolist()
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        customer_name = st.selectbox(
+            "ค้นหาลูกค้า",
+            options=[""] + customer_options,
+            index=0,
+            key=f"customer_search_{selected_chain}",
+            help="เลือกลูกค้าจากรายการหรือป้อนชื่อใหม่"
+        )
+    
+    with col2:
+        new_customer = st.checkbox("ลูกค้าใหม่", key=f"new_customer_{selected_chain}")
+    
+    if new_customer:
+        customer_name = st.text_input("ชื่อลูกค้า", key=f"new_customer_name_{selected_chain}")
+    
+    # ฟิลด์กรอกข้อมูลการชำระ
+    if customer_name:
+        # คำนวณยอดค้างปัจจุบัน
+        current_debt = 0
+        if not debt_df.empty and customer_name in customer_options:
+            customer_history = debt_df[debt_df["ชื่อลูกค้า"] == customer_name]
+            if not customer_history.empty:
+                current_debt = customer_history.iloc[-1]["คงค้าง"]
+        
+        st.markdown(f"**ยอดค้างปัจจุบัน:** {current_debt:,.2f} บาท")
+        
+        payment_amount = st.number_input(
+            "จำนวนที่ชำระ (บาท)",
+            min_value=0.0,
+            step=100.0,
+            format="%.2f",
+            key=f"payment_amount_{selected_chain}"
+        )
+        
+        payment_note = st.text_input(
+            "หมายเหตุ",
+            key=f"payment_note_{selected_chain}",
+            help="เช่น วันที่ชำระ, วิธีการชำระ"
+        )
+        
+        if st.button("💳 บันทึกการชำระ", key=f"save_payment_{selected_chain}"):
+            if payment_amount > 0:
+                if save_customer_debt(customer_name, selected_chain, payment_amount, payment_note):
+                    st.success(f"✅ บันทึกการชำระ {payment_amount:,.2f} บาทสำหรับ {customer_name} เรียบร้อย")
+                    # รีเซ็ตฟิลด์
+                    st.session_state[f"payment_amount_{selected_chain}"] = 0.0
+                    st.session_state[f"payment_note_{selected_chain}"] = ""
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("❌ ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง")
+            else:
+                st.warning("⚠️ กรุณากรอกจำนวนเงินที่ชำระ")
     
     # คำนวณยอดขายสุทธิ
     net_sales = 0
