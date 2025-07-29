@@ -1402,8 +1402,9 @@ def show_delivery_page():
     """, unsafe_allow_html=True)
     
     # ปุ่มบันทึก
+    # FIX: Added the missing net_sales argument
     if st.button("💾 บันทึกข้อมูล", type="primary", key=f"save_delivery_{selected_chain}"):
-        if save_delivery_data(selected_chain, delivery_data):
+        if save_delivery_data(selected_chain, delivery_data, net_sales):
             # บันทึกข้อมูลลูกค้าค้างจ่าย
             try:
                 for customer in st.session_state.customer_debts:
