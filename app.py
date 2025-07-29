@@ -1176,71 +1176,7 @@ def show_ice_sale_page():
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
 
-# แก้ไขฟังก์ชัน save_delivery_data
-def save_delivery_data(chain_name: str, data: dict) -> bool:
-    """บันทึกข้อมูลการส่งน้ำแข็งลงใน Google Sheets"""
-    try:
-        gc = connect_google_sheets()
-        if not gc:
-            return False
-            
-        sheet = gc.open_by_key(SHEET_ID)
-        try:
-            worksheet = sheet.worksheet(chain_name)
-        except gspread.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title=chain_name, rows=100, cols=20)
-        
-        # โหลดข้อมูลปัจจุบัน
-        df = pd.DataFrame(worksheet.get_all_records())
-        
-        # เพิ่มข้อมูลใหม่
-        new_row = {
-            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
-        }
-        
-        # เพิ่มคอลัมน์น้ำแข็งทุกประเภท
-        for ice_type in ICE_TYPES:
-            for field in ["ใช้", "เหลือ", "ค้าง", "ละลาย"]:
-                key = f"{ice_type}_{field}"
-                col_name = f"น้ำแข็ง{key}"
-                new_row[col_name] = data.get(key, 0)
-        
-        # คำนวณยอดขายสุทธิ
-        net_sales = 0
-        ice_data = load_ice_data()
-        for ice_type in ICE_TYPES:
-            # หาราคาขายต่อถุง
-            price = 0
-            row = ice_data[ice_data["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
-            if not row.empty:
-                price = safe_float(row.iloc[0]["ราคาขายต่อหน่วย"])
-            
-            # คำนวณยอดขาย
-            used = data.get(f"{ice_type}_ใช้", 0)
-            returned = data.get(f"{ice_type}_เหลือ", 0)
-            melted = data.get(f"{ice_type}_ละลาย", 0)
-            debt = data.get(f"{ice_type}_ค้าง", 0)
-            
-            actual_sold = used - returned - melted
-            net_sales += (actual_sold * price) - debt
-        
-        new_row["ยอดขายสุทธิ"] = net_sales
-        
-        # เพิ่มข้อมูลใหม่ลง DataFrame
-        new_df = pd.DataFrame([new_row])
-        updated_df = pd.concat([df, new_df], ignore_index=True)
-        
-        # บันทึกลง Google Sheets
-        worksheet.update(
-            [updated_df.columns.values.tolist()] + 
-            updated_df.values.tolist()
-        )
-        return True
-    except Exception as e:
-        handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
-        return False
-
-        def save_customer_debt(customer_name, chain, amount, note=""):
+def save_customer_debt(customer_name, chain, amount, note=""):
     """บันทึกข้อมูลการชำระค้างของลูกค้า"""
     try:
         gc = connect_google_sheets()
