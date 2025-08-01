@@ -1666,28 +1666,28 @@ def main():
             logger.error(f"Connection error in main: {e}")
 
         # แสดงเมนูหลัก
-    st.markdown("### 🚀 เมนูหลัก")
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        if st.button("🏪 ขายสินค้า", use_container_width=True):
-            st.session_state.page = "ขายสินค้า"
-            st.rerun()
-    with col2:
-        if st.button("🧊 ขายน้ำแข็ง", use_container_width=True):
-            st.session_state.page = "ขายน้ำแข็ง"
-            st.rerun()
-    with col3:
-        if st.button("📊 Dashboard", use_container_width=True):
-            st.session_state.page = "Dashboard"
-            st.rerun()
-    with col4:
-        if st.button("🚚 ส่งน้ำแข็ง", use_container_width=True):
-            st.session_state.page = "ส่งน้ำแข็ง"
-            st.rerun()
-    with col5:
-        if st.button("📋 สรุปยอดค้าง", use_container_width=True):
-            st.session_state.page = "สรุปยอดค้าง"
-            st.rerun()
+        st.markdown("### 🚀 เมนูหลัก")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            if st.button("🏪 ขายสินค้า", use_container_width=True):
+                st.session_state.page = "ขายสินค้า"
+                st.rerun()
+        with col2:
+            if st.button("🧊 ขายน้ำแข็ง", use_container_width=True):
+                st.session_state.page = "ขายน้ำแข็ง"
+                st.rerun()
+        with col3:
+            if st.button("📊 Dashboard", use_container_width=True):
+                st.session_state.page = "Dashboard"
+                st.rerun()
+        with col4:
+            if st.button("🚚 ส่งน้ำแข็ง", use_container_width=True):
+                st.session_state.page = "ส่งน้ำแข็ง"
+                st.rerun()
+        with col5:
+            if st.button("📋 สรุปยอดค้าง", use_container_width=True):
+                st.session_state.page = "สรุปยอดค้าง"
+                st.rerun()
 
         # แสดงหน้าเว็บตามสถานะปัจจุบัน
         if st.session_state.page == "Dashboard":
@@ -1698,9 +1698,9 @@ def main():
             show_ice_sale_page()
         elif st.session_state.page == "ส่งน้ำแข็ง":
             show_delivery_page()
-        if st.session_state.page == "สรุปยอดค้าง":
-        show_debt_summary_page()
-        
+        elif st.session_state.page == "สรุปยอดค้าง":
+            show_debt_summary_page()
+            
     except Exception as page_error:
         logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
         st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
