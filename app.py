@@ -1605,12 +1605,12 @@ def show_delivery_page():
     else:
         st.info("ℹ️ ยังไม่มีข้อมูลประวัติการส่งสำหรับสายนี้")
 
-        def update_customer_summary(customer_name, chain, debt_amount, payment_amount):
+    def update_customer_summary(customer_name, chain, debt_amount, payment_amount):
     """อัปเดตยอดค้างสะสมของลูกค้า"""
-    try:
-        gc = connect_google_sheets()
-        if not gc:
-            return False
+        try:
+            gc = connect_google_sheets()
+            if not gc:
+                return False
             
         sheet = gc.open_by_key(SHEET_ID)
         try:
