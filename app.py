@@ -1617,36 +1617,51 @@ def show_delivery_page():
             worksheet = sheet.worksheet("สรุปยอดค้าง")
         except gspread.WorksheetNotFound:
             worksheet = sheet.add_worksheet(title="สรุปยอดค้าง", rows=100, cols=10)
+            headers = ["ชื่อลูกค้า", "สายส่ง", "ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ", "อัปเดตล่าสุด"]
+            worksheet.append_row(headers)
         
-        df = pd.DataFrame(worksheet.get_all_records())
+        # ดึงข้อมูลปัจจุบัน
+        records = worksheet.get_all_records()
+        df = pd.DataFrame(records)
+        
         now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+        found = False
         
         # ค้นหาลูกค้า
-        mask = (df["ชื่อลูกค้า"] == customer_name) & (df["สายส่ง"] == chain)
-        if mask.any():
-            # อัปเดตข้อมูลที่มีอยู่
-            idx = df[mask].index[0]
-            current_debt = safe_float(df.at[idx, "ยอดค้างสะสม"])
-            current_payment = safe_float(df.at[idx, "ยอดชำระสะสม"])
-            
-            df.at[idx, "ยอดค้างสะสม"] = current_debt + debt_amount
-            df.at[idx, "ยอดชำระสะสม"] = current_payment + payment_amount
-            df.at[idx, "ยอดค้างคงเหลือ"] = (current_debt + debt_amount) - (current_payment + payment_amount)
-            df.at[idx, "อัปเดตล่าสุด"] = now
-        else:
-            # เพิ่มลูกค้าใหม่
-            new_row = {
-                "ชื่อลูกค้า": customer_name,
-                "สายส่ง": chain,
-                "ยอดค้างสะสม": debt_amount,
-                "ยอดชำระสะสม": payment_amount,
-                "ยอดค้างคงเหลือ": debt_amount - payment_amount,
-                "อัปเดตล่าสุด": now
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        for i, row in enumerate(records):
+            if row["ชื่อลูกค้า"] == customer_name and row["สายส่ง"] == chain:
+                # อัปเดตแถวที่มีอยู่
+                row_idx = i + 2  # แถวที่ i+2 ใน Google Sheets (แถวที่ 1 คือ header)
+                
+                current_debt = safe_float(row["ยอดค้างสะสม"])
+                current_payment = safe_float(row["ยอดชำระสะสม"])
+                
+                new_debt = current_debt + debt_amount
+                new_payment = current_payment + payment_amount
+                new_balance = new_debt - new_payment
+                
+                # อัปเดตค่า
+                worksheet.update_cell(row_idx, 3, new_debt)  # ยอดค้างสะสม
+                worksheet.update_cell(row_idx, 4, new_payment)  # ยอดชำระสะสม
+                worksheet.update_cell(row_idx, 5, new_balance)  # ยอดค้างคงเหลือ
+                worksheet.update_cell(row_idx, 6, now)  # อัปเดตล่าสุด
+                
+                found = True
+                break
         
-        # บันทึกลง Google Sheets
-        worksheet.update([df.columns.tolist()] + df.values.tolist())
+        # ถ้าไม่พบลูกค้า ให้เพิ่มใหม่
+        if not found:
+            new_balance = debt_amount - payment_amount
+            new_row = [
+                customer_name,
+                chain,
+                debt_amount,
+                payment_amount,
+                new_balance,
+                now
+            ]
+            worksheet.append_row(new_row)
+        
         return True
     except Exception as e:
         handle_error(e, "การอัปเดตสรุปยอดค้าง")
