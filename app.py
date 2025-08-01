@@ -356,6 +356,37 @@ def load_customer_debt_data():
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
+def load_customer_summary():
+    """โหลดข้อมูลสรุปยอดค้างสะสม"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet("สรุปยอดค้าง")
+            df = pd.DataFrame(worksheet.get_all_records())
+        except gspread.WorksheetNotFound:
+            # สร้างชีทใหม่หากไม่พบ
+            worksheet = sheet.add_worksheet(title="สรุปยอดค้าง", rows=100, cols=10)
+            df = pd.DataFrame(columns=[
+                "ชื่อลูกค้า",
+                "สายส่ง",
+                "ยอดค้างสะสม",
+                "ยอดชำระสะสม",
+                "ยอดค้างคงเหลือ",
+                "อัปเดตล่าสุด"
+            ])
+            worksheet.update([df.columns.tolist()] + df.values.tolist())
+            return df
+        
+        return df
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลสรุปยอดค้าง")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
 def load_sales_data() -> pd.DataFrame:
     """โหลดข้อมูลยอดขายจาก Google Sheets"""
     try:
@@ -1230,8 +1261,8 @@ def save_delivery_data(chain_name: str, data: dict, net_sales: float) -> bool:
         handle_error(e, f"การบันทึกข้อมูลการส่งน้ำแข็งสำหรับสาย {chain_name}")
         return False
 
-def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note=""):
-    """บันทึกข้อมูลลูกค้าค้างเงินตามข้อกำหนดใหม่ (อัปเดต)"""
+def save_customer_debt_history(customer_name, chain, debt_amount, payment_amount, note=""):
+    """บันทึกประวัติลูกค้าค้างเงิน (ไม่ปรับยอดค้างสะสม)"""
     try:
         gc = connect_google_sheets()
         if not gc:
@@ -1243,7 +1274,22 @@ def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note="
         except gspread.WorksheetNotFound:
             worksheet = sheet.add_worksheet(title="ลูกค้าค้างเงิน", rows=100, cols=10)
         
-        df = pd.DataFrame(worksheet.get_all_records())
+        # ข้อมูลใหม่ที่จะบันทึก
+        new_row = {
+            "วันที่": datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y"),
+            "ชื่อลูกค้า": customer_name,
+            "สายส่ง": chain,
+            "ยอดค้าง": debt_amount,
+            "ชำระแล้ว": payment_amount,
+            "หมายเหตุ": note
+        }
+        
+        # เพิ่มข้อมูลใหม่ลง Google Sheets
+        worksheet.append_row(list(new_row.values()))
+        return True
+    except Exception as e:
+        handle_error(e, "การบันทึกประวัติลูกค้าค้างเงิน")
+        return False
         
         # คำนวณยอดค้างใหม่
         current_debt = 0
@@ -1328,6 +1374,26 @@ def show_delivery_page():
                 key=f"melted_{ice_type}_{selected_chain}"
             )
     
+    # โหลดข้อมูลลูกค้าจากสรุปยอดค้าง
+    try:
+        gc = connect_google_sheets()
+        customer_names = []
+        
+        if gc:
+            sheet = gc.open_by_key(SHEET_ID)
+            try:
+                worksheet = sheet.worksheet("สรุปยอดค้าง")
+                records = worksheet.get_all_records()
+                
+                # กรองลูกค้าตามสายส่งที่เลือก
+                for record in records:
+                    if record["สายส่ง"] == selected_chain:
+                        customer_names.append(record["ชื่อลูกค้า"])
+            except gspread.WorksheetNotFound:
+                pass
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลลูกค้า: {str(e)}")
+    
     # ส่วนจัดการลูกค้าค้างเงิน (อัปเดต)
     st.subheader("🧾 การจัดการลูกค้าค้างเงิน")
     st.info("สามารถเพิ่มลูกค้าค้างจ่ายหรือรับชำระหนี้ได้ในรอบส่งนี้")
@@ -1340,7 +1406,38 @@ def show_delivery_page():
     with st.form(key="new_customer_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
-            new_customer_name = st.text_input("ชื่อลูกค้า", key="new_customer_name")
+            # ระบบค้นหาชื่อลูกค้าแบบไกด์
+            new_customer = st.selectbox(
+                "ค้นหาหรือเลือกชื่อลูกค้า",
+                options=["(เพิ่มใหม่)"] + customer_names,
+                index=0,
+                key="customer_search"
+            )
+            
+            # ถ้าเลือก "(เพิ่มใหม่)" หรือค้นหาชื่อใหม่
+            if new_customer == "(เพิ่มใหม่)":
+                new_customer_name = st.text_input("ชื่อลูกค้า (ใหม่)", key="new_customer_name")
+            else:
+                new_customer_name = new_customer
+                
+                # แสดงยอดค้างปัจจุบัน
+                if new_customer_name:
+                    try:
+                        gc = connect_google_sheets()
+                        if gc:
+                            sheet = gc.open_by_key(SHEET_ID)
+                            worksheet = sheet.worksheet("สรุปยอดค้าง")
+                            records = worksheet.get_all_records()
+                            
+                            for record in records:
+                                if record["ชื่อลูกค้า"] == new_customer_name and record["สายส่ง"] == selected_chain:
+                                    current_debt = safe_float(record["ยอดค้างคงเหลือ"])
+                                    st.markdown(f"<div style='color:red; margin-top:10px;'>ยอดค้างปัจจุบัน: {current_debt:,.2f} บาท</div>", 
+                                                unsafe_allow_html=True)
+                                    break
+                    except Exception:
+                        pass
+        
         with col2:
             debt_amount = st.number_input(
                 "ยอดค้างจ่าย (บาท)",
@@ -1370,54 +1467,6 @@ def show_delivery_page():
                 st.success(f"เพิ่มรายการ '{new_customer_name}' เรียบร้อย")
                 st.rerun()
     
-    # แสดงรายการลูกค้าค้างจ่าย
-    total_debt = 0.0
-    total_payment = 0.0
-    if st.session_state.customer_debts:
-        st.markdown("### 📝 รายการลูกค้าค้างจ่าย/ชำระหนี้")
-        
-        for i, customer in enumerate(st.session_state.customer_debts):
-            cols = st.columns([3, 2, 2, 1])
-            with cols[0]:
-                st.markdown(f"**{customer['customer_name']}**")
-            with cols[1]:
-                if customer['debt_amount'] > 0:
-                    st.markdown(f"<span style='color:red;'>ค้างจ่าย: {customer['debt_amount']:,.2f} บาท</span>", unsafe_allow_html=True)
-                else:
-                    st.markdown("ค้างจ่าย: -")
-            with cols[2]:
-                if customer['payment_amount'] > 0:
-                    st.markdown(f"<span style='color:green;'>ชำระแล้ว: {customer['payment_amount']:,.2f} บาท</span>", unsafe_allow_html=True)
-                else:
-                    st.markdown("ชำระแล้ว: -")
-            with cols[3]:
-                if st.button("🗑️", key=f"remove_customer_{i}"):
-                    st.session_state.customer_debts.pop(i)
-                    st.rerun()
-            
-            total_debt += customer['debt_amount']
-            total_payment += customer['payment_amount']
-        
-        net_debt = total_debt - total_payment
-        st.markdown(f"""
-        <div style='background-color:#f8f9fa; padding:10px; border-radius:10px; margin-top:10px;'>
-            <div style='display:flex; justify-content:space-between;'>
-                <div>ยอดค้างจ่ายรวม:</div>
-                <div style='color:red;'>{total_debt:,.2f} บาท</div>
-            </div>
-            <div style='display:flex; justify-content:space-between;'>
-                <div>ยอดชำระหนี้รวม:</div>
-                <div style='color:green;'>{total_payment:,.2f} บาท</div>
-            </div>
-            <div style='display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;'>
-                <div>ยอดค้างสุทธิ:</div>
-                <div style='color:{'red' if net_debt > 0 else 'green'};'>
-                    {abs(net_debt):,.2f} บาท {'(ค้าง)' if net_debt > 0 else '(ชำระเกิน)'}
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
     # คำนวณยอดขายสุทธิ (รวมค้างจ่าย)
     net_sales = 0
     for ice_type in ICE_TYPES:
@@ -1440,19 +1489,28 @@ def show_delivery_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # ปุ่มบันทึก
-    # FIX: Added the missing net_sales argument
+    # ปุ่มบันทึกข้อมูล
     if st.button("💾 บันทึกข้อมูล", type="primary", key=f"save_delivery_{selected_chain}"):
+        # บันทึกข้อมูลการส่งน้ำแข็ง
         if save_delivery_data(selected_chain, delivery_data, net_sales):
             # บันทึกข้อมูลลูกค้าค้างจ่าย
             try:
                 for customer in st.session_state.customer_debts:
-                    save_customer_debt(
+                    # บันทึกประวัติการค้าง/ชำระ
+                    save_customer_debt_history(
                         customer_name=customer['customer_name'],
                         chain=selected_chain,
-                        payment_amount=0,
                         debt_amount=customer['debt_amount'],
-                        note=f"ค้างจ่ายจากการส่งน้ำแข็ง {datetime.datetime.now(timezone(TIMEZONE)).strftime('%d/%m/%Y')}"
+                        payment_amount=customer['payment_amount'],
+                        note=f"จากรอบส่งน้ำแข็ง {datetime.datetime.now(timezone(TIMEZONE)).strftime('%d/%m/%Y')}"
+                    )
+                    
+                    # อัปเดตสรุปยอดค้าง
+                    update_customer_summary(
+                        customer_name=customer['customer_name'],
+                        chain=selected_chain,
+                        debt_amount=customer['debt_amount'],
+                        payment_amount=customer['payment_amount']
                     )
                 
                 st.success(f"✅ บันทึกข้อมูลการส่งน้ำแข็งและค้างจ่ายเรียบร้อย")
@@ -1547,6 +1605,103 @@ def show_delivery_page():
     else:
         st.info("ℹ️ ยังไม่มีข้อมูลประวัติการส่งสำหรับสายนี้")
 
+        def update_customer_summary(customer_name, chain, debt_amount, payment_amount):
+    """อัปเดตยอดค้างสะสมของลูกค้า"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet("สรุปยอดค้าง")
+        except gspread.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title="สรุปยอดค้าง", rows=100, cols=10)
+        
+        df = pd.DataFrame(worksheet.get_all_records())
+        now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # ค้นหาลูกค้า
+        mask = (df["ชื่อลูกค้า"] == customer_name) & (df["สายส่ง"] == chain)
+        if mask.any():
+            # อัปเดตข้อมูลที่มีอยู่
+            idx = df[mask].index[0]
+            current_debt = safe_float(df.at[idx, "ยอดค้างสะสม"])
+            current_payment = safe_float(df.at[idx, "ยอดชำระสะสม"])
+            
+            df.at[idx, "ยอดค้างสะสม"] = current_debt + debt_amount
+            df.at[idx, "ยอดชำระสะสม"] = current_payment + payment_amount
+            df.at[idx, "ยอดค้างคงเหลือ"] = (current_debt + debt_amount) - (current_payment + payment_amount)
+            df.at[idx, "อัปเดตล่าสุด"] = now
+        else:
+            # เพิ่มลูกค้าใหม่
+            new_row = {
+                "ชื่อลูกค้า": customer_name,
+                "สายส่ง": chain,
+                "ยอดค้างสะสม": debt_amount,
+                "ยอดชำระสะสม": payment_amount,
+                "ยอดค้างคงเหลือ": debt_amount - payment_amount,
+                "อัปเดตล่าสุด": now
+            }
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        # บันทึกลง Google Sheets
+        worksheet.update([df.columns.tolist()] + df.values.tolist())
+        return True
+    except Exception as e:
+        handle_error(e, "การอัปเดตสรุปยอดค้าง")
+        return False
+
+        def show_debt_summary_page():
+    st.title("📊 สรุปยอดค้างลูกค้า")
+    
+    df = load_customer_summary()
+    
+    if df.empty:
+        st.info("ℹ️ ยังไม่มีข้อมูลยอดค้างลูกค้า")
+        return
+    
+    # ตัวกรองข้อมูล
+    st.subheader("ตัวกรองข้อมูล")
+    col1, col2 = st.columns(2)
+    with col1:
+        chains = df["สายส่ง"].unique().tolist()
+        selected_chain = st.selectbox("สายส่ง", ["ทั้งหมด"] + chains)
+    with col2:
+        search_term = st.text_input("ค้นหาชื่อลูกค้า")
+    
+    # กรองข้อมูล
+    if selected_chain != "ทั้งหมด":
+        df = df[df["สายส่ง"] == selected_chain]
+    if search_term:
+        df = df[df["ชื่อลูกค้า"].str.contains(search_term, case=False)]
+    
+    # แสดงตาราง
+    st.dataframe(
+        df.sort_values("ยอดค้างคงเหลือ", ascending=False),
+        height=500,
+        use_container_width=True
+    )
+    
+    # สรุปยอดรวม
+    total_debt = df["ยอดค้างคงเหลือ"].sum()
+    st.markdown(f"""
+    <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; margin-top:20px;'>
+        <h4>ยอดค้างคงเหลือรวม</h4>
+        <p style='font-size:24px; color:red;'>{total_debt:,.2f} บาท</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ปุ่มส่งออกข้อมูล
+    if st.button("📥 ดาวน์โหลดข้อมูล Excel"):
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="ดาวน์โหลด CSV",
+            data=csv,
+            file_name=f"สรุปยอดค้าง_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+
 def main():
     try:
         # ตั้งค่าพื้นฐาน
@@ -1566,24 +1721,28 @@ def main():
             logger.error(f"Connection error in main: {e}")
 
         # แสดงเมนูหลัก
-        st.markdown("### 🚀 เมนูหลัก")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            if st.button("🏪 ขายสินค้า", use_container_width=True):
-                st.session_state.page = "ขายสินค้า"
-                st.rerun()
-        with col2:
-            if st.button("🧊 ขายน้ำแข็ง", use_container_width=True):
-                st.session_state.page = "ขายน้ำแข็ง"
-                st.rerun()
-        with col3:
-            if st.button("📊 Dashboard", use_container_width=True):
-                st.session_state.page = "Dashboard"
-                st.rerun()
-        with col4:
-            if st.button("🚚 ส่งน้ำแข็ง", use_container_width=True):
-                st.session_state.page = "ส่งน้ำแข็ง"
-                st.rerun()
+    st.markdown("### 🚀 เมนูหลัก")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        if st.button("🏪 ขายสินค้า", use_container_width=True):
+            st.session_state.page = "ขายสินค้า"
+            st.rerun()
+    with col2:
+        if st.button("🧊 ขายน้ำแข็ง", use_container_width=True):
+            st.session_state.page = "ขายน้ำแข็ง"
+            st.rerun()
+    with col3:
+        if st.button("📊 Dashboard", use_container_width=True):
+            st.session_state.page = "Dashboard"
+            st.rerun()
+    with col4:
+        if st.button("🚚 ส่งน้ำแข็ง", use_container_width=True):
+            st.session_state.page = "ส่งน้ำแข็ง"
+            st.rerun()
+    with col5:
+        if st.button("📋 สรุปยอดค้าง", use_container_width=True):
+            st.session_state.page = "สรุปยอดค้าง"
+            st.rerun()
 
         # แสดงหน้าเว็บตามสถานะปัจจุบัน
         if st.session_state.page == "Dashboard":
@@ -1594,7 +1753,9 @@ def main():
             show_ice_sale_page()
         elif st.session_state.page == "ส่งน้ำแข็ง":
             show_delivery_page()
-            
+        if st.session_state.page == "สรุปยอดค้าง":
+        show_debt_summary_page()
+        
     except Exception as page_error:
         logger.error(f"Page error in {st.session_state.page}: {str(page_error)}", exc_info=True)
         st.error(f"⚠️ เกิดข้อผิดพลาดในการโหลดหน้า {st.session_state.page}")
