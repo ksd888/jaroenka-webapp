@@ -1231,7 +1231,7 @@ def save_delivery_data(chain_name: str, data: dict, net_sales: float) -> bool:
         return False
 
 def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note=""):
-    """บันทึกข้อมูลลูกค้าค้างเงินตามข้อกำหนดใหม่"""
+    """บันทึกข้อมูลลูกค้าค้างเงินตามข้อกำหนดใหม่ (อัปเดต)"""
     try:
         gc = connect_google_sheets()
         if not gc:
@@ -1245,13 +1245,14 @@ def save_customer_debt(customer_name, chain, payment_amount, debt_amount, note="
         
         df = pd.DataFrame(worksheet.get_all_records())
         
-        # คำนวณยอดค้างใหม่ (รวมยอดค้างเก่า + ยอดค้างใหม่)
+        # คำนวณยอดค้างใหม่
         current_debt = 0
         if not df.empty:
             customer_history = df[(df["ชื่อลูกค้า"] == customer_name) & (df["สายส่ง"] == chain)]
             if not customer_history.empty:
                 current_debt = customer_history.iloc[-1]["คงค้าง"]
         
+        # คำนวณยอดค้างใหม่ (ยอดค้างเดิม + ค้างเพิ่ม - ชำระ)
         new_debt = current_debt + debt_amount - payment_amount
         
         # เพิ่มข้อมูลใหม่
@@ -1327,17 +1328,17 @@ def show_delivery_page():
                 key=f"melted_{ice_type}_{selected_chain}"
             )
     
-    # ส่วนจัดการลูกค้าค้างเงิน (ใหม่)
+    # ส่วนจัดการลูกค้าค้างเงิน (อัปเดต)
     st.subheader("🧾 การจัดการลูกค้าค้างเงิน")
-    st.info("สามารถเพิ่มลูกค้าค้างจ่ายได้หลายคนในรอบส่งนี้")
-    
+    st.info("สามารถเพิ่มลูกค้าค้างจ่ายหรือรับชำระหนี้ได้ในรอบส่งนี้")
+
     # ระบบจัดการรายการลูกค้าค้างจ่าย
     if 'customer_debts' not in st.session_state:
         st.session_state.customer_debts = []
     
     # เพิ่มฟอร์มลูกค้าใหม่
     with st.form(key="new_customer_form"):
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             new_customer_name = st.text_input("ชื่อลูกค้า", key="new_customer_name")
         with col2:
@@ -1349,35 +1350,73 @@ def show_delivery_page():
                 value=0.0,
                 key="new_debt_amount"
             )
+        with col3:
+            payment_amount = st.number_input(
+                "ยอดชำระหนี้ (บาท)",
+                min_value=0.0,
+                step=100.0,
+                format="%.2f",
+                value=0.0,
+                key="new_payment_amount"
+            )
         
-        if st.form_submit_button("➕ เพิ่มลูกค้า"):
-            if new_customer_name and debt_amount > 0:
+        if st.form_submit_button("➕ เพิ่มรายการ"):
+            if new_customer_name and (debt_amount > 0 or payment_amount > 0):
                 st.session_state.customer_debts.append({
                     "customer_name": new_customer_name,
-                    "debt_amount": debt_amount
+                    "debt_amount": debt_amount,
+                    "payment_amount": payment_amount
                 })
-                st.success(f"เพิ่มลูกค้า '{new_customer_name}' เรียบร้อย")
+                st.success(f"เพิ่มรายการ '{new_customer_name}' เรียบร้อย")
                 st.rerun()
     
     # แสดงรายการลูกค้าค้างจ่าย
     total_debt = 0.0
+    total_payment = 0.0
     if st.session_state.customer_debts:
-        st.markdown("### 📝 รายการลูกค้าค้างจ่าย")
+        st.markdown("### 📝 รายการลูกค้าค้างจ่าย/ชำระหนี้")
         
         for i, customer in enumerate(st.session_state.customer_debts):
-            cols = st.columns([3, 2, 1])
+            cols = st.columns([3, 2, 2, 1])
             with cols[0]:
                 st.markdown(f"**{customer['customer_name']}**")
             with cols[1]:
-                st.markdown(f"ค้างจ่าย: **{customer['debt_amount']:,.2f}** บาท")
+                if customer['debt_amount'] > 0:
+                    st.markdown(f"<span style='color:red;'>ค้างจ่าย: {customer['debt_amount']:,.2f} บาท</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown("ค้างจ่าย: -")
             with cols[2]:
+                if customer['payment_amount'] > 0:
+                    st.markdown(f"<span style='color:green;'>ชำระแล้ว: {customer['payment_amount']:,.2f} บาท</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown("ชำระแล้ว: -")
+            with cols[3]:
                 if st.button("🗑️", key=f"remove_customer_{i}"):
                     st.session_state.customer_debts.pop(i)
                     st.rerun()
             
             total_debt += customer['debt_amount']
+            total_payment += customer['payment_amount']
         
-        st.markdown(f"**ยอดค้างจ่ายรวม:** {total_debt:,.2f} บาท")
+        net_debt = total_debt - total_payment
+        st.markdown(f"""
+        <div style='background-color:#f8f9fa; padding:10px; border-radius:10px; margin-top:10px;'>
+            <div style='display:flex; justify-content:space-between;'>
+                <div>ยอดค้างจ่ายรวม:</div>
+                <div style='color:red;'>{total_debt:,.2f} บาท</div>
+            </div>
+            <div style='display:flex; justify-content:space-between;'>
+                <div>ยอดชำระหนี้รวม:</div>
+                <div style='color:green;'>{total_payment:,.2f} บาท</div>
+            </div>
+            <div style='display:flex; justify-content:space-between; font-weight:bold; margin-top:5px;'>
+                <div>ยอดค้างสุทธิ:</div>
+                <div style='color:{'red' if net_debt > 0 else 'green'};'>
+                    {abs(net_debt):,.2f} บาท {'(ค้าง)' if net_debt > 0 else '(ชำระเกิน)'}
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # คำนวณยอดขายสุทธิ (รวมค้างจ่าย)
     net_sales = 0
