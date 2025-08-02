@@ -621,64 +621,222 @@ def show_dashboard():
         conn_status.error(f"❌ ข้อผิดพลาดในการเชื่อมต่อ: {str(e)}")
         logger.error(f"Connection error: {e}")
     
+    # โหลดข้อมูล
     sales_df = load_sales_data()
     df_ice = load_ice_data()
-
+    
     # ปุ่มรีเฟรชข้อมูล
     if st.button("🔄 โหลดข้อมูลใหม่", key="refresh_data"):
         st.cache_data.clear()
         st.rerun()
-
-    # ตรวจสอบข้อมูลก่อนแสดงผล
-    if sales_df.empty:
-        st.warning("ไม่มีข้อมูลยอดขาย")
+    
+    # คำนวณยอดขายและกำไรแยกประเภท
+    today = datetime.datetime.now(timezone(TIMEZONE)).date()
+    today_str = today.strftime("%-d/%-m/%Y")
+    
+    # ==============================================
+    # ส่วนที่ 1: เมตริกหลัก (ปรับปรุง UI)
+    # ==============================================
+    st.subheader("📊 สรุปยอดขายรวม")
+    col1, col2, col3 = st.columns(3)
+    
+    # ยอดขายรวม
+    total_sales = sales_df['ยอดขาย'].sum()
+    # ยอดขายเครื่องดื่ม (ประเภท 'drink')
+    drinks_sales = sales_df[sales_df['ประเภท'] == 'drink']['ยอดขาย'].sum()
+    # ยอดขายน้ำแข็ง (ประเภท 'ice')
+    ice_sales = sales_df[sales_df['ประเภท'] == 'ice']['ยอดขาย'].sum()
+    
+    # ยอดกำไรรวม
+    total_profit = sales_df['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+    # กำไรเครื่องดื่ม
+    drinks_profit = sales_df[sales_df['ประเภท'] == 'drink']['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+    # กำไรน้ำแข็ง
+    ice_profit = sales_df[sales_df['ประเภท'] == 'ice']['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+    
+    with col1:
+        st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
+        st.markdown(f"<div style='margin-top:-15px; font-size:14px; color:#666'>🥤 เครื่องดื่ม: {drinks_sales:,.2f} | 🧊 น้ำแข็ง: {ice_sales:,.2f}</div>", 
+                   unsafe_allow_html=True)
+        
+    with col2:
+        st.metric("🟢 กำไรรวม", f"{total_profit:,.2f} บาท")
+        st.markdown(f"<div style='margin-top:-15px; font-size:14px; color:#666'>🥤 เครื่องดื่ม: {drinks_profit:,.2f} | 🧊 น้ำแข็ง: {ice_profit:,.2f}</div>", 
+                   unsafe_allow_html=True)
+    
+    with col3:
+        avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
+        st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
+    
+    # ==============================================
+    # ส่วนที่ 2: ยอดขายรายวัน (รีเซ็ตทุกวันใหม่)
+    # ==============================================
+    st.subheader("📈 ยอดขายรายวัน")
+    
+    # กรองข้อมูลเฉพาะวันนี้
+    today_sales = sales_df.copy()
+    today_sales['วันที่'] = pd.to_datetime(today_sales['วันที่'], errors='coerce')
+    today_sales = today_sales[today_sales['วันที่'].dt.date == today]
+    
+    if not today_sales.empty:
+        # สรุปยอดขายรายชั่วโมง
+        today_sales['ชั่วโมง'] = today_sales['วันที่'].dt.hour
+        hourly_sales = today_sales.groupby('ชั่วโมง')['ยอดขาย'].sum().reset_index()
+        
+        # สร้างกราฟ
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
+                marker='o', color='#007aff', linewidth=2.5)
+        ax.fill_between(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
+                        color='#007aff', alpha=0.1)
+        
+        ax.set_title(f'ยอดขายรายชั่วโมง (วันนี้ {today_str})')
+        ax.set_xlabel('เวลา')
+        ax.set_ylabel('ยอดขาย (บาท)')
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_xticks(range(0, 24))
+        ax.set_xticklabels([f"{h}:00" for h in range(0, 24)])
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
     else:
-        # แสดงเมตริกหลัก
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            total_sales = sales_df['ยอดขาย'].sum()
-            st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
-
-        with col2:
-            total_profit = sales_df['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
-            st.metric("🟢 กำไรรวม", f"{total_profit:,.2f} บาท")
-
-        with col3:
-            avg_sale = total_sales / len(sales_df) if len(sales_df) > 0 else 0
-            st.metric("📊 ยอดขายเฉลี่ยต่อรายการ", f"{avg_sale:,.2f} บาท")
-
-        # แสดงกราฟยอดขายรายวัน
-        st.subheader("📈 ยอดขายรายวัน")
-        if not sales_df.empty and 'วันที่' in sales_df.columns and 'ยอดขาย' in sales_df.columns:
-            try:
-                sales_df['วันที่'] = pd.to_datetime(sales_df['วันที่'], errors='coerce')
-                sales_df = sales_df.dropna(subset=['วันที่'])
-                
-                if not sales_df.empty:
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    daily_sales = sales_df.groupby(sales_df['วันที่'].dt.date)['ยอดขาย'].sum().reset_index()
-                    
-                    if not daily_sales.empty:
-                        ax.plot(daily_sales['วันที่'], daily_sales['ยอดขาย'], marker='o', color='#007aff')
-                        ax.set_title('ยอดขายรายวัน')
-                        ax.set_xlabel('วันที่')
-                        ax.set_ylabel('ยอดขาย (บาท)')
-                        ax.grid(True)
-                        st.pyplot(fig)
-            except Exception as e:
-                st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟ: {str(e)}")
-        else:
-            st.warning("ไม่มีข้อมูลยอดขายเพื่อแสดงกราฟ")
-            
-        # สินค้าขายดี
-        st.subheader("🏆 สินค้าขายดี")
+        st.info("ℹ️ ยังไม่มีข้อมูลยอดขายวันนี้")
+    
+    # ==============================================
+    # ส่วนที่ 3: ยอดขายรายเดือน (สะสมจนจบเดือน)
+    # ==============================================
+    st.subheader("📅 ยอดขายรายเดือน")
+    
+    if not sales_df.empty and 'วันที่' in sales_df.columns:
         try:
-            if 'รายการ' in sales_df.columns:
-                top_products = sales_df['รายการ'].value_counts().head(10)
-                st.bar_chart(top_products)
+            # เตรียมข้อมูลรายเดือน
+            sales_df['เดือน'] = sales_df['วันที่'].dt.month
+            sales_df['ปี'] = sales_df['วันที่'].dt.year
+            
+            monthly_sales = sales_df.groupby(['ปี', 'เดือน'])['ยอดขาย'].sum().reset_index()
+            monthly_sales['เดือน-ปี'] = monthly_sales.apply(
+                lambda x: f"{x['เดือน']}/{x['ปี']}", axis=1
+            )
+            
+            # สร้างกราฟแท่ง
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.bar(monthly_sales['เดือน-ปี'], monthly_sales['ยอดขาย'], 
+                  color='#28a745', alpha=0.8)
+            
+            # เพิ่มตัวเลขบนกราฟ
+            for i, v in enumerate(monthly_sales['ยอดขาย']):
+                ax.text(i, v + 0.02*max(monthly_sales['ยอดขาย']), 
+                       f"{v:,.0f}", 
+                       ha='center', 
+                       fontsize=9)
+            
+            ax.set_title('ยอดขายรายเดือน')
+            ax.set_xlabel('เดือน')
+            ax.set_ylabel('ยอดขาย (บาท)')
+            ax.grid(True, linestyle='--', alpha=0.3)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
         except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการแสดงสินค้าขายดี: {str(e)}")
-            logger.error(f"Error showing top products: {e}")
+            st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟรายเดือน: {str(e)}")
+    
+    # ==============================================
+    # ส่วนที่ 4: สรุปสต็อกสินค้า
+    # ==============================================
+    st.subheader("📦 สรุปสต็อกสินค้า")
+    
+    # สต็อกเครื่องดื่ม
+    drink_col, ice_col = st.columns(2)
+    
+    with drink_col:
+        st.markdown("### 🥤 เครื่องดื่ม")
+        df_products = load_product_data()
+        
+        if not df_products.empty:
+            # คำนวณสต็อกคงเหลือ
+            df_products['คงเหลือ'] = df_products.apply(
+                lambda row: safe_int(row['เข้า']) - safe_int(row['ออก']), 
+                axis=1
+            )
+            
+            # แสดง 5 สินค้าที่สต็อกสูงสุด
+            top_products = df_products.nlargest(5, 'คงเหลือ')
+            for _, row in top_products.iterrows():
+                stock = safe_int(row['คงเหลือ'])
+                max_stock = safe_int(row['เข้า'])
+                progress = stock / max_stock if max_stock > 0 else 0
+                
+                st.markdown(f"**{row['ชื่อสินค้า']}**")
+                st.progress(progress)
+                st.caption(f"{stock} / {max_stock} ชิ้น ({progress:.0%})")
+        else:
+            st.info("ไม่มีข้อมูลสินค้า")
+    
+    with ice_col:
+        st.markdown("### 🧊 น้ำแข็ง")
+        if not df_ice.empty:
+            # กรองข้อมูลน้ำแข็งวันนี้
+            ice_today = df_ice[df_ice['วันที่'] == today_str]
+            
+            for ice_type in ICE_TYPES:
+                ice_row = ice_today[ice_today["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+                if not ice_row.empty:
+                    received = safe_float(ice_row.iloc[0]["รับเข้า"])
+                    sold = safe_float(ice_row.iloc[0]["ขายออก"])
+                    melted = safe_float(ice_row.iloc[0]["จำนวนละลาย"])
+                    remaining = max(0, received - sold - melted)
+                    
+                    st.markdown(f"**น้ำแข็ง{ice_type}**")
+                    progress = remaining / received if received > 0 else 0
+                    st.progress(progress)
+                    st.caption(f"{remaining:.0f} / {received:.0f} ถุง ({progress:.0%})")
+        else:
+            st.info("ไม่มีข้อมูลน้ำแข็ง")
+    
+    # ==============================================
+    # ส่วนที่ 5: สินค้าขายดี
+    # ==============================================
+    st.subheader("🏆 สินค้าขายดี")
+    
+    # แยกสินค้าเครื่องดื่มและน้ำแข็ง
+    if not sales_df.empty:
+        drink_sales = sales_df[sales_df['ประเภท'] == 'drink']
+        ice_sales = sales_df[sales_df['ประเภท'] == 'ice']
+        
+        drink_col, ice_col = st.columns(2)
+        
+        with drink_col:
+            st.markdown("### 🥤 เครื่องดื่ม")
+            if not drink_sales.empty and 'รายการ' in drink_sales.columns:
+                try:
+                    # นับจำนวนครั้งที่ขายแต่ละสินค้า
+                    all_products = []
+                    for items in drink_sales['รายการ']:
+                        products = [item.split(' x ')[0].strip() for item in items.split(',')]
+                        all_products.extend(products)
+                    
+                    top_products = pd.Series(all_products).value_counts().head(5)
+                    st.bar_chart(top_products)
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาด: {str(e)}")
+            else:
+                st.info("ไม่มีข้อมูลเครื่องดื่ม")
+        
+        with ice_col:
+            st.markdown("### 🧊 น้ำแข็ง")
+            if not ice_sales.empty and 'รายการ' in ice_sales.columns:
+                try:
+                    # นับจำนวนครั้งที่ขายแต่ละประเภทน้ำแข็ง
+                    ice_types = []
+                    for items in ice_sales['รายการ']:
+                        if 'น้ำแข็ง' in items:
+                            ice_type = items.split('(')[0].replace('น้ำแข็ง', '').strip()
+                            ice_types.append(ice_type)
+                    
+                    top_ice = pd.Series(ice_types).value_counts()
+                    st.bar_chart(top_ice)
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาด: {str(e)}")
+            else:
+                st.info("ไม่มีข้อมูลน้ำแข็ง")
 
 def increase_quantity(product_name):
     """เพิ่มจำนวนสินค้าใน session_state"""
