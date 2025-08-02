@@ -1081,7 +1081,7 @@ if st.button("✅ ยืนยันการขาย", type="primary",
             gc = connect_google_sheets()
             if not gc:
                 st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                return
+                st.stop()
             
             sheet = gc.open_by_key(SHEET_ID)
             worksheet = sheet.worksheet("ตู้เย็น")
