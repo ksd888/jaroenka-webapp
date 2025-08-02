@@ -1125,9 +1125,11 @@ if st.button("✅ ยืนยันการขาย", type="primary",
             logger.info(f"Sale recorded: {total_price} THB, Profit: {total_profit} THB")
             time.sleep(2)
             st.rerun()
+            
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
-        logger.error(f"Error confirming sale: {e}")
+            st.error(f"เกิดข้อผิดพลาดในการบันทึกการขาย: {str(e)}")
+            logger.error(f"Error confirming sale: {e}")
+            st.error(traceback.format_exc())
 
 def show_ice_sale_page():
     st.title("🧊 ระบบขายน้ำแข็งเจริญค้า")
