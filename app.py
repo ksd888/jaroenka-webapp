@@ -1474,26 +1474,47 @@ def show_debt_summary_page():
     
     # แสดงตารางข้อมูล
     if not df.empty:
-        st.dataframe(df)
+        st.subheader("ข้อมูลสรุปยอดค้างทั้งหมด")
+        
+        # จัดรูปแบบคอลัมน์ตัวเลข
+        formatted_df = df.copy()
+        numeric_cols = ["ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ"]
+        for col in numeric_cols:
+            if col in formatted_df.columns:
+                formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.2f} บาท")
+        
+        st.dataframe(formatted_df, height=400)
+        
+        # สรุปยอดรวม
+        st.subheader("สรุปยอดรวม")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("ยอดค้างสะสมรวม", f"{df['ยอดค้างสะสม'].sum():,.2f} บาท")
+        with col2:
+            st.metric("ยอดชำระสะสมรวม", f"{df['ยอดชำระสะสม'].sum():,.2f} บาท")
+        with col3:
+            st.metric("ยอดค้างคงเหลือรวม", f"{df['ยอดค้างคงเหลือ'].sum():,.2f} บาท")
     else:
         st.warning("ไม่พบข้อมูลสรุปยอดค้าง")
     
     # ส่วนปรับปรุงข้อมูลลูกค้า
     st.subheader("ปรับปรุงข้อมูลลูกค้า")
     with st.form("update_form"):
-        # เลือกลูกค้า
-        customer_names = df["ชื่อลูกค้า"].tolist() if not df.empty else []
+        # เลือกลูกค้า (ถ้ามีข้อมูล)
+        customer_names = [""] + df["ชื่อลูกค้า"].tolist() if not df.empty else [""]
         selected_customer = st.selectbox("เลือกลูกค้า", customer_names, key="update_select")
         
-        # ดึงข้อมูลปัจจุบันของลูกค้า
+        # ดึงข้อมูลปัจจุบันของลูกค้า (ถ้าเลือกแล้ว)
         current_data = {}
-        if not df.empty and selected_customer:
+        if selected_customer and selected_customer != "":
             current_data = df[df["ชื่อลูกค้า"] == selected_customer].iloc[0].to_dict()
         
         # ฟิลด์ข้อมูล
         col1, col2 = st.columns(2)
         with col1:
-            delivery_route = st.text_input("สายส่ง", value=current_data.get("สายส่ง", ""), key="update_route")
+            delivery_route = st.text_input("สายส่ง", 
+                                          value=current_data.get("สายส่ง", ""), 
+                                          key="update_route")
             accumulated_debt = st.number_input("ยอดค้างสะสม", 
                                               min_value=0.0, 
                                               value=float(current_data.get("ยอดค้างสะสม", 0)), 
@@ -1510,18 +1531,21 @@ def show_debt_summary_page():
         
         submitted = st.form_submit_button("อัปเดตข้อมูล")
         if submitted:
-            new_data = {
-                "สายส่ง": delivery_route,
-                "ยอดค้างสะสม": accumulated_debt,
-                "ยอดชำระสะสม": accumulated_payment,
-                "ยอดค้างคงเหลือ": remaining_debt
-            }
-            if update_customer_summary(selected_customer, new_data):
-                st.success("อัปเดตข้อมูลสำเร็จ!")
-                load_customer_summary.clear()  # ล้างแคชข้อมูล
-                st.rerun()
+            if not selected_customer or selected_customer == "":
+                st.error("กรุณาเลือกลูกค้า")
             else:
-                st.error("เกิดข้อผิดพลาดในการอัปเดต")
+                new_data = {
+                    "สายส่ง": delivery_route,
+                    "ยอดค้างสะสม": accumulated_debt,
+                    "ยอดชำระสะสม": accumulated_payment,
+                    "ยอดค้างคงเหลือ": remaining_debt
+                }
+                if update_customer_summary(selected_customer, new_data):
+                    st.success("อัปเดตข้อมูลสำเร็จ!")
+                    st.cache_data.clear()  # ล้างแคชข้อมูล
+                    st.rerun()
+                else:
+                    st.error("เกิดข้อผิดพลาดในการอัปเดต")
     
     # ส่วนเพิ่มลูกค้าใหม่
     st.subheader("เพิ่มลูกค้าใหม่")
@@ -1531,8 +1555,16 @@ def show_debt_summary_page():
             new_customer = st.text_input("ชื่อลูกค้า", key="new_customer")
             new_route = st.text_input("สายส่ง", key="new_route")
         with col2:
-            new_debt = st.number_input("ยอดค้างสะสม", min_value=0.0, value=0.0, step=1000.0, key="new_debt")
-            new_payment = st.number_input("ยอดชำระสะสม", min_value=0.0, value=0.0, step=1000.0, key="new_payment")
+            new_debt = st.number_input("ยอดค้างสะสม", 
+                                      min_value=0.0, 
+                                      value=0.0, 
+                                      step=1000.0, 
+                                      key="new_debt")
+            new_payment = st.number_input("ยอดชำระสะสม", 
+                                         min_value=0.0, 
+                                         value=0.0, 
+                                         step=1000.0, 
+                                         key="new_payment")
             new_remaining = new_debt - new_payment
             st.metric("ยอดค้างคงเหลือ", f"{new_remaining:,.2f} บาท")
         
@@ -1550,7 +1582,7 @@ def show_debt_summary_page():
                 }
                 if add_customer_to_summary(new_data):
                     st.success("เพิ่มลูกค้าใหม่สำเร็จ!")
-                    load_customer_summary.clear()  # ล้างแคชข้อมูล
+                    st.cache_data.clear()  # ล้างแคชข้อมูล
                     st.rerun()
                 else:
                     st.error("เกิดข้อผิดพลาดในการเพิ่มลูกค้า")
