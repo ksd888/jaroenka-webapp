@@ -441,20 +441,6 @@ def load_sales_data() -> pd.DataFrame:
                 headers[i] = f"{h}_{seen[h]}"
             else:
                 seen[h] = 1
-        
-        # FIX: ตรวจสอบคอลัมน์วันที่และแก้ไขชื่อหากจำเป็น
-        date_col_found = False
-        for i, header in enumerate(headers):
-            if header.lower() in ['วันที่', 'date', 'วันที', 'วันท']:
-                headers[i] = "วันที่"
-                date_col_found = True
-                break
-                
-        # ถ้าไม่พบคอลัมน์วันที่ ให้เพิ่มคอลัมน์ใหม่
-        if not date_col_found:
-            headers.insert(0, "วันที่")
-            for row in data[1:]:
-                row.insert(0, datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y"))
                 
         # 3. สร้าง DataFrame ด้วย header ที่แก้ไขแล้ว
         df = pd.DataFrame(data[1:], columns=headers)
@@ -464,15 +450,18 @@ def load_sales_data() -> pd.DataFrame:
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        
-        # FIX: แปลงคอลัมน์วันที่ให้เป็น datetime
-        if "วันที่" in df.columns:
-            df["วันที่"] = pd.to_datetime(
-                df["วันที่"], 
-                errors="coerce", 
-                dayfirst=True  # รองรับรูปแบบ วัน/เดือน/ปี
-            )
                 
+        # 5. ตรวจสอบและเพิ่มคอลัมน์ "ประเภท" หากไม่มี
+        if "ประเภท" not in df.columns:
+            df["ประเภท"] = "drink"  # ค่าเริ่มต้น
+            
+        # 6. แปลงคอลัมน์วันที่
+        if "วันที่" in df.columns:
+            try:
+                df["วันที่"] = pd.to_datetime(df["วันที่"], errors="coerce")
+            except:
+                pass
+
         return df
 
     except Exception as e:
@@ -1083,20 +1072,20 @@ def show_product_sale_page():
                 st.session_state.last_paid_click = 0
                 st.rerun()
 
-        # ปุ่มยืนยันการขาย
-        if st.button("✅ ยืนยันการขาย", type="primary", 
-                    disabled=not st.session_state.cart or paid_input < total_price,
-                    key="confirm_sale"):
-            try:
-                with st.spinner("กำลังบันทึกการขาย..."):
-                    gc = connect_google_sheets()
-                    if not gc:
-                        st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
-                        return
-                    
-                    sheet = gc.open_by_key(SHEET_ID)
-                    worksheet = sheet.worksheet("ตู้เย็น")
-                    summary_ws = sheet.worksheet("ยอดขาย")
+       # ปุ่มยืนยันการขาย
+    if st.button("✅ ยืนยันการขาย", type="primary", 
+                disabled=not st.session_state.cart or paid_input < total_price,
+                key="confirm_sale"):
+        try:
+            with st.spinner("กำลังบันทึกการขาย..."):
+                gc = connect_google_sheets()
+                if not gc:
+                    st.error("❌ ไม่สามารถเชื่อมต่อ Google Sheet ได้")
+                    return
+                
+                sheet = gc.open_by_key(SHEET_ID)
+                worksheet = sheet.worksheet("ตู้เย็น")
+                summary_ws = sheet.worksheet("ยอดขาย")
                     
                     # อัปเดตสต็อกสินค้า
                     for item, qty, _ in st.session_state.cart:
@@ -1113,18 +1102,18 @@ def show_product_sale_page():
                         worksheet.update_cell(idx_in_sheet, df.columns.get_loc("คงเหลือในตู้") + 1, new_left)
                     
                     # บันทึกรายการขาย
-                    now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
-                    items_sold = ", ".join([f"{i} x {q}" for i, q, _ in st.session_state.cart])
-                    
-                    summary_ws.append_row([
-                        now,
-                        items_sold,
-                        total_price,
-                        total_profit,
-                        paid_input,
-                        paid_input - total_price,
-                        "drink"
-                    ])
+                now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+                items_sold = ", ".join([f"{i} x {q}" for i, q, _ in st.session_state.cart])
+                
+                summary_ws.append_row([
+                    now,                     # วันที่
+                    items_sold,              # รายการ
+                    total_price,             # ยอดขาย
+                    total_profit,            # กำไร
+                    paid_input,              # รับเงิน
+                    paid_input - total_price, # เงินทอน
+                    "drink"                  # ประเภท
+                ])
                     
                     # รีเซ็ตข้อมูลหลังขายสำเร็จ
                     clear_cart()
@@ -1473,7 +1462,9 @@ def show_ice_sale_page():
                     # บันทึกข้อมูลน้ำแข็ง
                     iceflow_sheet.update([df_ice.columns.tolist()] + df_ice.values.tolist())
                     
-                    # บันทึกรายการขาย
+                    # บันทึกรายการขายน้ำแข็งลงชีท "ยอดขาย"
+                    now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+                    
                     for ice_type in ICE_TYPES:
                         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
                         if not row.empty:
@@ -1488,12 +1479,15 @@ def show_ice_sale_page():
                                 income_in_this_session = df_ice.at[idx, "ยอดขายรวม"] - initial_income.get(ice_type, 0)
                                 profit_in_this_session = df_ice.at[idx, "กำไรสุทธิ"] - initial_profit.get(ice_type, 0)
                                 
+                                # บันทึกลงชีท "ยอดขาย" ด้วยโครงสร้างคอลัมน์ที่ถูกต้อง
                                 summary_ws.append_row([
-                                    today_str,
-                                    f"น้ำแข็ง{ice_type} (ขาย {sold_in_this_session:.2f} ถุง)",
-                                    float(income_in_this_session),
-                                    float(profit_in_this_session),
-                                    "ice"
+                                    now,  # วันที่
+                                    f"น้ำแข็ง{ice_type}",  # รายการ
+                                    float(income_in_this_session),  # ยอดขาย
+                                    float(profit_in_this_session),  # กำไร
+                                    0,  # รับเงิน (สำหรับน้ำแข็งอาจไม่ใช้)
+                                    0,  # เงินทอน (สำหรับน้ำแข็งอาจไม่ใช้)
+                                    "ice"  # ประเภท (ระบุว่าเป็นน้ำแข็ง)
                                 ])
                     
                     st.cache_data.clear()
@@ -1503,8 +1497,6 @@ def show_ice_sale_page():
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการบันทึกข้อมูล: {str(e)}")
                 logger.error(f"Error saving ice sale: {e}")
-
-                # Local/Try imports
 def show_debt_summary_page():
     """สรุปยอดค้าง"""
     st.title("📋 สรุปยอดค้าง")
