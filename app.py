@@ -451,7 +451,12 @@ def load_ice_data():
         df_ice = pd.DataFrame(worksheet.get_all_records())
         
         if df_ice.empty:
-            return pd.DataFrame()
+            # สร้าง DataFrame เปล่าพร้อมคอลัมน์ที่จำเป็น
+            required_cols = [
+                "ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย",
+                "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "ยอดขายรวม", "วันที่"
+            ]
+            return pd.DataFrame(columns=required_cols)
             
         # ตรวจสอบและเพิ่มคอลัมน์ที่จำเป็นหากไม่มี
         required_cols = {
@@ -472,15 +477,25 @@ def load_ice_data():
                 
         # ทำความสะอาดข้อมูล
         df_ice["ชนิดน้ำแข็ง"] = df_ice["ชนิดน้ำแข็ง"].astype(str).str.strip().str.lower()
-        numeric_cols = ["ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "ยอดขายรวม"]
+        
+        numeric_cols = [
+            "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย", "รับเข้า", 
+            "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "ยอดขายรวม"
+        ]
         for col in numeric_cols:
-            df_ice[col] = pd.to_numeric(df_ice[col], errors='coerce').fillna(0)
+            if col in df_ice.columns:
+                df_ice[col] = pd.to_numeric(df_ice[col], errors='coerce').fillna(0)
             
         return df_ice
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลน้ำแข็ง: {str(e)}")
         logger.error(f"Error loading ice data: {e}")
-        return pd.DataFrame()
+        # ส่งคืน DataFrame เปล่าพร้อมคอลัมน์ที่จำเป็น
+        required_cols = [
+            "ชนิดน้ำแข็ง", "ราคาขายต่อหน่วย", "ต้นทุนต่อหน่วย",
+            "รับเข้า", "ขายออก", "จำนวนละลาย", "กำไรสุทธิ", "ยอดขายรวม", "วันที่"
+        ]
+        return pd.DataFrame(columns=required_cols)
 
 @st.cache_data(ttl=60)
 def load_delivery_data(chain_name: str) -> pd.DataFrame:
@@ -901,6 +916,15 @@ def show_ice_sale_page():
     
     df_ice = load_ice_data()
     today_str = datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y")
+
+    # ตรวจสอบคอลัมน์สำคัญ
+    REQUIRED_COLS = ["ชนิดน้ำแข็ง", "รับเข้า", "ขายออก", "ราคาขายต่อหน่วย"]
+    missing_cols = [col for col in REQUIRED_COLS if col not in df_ice.columns]
+    
+    if missing_cols:
+        st.error(f"⚠️ โครงสร้างข้อมูลน้ำแข็งไม่ถูกต้อง: ขาดคอลัมน์ {', '.join(missing_cols)}")
+        st.info("ℹ️ คอลัมน์ที่มีอยู่ในข้อมูล: " + ", ".join(df_ice.columns.tolist()))
+        return
 
     # เก็บยอดเริ่มต้นของทุกค่าที่จำเป็น
     initial_sales = {}
