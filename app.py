@@ -441,6 +441,20 @@ def load_sales_data() -> pd.DataFrame:
                 headers[i] = f"{h}_{seen[h]}"
             else:
                 seen[h] = 1
+        
+        # FIX: ตรวจสอบคอลัมน์วันที่และแก้ไขชื่อหากจำเป็น
+        date_col_found = False
+        for i, header in enumerate(headers):
+            if header.lower() in ['วันที่', 'date', 'วันที', 'วันท']:
+                headers[i] = "วันที่"
+                date_col_found = True
+                break
+                
+        # ถ้าไม่พบคอลัมน์วันที่ ให้เพิ่มคอลัมน์ใหม่
+        if not date_col_found:
+            headers.insert(0, "วันที่")
+            for row in data[1:]:
+                row.insert(0, datetime.datetime.now(timezone(TIMEZONE)).strftime("%-d/%-m/%Y"))
                 
         # 3. สร้าง DataFrame ด้วย header ที่แก้ไขแล้ว
         df = pd.DataFrame(data[1:], columns=headers)
@@ -450,7 +464,15 @@ def load_sales_data() -> pd.DataFrame:
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
+        
+        # FIX: แปลงคอลัมน์วันที่ให้เป็น datetime
+        if "วันที่" in df.columns:
+            df["วันที่"] = pd.to_datetime(
+                df["วันที่"], 
+                errors="coerce", 
+                dayfirst=True  # รองรับรูปแบบ วัน/เดือน/ปี
+            )
+                
         return df
 
     except Exception as e:
@@ -623,6 +645,18 @@ def show_dashboard():
     
     # โหลดข้อมูล
     sales_df = load_sales_data()
+    
+    # FIX: ตรวจสอบคอลัมน์ที่จำเป็น
+    required_columns = ["วันที่", "ยอดขาย"]
+    if sales_df.empty:
+        st.warning("⚠️ ไม่พบข้อมูลยอดขาย")
+    else:
+        missing_cols = [col for col in required_columns if col not in sales_df.columns]
+        if missing_cols:
+            st.error(f"⚠️ ข้อมูลยอดขายขาดคอลัมน์สำคัญ: {', '.join(missing_cols)}")
+            st.info("ℹ️ กรุณาตรวจสอบชีท 'ยอดขาย' ใน Google Sheets ให้มีคอลัมน์: วันที่, ยอดขาย")
+            return
+    
     df_ice = load_ice_data()
     
     # ปุ่มรีเฟรชข้อมูล
@@ -640,19 +674,22 @@ def show_dashboard():
     st.subheader("📊 สรุปยอดขายรวม")
     col1, col2, col3 = st.columns(3)
     
+    # FIX: ตรวจสอบคอลัมน์ประเภท
+    has_category = "ประเภท" in sales_df.columns
+    
     # ยอดขายรวม
     total_sales = sales_df['ยอดขาย'].sum()
     # ยอดขายเครื่องดื่ม (ประเภท 'drink')
-    drinks_sales = sales_df[sales_df['ประเภท'] == 'drink']['ยอดขาย'].sum()
+    drinks_sales = sales_df[sales_df['ประเภท'] == 'drink']['ยอดขาย'].sum() if has_category else 0
     # ยอดขายน้ำแข็ง (ประเภท 'ice')
-    ice_sales = sales_df[sales_df['ประเภท'] == 'ice']['ยอดขาย'].sum()
+    ice_sales = sales_df[sales_df['ประเภท'] == 'ice']['ยอดขาย'].sum() if has_category else total_sales
     
     # ยอดกำไรรวม
     total_profit = sales_df['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
     # กำไรเครื่องดื่ม
-    drinks_profit = sales_df[sales_df['ประเภท'] == 'drink']['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+    drinks_profit = sales_df[sales_df['ประเภท'] == 'drink']['กำไร'].sum() if has_category and 'กำไร' in sales_df.columns else 0
     # กำไรน้ำแข็ง
-    ice_profit = sales_df[sales_df['ประเภท'] == 'ice']['กำไร'].sum() if 'กำไร' in sales_df.columns else 0
+    ice_profit = sales_df[sales_df['ประเภท'] == 'ice']['กำไร'].sum() if has_category and 'กำไร' in sales_df.columns else total_profit
     
     with col1:
         st.metric("💰 ยอดขายรวม", f"{total_sales:,.2f} บาท")
@@ -673,40 +710,44 @@ def show_dashboard():
     # ==============================================
     st.subheader("📈 ยอดขายรายวัน")
     
-    # กรองข้อมูลเฉพาะวันนี้
-    today_sales = sales_df.copy()
-    today_sales['วันที่'] = pd.to_datetime(today_sales['วันที่'], errors='coerce')
-    today_sales = today_sales[today_sales['วันที่'].dt.date == today]
-    
-    if not today_sales.empty:
-        # สรุปยอดขายรายชั่วโมง
-        today_sales['ชั่วโมง'] = today_sales['วันที่'].dt.hour
-        hourly_sales = today_sales.groupby('ชั่วโมง')['ยอดขาย'].sum().reset_index()
+    # FIX: ตรวจสอบคอลัมน์วันที่
+    if "วันที่" in sales_df.columns:
+        # กรองข้อมูลเฉพาะวันนี้
+        today_sales = sales_df.copy()
+        today_sales['วันที่'] = pd.to_datetime(today_sales['วันที่'], errors='coerce')
+        today_sales = today_sales[today_sales['วันที่'].dt.date == today]
         
-        # สร้างกราฟ
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.plot(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
-                marker='o', color='#007aff', linewidth=2.5)
-        ax.fill_between(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
-                        color='#007aff', alpha=0.1)
-        
-        ax.set_title(f'ยอดขายรายชั่วโมง (วันนี้ {today_str})')
-        ax.set_xlabel('เวลา')
-        ax.set_ylabel('ยอดขาย (บาท)')
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.set_xticks(range(0, 24))
-        ax.set_xticklabels([f"{h}:00" for h in range(0, 24)])
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+        if not today_sales.empty:
+            # สรุปยอดขายรายชั่วโมง
+            today_sales['ชั่วโมง'] = today_sales['วันที่'].dt.hour
+            hourly_sales = today_sales.groupby('ชั่วโมง')['ยอดขาย'].sum().reset_index()
+            
+            # สร้างกราฟ
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
+                    marker='o', color='#007aff', linewidth=2.5)
+            ax.fill_between(hourly_sales['ชั่วโมง'], hourly_sales['ยอดขาย'], 
+                            color='#007aff', alpha=0.1)
+            
+            ax.set_title(f'ยอดขายรายชั่วโมง (วันนี้ {today_str})')
+            ax.set_xlabel('เวลา')
+            ax.set_ylabel('ยอดขาย (บาท)')
+            ax.grid(True, linestyle='--', alpha=0.7)
+            ax.set_xticks(range(0, 24))
+            ax.set_xticklabels([f"{h}:00" for h in range(0, 24)])
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+        else:
+            st.info("ℹ️ ยังไม่มีข้อมูลยอดขายวันนี้")
     else:
-        st.info("ℹ️ ยังไม่มีข้อมูลยอดขายวันนี้")
+        st.warning("⚠️ ไม่พบคอลัมน์วันที่ในข้อมูลยอดขาย")
     
     # ==============================================
     # ส่วนที่ 3: ยอดขายรายเดือน (สะสมจนจบเดือน)
     # ==============================================
     st.subheader("📅 ยอดขายรายเดือน")
     
-    if not sales_df.empty and 'วันที่' in sales_df.columns:
+    if not sales_df.empty and "วันที่" in sales_df.columns:
         try:
             # เตรียมข้อมูลรายเดือน
             sales_df['เดือน'] = sales_df['วันที่'].dt.month
@@ -737,6 +778,8 @@ def show_dashboard():
             st.pyplot(fig)
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการสร้างกราฟรายเดือน: {str(e)}")
+    else:
+        st.warning("⚠️ ไม่สามารถสร้างกราฟรายเดือนได้ เนื่องจากขาดข้อมูลวันที่")
     
     # ==============================================
     # ส่วนที่ 4: สรุปสต็อกสินค้า
@@ -862,6 +905,15 @@ def show_product_sale_page():
     df = load_product_data()
     if df.empty:
         st.error("ไม่สามารถโหลดข้อมูลสินค้าได้")
+        return
+
+    # FIX: ตรวจสอบคอลัมน์ที่จำเป็น
+    required_cols = ["ชื่อสินค้า", "ราคาขาย", "เข้า", "ออก", "คงเหลือในตู้"]
+    missing = [col for col in required_cols if col not in df.columns]
+    
+    if missing:
+        st.error(f"⚠️ โครงสร้างข้อมูลสินค้าไม่ครบ: ขาดคอลัมน์ {', '.join(missing)}")
+        st.info("ℹ️ กรุณาตรวจสอบชีท 'ตู้เย็น' ใน Google Sheets")
         return
 
     # ส่วนค้นหาสินค้า
