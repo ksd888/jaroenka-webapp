@@ -421,12 +421,31 @@ def load_sales_data() -> pd.DataFrame:
             
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ยอดขาย")
-        df = pd.DataFrame(worksheet.get_all_records())
         
-        if df.empty:
+        # 1. ดึงข้อมูลทั้งหมดแบบ raw
+        data = worksheet.get_all_values()
+        
+        if len(data) < 1:
             return pd.DataFrame()
-
-        # ✅ ทำความสะอาดคอลัมน์ตัวเลข (ใช้ชื่อจริงจาก Sheet)
+        
+        # 2. กำหนด header เอง (แก้ปัญหาชื่อคอลัมน์ซ้ำ)
+        headers = data[0]
+        
+        # ตรวจสอบและแก้ไข header ซ้ำ
+        seen = {}
+        for i, h in enumerate(headers):
+            if h == '':  # ถ้า header ว่างเปล่า
+                headers[i] = f"Unnamed_{i}"
+            elif h in seen:
+                seen[h] += 1
+                headers[i] = f"{h}_{seen[h]}"
+            else:
+                seen[h] = 1
+                
+        # 3. สร้าง DataFrame ด้วย header ที่แก้ไขแล้ว
+        df = pd.DataFrame(data[1:], columns=headers)
+        
+        # 4. ทำความสะอาดคอลัมน์ตัวเลข
         numeric_cols = ["ยอดขาย", "กำไร"]
         for col in numeric_cols:
             if col in df.columns:
