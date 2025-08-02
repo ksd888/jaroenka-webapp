@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import gspread
+from datetime import datetime
 from pytz import timezone
 from google.oauth2.service_account import Credentials
 
@@ -1401,65 +1402,158 @@ def save_customer_debt_history(customer_name, chain, debt_amount, payment_amount
         handle_error(e, "การบันทึกประวัติลูกค้าค้างเงิน")
         return False
 
-def update_customer_summary(customer_name, chain, debt_amount, payment_amount):
-    """อัปเดตยอดค้างสะสมของลูกค้า"""
+# Helper functions for Google Sheets operations
+def update_customer_summary(customer_name, new_data):
+    """อัปเดตข้อมูลลูกค้าในชีทสรุปยอดค้าง"""
     try:
         gc = connect_google_sheets()
         if not gc:
+            st.error("ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
             return False
             
         sheet = gc.open_by_key(SHEET_ID)
-        try:
-            worksheet = sheet.worksheet("สรุปยอดค้าง")
-        except gspread.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title="สรุปยอดค้าง", rows=100, cols=10)
-            headers = ["ชื่อลูกค้า", "สายส่ง", "ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ", "อัปเดตล่าสุด"]
-            worksheet.append_row(headers)
-        
-        # ดึงข้อมูลปัจจุบัน
-        records = worksheet.get_all_records()
-        found = False
-        now = datetime.datetime.now(timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
+        worksheet = sheet.worksheet("สรุปยอดค้าง")
         
         # ค้นหาลูกค้า
-        for i, row in enumerate(records):
-            if row["ชื่อลูกค้า"] == customer_name and row["สายส่ง"] == chain:
-                # อัปเดตแถวที่มีอยู่
-                row_idx = i + 2  # แถวที่ i+2 ใน Google Sheets (แถวที่ 1 คือ header)
-                
-                current_debt = safe_float(row["ยอดค้างสะสม"])
-                current_payment = safe_float(row["ยอดชำระสะสม"])
-                
-                new_debt = current_debt + debt_amount
-                new_payment = current_payment + payment_amount
-                new_balance = new_debt - new_payment
-                
-                # อัปเดตค่า
-                worksheet.update_cell(row_idx, 3, new_debt)  # ยอดค้างสะสม
-                worksheet.update_cell(row_idx, 4, new_payment)  # ยอดชำระสะสม
-                worksheet.update_cell(row_idx, 5, new_balance)  # ยอดค้างคงเหลือ
-                worksheet.update_cell(row_idx, 6, now)  # อัปเดตล่าสุด
-                
-                found = True
-                break
+        cell = worksheet.find(customer_name, in_column=1)  # คอลัมน์ 1 คือชื่อลูกค้า
+        row_index = cell.row
         
-        # ถ้าไม่พบลูกค้า ให้เพิ่มใหม่
-        if not found:
-            new_balance = debt_amount - payment_amount
-            new_row = [
-                customer_name,
-                chain,
-                debt_amount,
-                payment_amount,
-                new_balance,
-                now
-            ]
-            worksheet.append_row(new_row)
+        # เตรียมข้อมูลใหม่
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_data = [
+            customer_name,
+            new_data["สายส่ง"],
+            new_data["ยอดค้างสะสม"],
+            new_data["ยอดชำระสะสม"],
+            new_data["ยอดค้างคงเหลือ"],
+            now
+        ]
         
+        # อัปเดตแถว
+        worksheet.update(f"A{row_index}", [row_data])
         return True
     except Exception as e:
-        handle_error(e, "การอัปเดตสรุปยอดค้าง")
+        handle_error(e, "การอัปเดตข้อมูลลูกค้า")
         return False
+
+def add_customer_to_summary(new_customer_data):
+    """เพิ่มลูกค้าใหม่ในชีทสรุปยอดค้าง"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            st.error("ไม่สามารถเชื่อมต่อกับ Google Sheets ได้")
+            return False
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        worksheet = sheet.worksheet("สรุปยอดค้าง")
+        
+        # เตรียมข้อมูลใหม่
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_data = [
+            new_customer_data["ชื่อลูกค้า"],
+            new_customer_data["สายส่ง"],
+            new_customer_data["ยอดค้างสะสม"],
+            new_customer_data["ยอดชำระสะสม"],
+            new_customer_data["ยอดค้างคงเหลือ"],
+            now
+        ]
+        
+        # เพิ่มแถวใหม่
+        worksheet.append_row(row_data)
+        return True
+    except Exception as e:
+        handle_error(e, "การเพิ่มลูกค้าใหม่")
+        return False
+
+# Main page function
+def show_debt_summary_page():
+    st.title("📋 สรุปยอดค้าง")
+    
+    # โหลดข้อมูลสรุปยอดค้าง
+    df = load_customer_summary()
+    
+    # แสดงตารางข้อมูล
+    if not df.empty:
+        st.dataframe(df)
+    else:
+        st.warning("ไม่พบข้อมูลสรุปยอดค้าง")
+    
+    # ส่วนปรับปรุงข้อมูลลูกค้า
+    st.subheader("ปรับปรุงข้อมูลลูกค้า")
+    with st.form("update_form"):
+        # เลือกลูกค้า
+        customer_names = df["ชื่อลูกค้า"].tolist() if not df.empty else []
+        selected_customer = st.selectbox("เลือกลูกค้า", customer_names, key="update_select")
+        
+        # ดึงข้อมูลปัจจุบันของลูกค้า
+        current_data = {}
+        if not df.empty and selected_customer:
+            current_data = df[df["ชื่อลูกค้า"] == selected_customer].iloc[0].to_dict()
+        
+        # ฟิลด์ข้อมูล
+        col1, col2 = st.columns(2)
+        with col1:
+            delivery_route = st.text_input("สายส่ง", value=current_data.get("สายส่ง", ""), key="update_route")
+            accumulated_debt = st.number_input("ยอดค้างสะสม", 
+                                              min_value=0.0, 
+                                              value=float(current_data.get("ยอดค้างสะสม", 0)), 
+                                              step=1000.0,
+                                              key="update_debt")
+        with col2:
+            accumulated_payment = st.number_input("ยอดชำระสะสม", 
+                                                 min_value=0.0, 
+                                                 value=float(current_data.get("ยอดชำระสะสม", 0)), 
+                                                 step=1000.0,
+                                                 key="update_payment")
+            remaining_debt = accumulated_debt - accumulated_payment
+            st.metric("ยอดค้างคงเหลือ", f"{remaining_debt:,.2f} บาท")
+        
+        submitted = st.form_submit_button("อัปเดตข้อมูล")
+        if submitted:
+            new_data = {
+                "สายส่ง": delivery_route,
+                "ยอดค้างสะสม": accumulated_debt,
+                "ยอดชำระสะสม": accumulated_payment,
+                "ยอดค้างคงเหลือ": remaining_debt
+            }
+            if update_customer_summary(selected_customer, new_data):
+                st.success("อัปเดตข้อมูลสำเร็จ!")
+                load_customer_summary.clear()  # ล้างแคชข้อมูล
+                st.rerun()
+            else:
+                st.error("เกิดข้อผิดพลาดในการอัปเดต")
+    
+    # ส่วนเพิ่มลูกค้าใหม่
+    st.subheader("เพิ่มลูกค้าใหม่")
+    with st.form("add_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_customer = st.text_input("ชื่อลูกค้า", key="new_customer")
+            new_route = st.text_input("สายส่ง", key="new_route")
+        with col2:
+            new_debt = st.number_input("ยอดค้างสะสม", min_value=0.0, value=0.0, step=1000.0, key="new_debt")
+            new_payment = st.number_input("ยอดชำระสะสม", min_value=0.0, value=0.0, step=1000.0, key="new_payment")
+            new_remaining = new_debt - new_payment
+            st.metric("ยอดค้างคงเหลือ", f"{new_remaining:,.2f} บาท")
+        
+        submitted_add = st.form_submit_button("เพิ่มลูกค้า")
+        if submitted_add:
+            if not new_customer:
+                st.error("กรุณากรอกชื่อลูกค้า")
+            else:
+                new_data = {
+                    "ชื่อลูกค้า": new_customer,
+                    "สายส่ง": new_route,
+                    "ยอดค้างสะสม": new_debt,
+                    "ยอดชำระสะสม": new_payment,
+                    "ยอดค้างคงเหลือ": new_remaining
+                }
+                if add_customer_to_summary(new_data):
+                    st.success("เพิ่มลูกค้าใหม่สำเร็จ!")
+                    load_customer_summary.clear()  # ล้างแคชข้อมูล
+                    st.rerun()
+                else:
+                    st.error("เกิดข้อผิดพลาดในการเพิ่มลูกค้า")
 
 def show_delivery_page():
     st.title("🚚 ระบบจัดการการส่งน้ำแข็ง")
