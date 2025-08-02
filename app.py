@@ -1,17 +1,15 @@
-# Standard library
+# Standard library imports
 import datetime
 import time
 import logging
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 
-# Third-party
+# Third-party imports
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import gspread
-from datetime import datetime
 from pytz import timezone
 from google.oauth2.service_account import Credentials
 
@@ -1235,14 +1233,8 @@ def show_ice_sale_page():
                 logger.error(f"Error saving ice sale: {e}")
 
                 # Local/Try imports
-try:
-    import pyperclip
-    PYPERCLIP_AVAILABLE = True
-except ImportError:
-    PYPERCLIP_AVAILABLE = False
-    st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
-
-    def show_debt_summary_page():
+def show_debt_summary_page():
+    """สรุปยอดค้าง"""
     st.title("📋 สรุปยอดค้าง")
     
     # โหลดข้อมูลสรุปยอดค้าง
