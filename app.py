@@ -288,6 +288,32 @@ def connect_google_sheets():
     except Exception as e:
         handle_error(e, "การเชื่อมต่อ Google Sheets")
         return None
+        
+@st.cache_data(ttl=60)
+def load_customer_summary():
+    """โหลดข้อมูลสรุปยอดค้าง"""
+    try:
+        gc = connect_google_sheets()
+        if not gc:
+            return pd.DataFrame()
+            
+        sheet = gc.open_by_key(SHEET_ID)
+        try:
+            worksheet = sheet.worksheet("สรุปยอดค้าง")
+            df = pd.DataFrame(worksheet.get_all_records())
+            
+            # แปลงคอลัมน์ตัวเลข
+            numeric_cols = ["ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ"]
+            for col in numeric_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            
+            return df
+        except gspread.WorksheetNotFound:
+            return pd.DataFrame()
+    except Exception as e:
+        handle_error(e, "การโหลดข้อมูลสรุปยอดค้าง")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def load_product_data():
@@ -1214,6 +1240,90 @@ try:
 except ImportError:
     PYPERCLIP_AVAILABLE = False
     st.warning("⚠️ โมดูล pyperclip ไม่ติดตั้ง การคัดลอกข้อผิดพลาดจะไม่ทำงาน")
+
+    def show_debt_summary_page():
+    st.title("📋 สรุปยอดค้าง")
+    
+    # โหลดข้อมูลสรุปยอดค้าง
+    df = load_customer_summary()
+    
+    if df.empty:
+        st.warning("ไม่พบข้อมูลลูกค้าค้างเงิน")
+        return
+    
+    # ตัวเลือกการกรอง
+    st.sidebar.header("ตัวกรองข้อมูล")
+    delivery_chains = ["ทั้งหมด"] + list(df["สายส่ง"].unique())
+    selected_chain = st.sidebar.selectbox("สายส่ง", delivery_chains)
+    
+    # กรองข้อมูลตามสายส่ง
+    if selected_chain != "ทั้งหมด":
+        df = df[df["สายส่ง"] == selected_chain]
+    
+    # คำนวณยอดค้างรวม
+    total_debt = df["ยอดค้างคงเหลือ"].sum()
+    
+    # แสดงเมตริกหลัก
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("ลูกค้าค้างเงินทั้งหมด", f"{len(df)} ราย")
+    with col2:
+        st.metric("ยอดค้างรวม", f"{total_debt:,.2f} บาท", delta_color="inverse")
+    
+    # แสดงตารางข้อมูล
+    st.subheader("รายการลูกค้าค้างเงิน")
+    
+    # จัดรูปแบบคอลัมน์ตัวเลข
+    formatted_df = df.copy()
+    numeric_cols = ["ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ"]
+    for col in numeric_cols:
+        if col in formatted_df.columns:
+            formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x)
+    
+    st.dataframe(
+        formatted_df,
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # แสดงกราฟสรุป
+    st.subheader("📊 กราฟสรุปยอดค้าง")
+    
+    if not df.empty:
+        # กราฟแท่งแสดงยอดค้างคงเหลือ 10 อันดับแรก
+        top_debt = df.nlargest(10, "ยอดค้างคงเหลือ")
+        
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        ax1.barh(top_debt["ชื่อลูกค้า"], top_debt["ยอดค้างคงเหลือ"], color="#ff6b6b")
+        ax1.set_title("ลูกค้าค้างเงินสูงสุด 10 อันดับ")
+        ax1.set_xlabel("ยอดค้างคงเหลือ (บาท)")
+        plt.tight_layout()
+        st.pyplot(fig1)
+        
+        # กราฟวงกลมแสดงสัดส่วนยอดค้างตามสายส่ง
+        if selected_chain == "ทั้งหมด":
+            debt_by_chain = df.groupby("สายส่ง")["ยอดค้างคงเหลือ"].sum()
+            
+            if not debt_by_chain.empty:
+                fig2, ax2 = plt.subplots(figsize=(8, 8))
+                ax2.pie(
+                    debt_by_chain,
+                    labels=debt_by_chain.index,
+                    autopct="%1.1f%%",
+                    startangle=90,
+                    colors=["#ff9f43", "#ff6b6b", "#0abde3", "#10ac84", "#5f27cd"]
+                )
+                ax2.set_title("สัดส่วนยอดค้างตามสายส่ง")
+                st.pyplot(fig2)
+    
+    # ปุ่มดาวน์โหลดข้อมูล
+    csv = df.to_csv(index=False, encoding='utf-8-sig')
+    st.download_button(
+        label="📥 ดาวน์โหลดข้อมูลสรุปยอดค้าง",
+        data=csv,
+        file_name=f"สรุปยอดค้าง_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
 
 def save_delivery_data(chain_name: str, data: dict, net_sales: float) -> bool:
     """บันทึกข้อมูลการส่งน้ำแข็งลง Google Sheets"""
