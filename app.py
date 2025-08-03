@@ -1148,6 +1148,22 @@ def show_ice_sale_page():
         st.info("ℹ️ คอลัมน์ที่มีอยู่ในข้อมูล: " + ", ".join(df_ice.columns.tolist()))
         return
 
+    # ตรวจสอบราคาน้ำแข็งทุกประเภทก่อนเริ่ม
+    price_errors = []
+    for ice_type in ICE_TYPES:
+        row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
+        if not row.empty:
+            price = safe_float(row.iloc[0]["ราคาขายต่อหน่วย"])
+            if price <= 0:
+                price_errors.append(f"น้ำแข็ง{ice_type} (ราคา: {price} บาท)")
+    
+    if price_errors:
+        st.error("⚠️ ราคาน้ำแข็งต่อไปนี้ไม่ถูกต้องหรือยังไม่ได้ตั้งค่า:")
+        for error in price_errors:
+            st.error(f"- {error}")
+        st.warning("กรุณาตั้งราคาที่มากกว่าศูนย์ใน Google Sheets ก่อนทำการขาย")
+        return
+
     # เก็บยอดเริ่มต้นของทุกค่าที่จำเป็น
     initial_sales = {}
     initial_income = {}
@@ -1302,14 +1318,10 @@ def show_ice_sale_page():
         row = df_ice[df_ice["ชนิดน้ำแข็ง"].str.contains(ice_type, na=False)]
         if not row.empty:
             idx = row.index[0]
-            # ใช้ initial_sales ที่เก็บไว้ตอนต้น ไม่ต้องเก็บใหม่
             price_per_bag = safe_float(df_ice.at[idx, "ราคาขายต่อหน่วย"])
             cost_per_bag = safe_float(df_ice.at[idx, "ต้นทุนต่อหน่วย"])
             current_sold = safe_float(df_ice.at[idx, "ขายออก"])
             current_profit = safe_float(df_ice.at[idx, "กำไรสุทธิ"])
-            
-            # แสดงผลแบบมีทศนิยมเมื่อจำเป็น
-            current_sold_display = f"{current_sold:.1f}" if current_sold % 1 != 0 else f"{int(current_sold)}"
             
             with cols[i]:
                 st.markdown(f"""
@@ -1317,7 +1329,7 @@ def show_ice_sale_page():
                     <div class="ice-header">ขายน้ำแข็ง{ice_type}</div>
                     <div class="ice-metric">
                         <div>💰 ราคา: <strong>{price_per_bag:,.2f}</strong> บาท/ถุง</div>
-                        <div>📤 ยอดขาย: <strong>{current_sold_display}</strong> ถุง</div>
+                        <div>📤 ยอดขาย: <strong>{current_sold:.0f}</strong> ถุง</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1331,13 +1343,17 @@ def show_ice_sale_page():
                     help=f"เพิ่มจำนวนน้ำแข็ง{ice_type}ที่ขายออกแบบเต็มถุง"
                 )
                 
-                # ส่วนแบ่งขายแบบบาท
-                st.markdown("<div style='margin-top:10px;'>หรือแบ่งขาย:</div>", unsafe_allow_html=True)
-                divided_amount = st.selectbox(
-                    f"แบ่งขาย {ice_type} (บาท)",
-                    [0, 5, 10, 20, 30, 40],
-                    key=f"divided_{ice_type}"
-                )
+                # ส่วนแบ่งขายแบบบาท (เฉพาะเมื่อราคาต่อถุงมากกว่าศูนย์)
+                if price_per_bag > 0:
+                    st.markdown("<div style='margin-top:10px;'>หรือแบ่งขาย:</div>", unsafe_allow_html=True)
+                    divided_amount = st.selectbox(
+                        f"แบ่งขาย {ice_type} (บาท)",
+                        [0, 5, 10, 20, 30, 40],
+                        key=f"divided_{ice_type}"
+                    )
+                else:
+                    st.warning(f"⚠️ ไม่สามารถขายแบบแบ่งได้ เนื่องจากราคาต่อถุงไม่ถูกต้อง")
+                    divided_amount = 0
                 
                 # คำนวณยอดขายและกำไร
                 if full_bag_sold > 0 or divided_amount > 0:
@@ -1346,18 +1362,16 @@ def show_ice_sale_page():
                     profit = full_bag_sold * (price_per_bag - cost_per_bag)
                     stock_decrease = full_bag_sold
                     
-                    # ขายแบบแบ่ง
-                    if divided_amount > 0:
+                    # ขายแบบแบ่ง (เฉพาะเมื่อราคาต่อถุงมากกว่าศูนย์)
+                    if divided_amount > 0 and price_per_bag > 0:
                         if ice_type == "ก้อน":
                             pieces_sold = divided_amount / 5  # 5 บาทต่อก้อน
                             divided_income = divided_amount
-                            # 1 ถุงมี 10 ก้อน, ต้นทุนต่อก้อน = cost_per_bag / 10
                             divided_profit = divided_amount - (pieces_sold * (cost_per_bag / 10))
                             stock_decrease += pieces_sold / 10  # 1 ถุง = 10 ก้อน
                         else:
-                            divided_income = divided_amount
-                            # คำนวณจำนวนถุงที่ขาย (ทศนิยม)
                             partial_bags = divided_amount / price_per_bag
+                            divided_income = divided_amount
                             divided_profit = divided_amount - (partial_bags * cost_per_bag)
                             stock_decrease += partial_bags
                         
@@ -1365,11 +1379,10 @@ def show_ice_sale_page():
                         profit += divided_profit
                     
                     # อัปเดตข้อมูลใน DataFrame
-                    # แก้ไข: บวกเพิ่มจากค่าปัจจุบัน ไม่ใช่ตั้งค่าใหม่
                     df_ice.at[idx, "ขายออก"] = current_sold + stock_decrease
                     df_ice.at[idx, "คงเหลือตอนเย็น"] = safe_float(df_ice.at[idx, "รับเข้า"]) - df_ice.at[idx, "ขายออก"] - safe_float(df_ice.at[idx, "จำนวนละลาย"])
-                    df_ice.at[idx, "ยอดขายรวม"] += income  # บวกเพิ่มจากยอดเดิม
-                    df_ice.at[idx, "กำไรสุทธิ"] += profit  # บวกเพิ่มจากยอดเดิม
+                    df_ice.at[idx, "ยอดขายรวม"] += income
+                    df_ice.at[idx, "กำไรสุทธิ"] += profit
                     
                     total_income += income
                     total_profit += profit
