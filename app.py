@@ -263,30 +263,32 @@ def reset_ice_session_state():
         logger.error(f"Error resetting ice session state: {e}")
         st.error(f"เกิดข้อผิดพลาดในการรีเซ็ตข้อมูลน้ำแข็ง: {str(e)}")
 
-# การเชื่อมต่อ Google Sheets
 @st.cache_resource
-def connect_google_sheets():
+def connect_google_sheets(max_retries=3):
     """เชื่อมต่อกับ Google Sheets API"""
-    try:
-        if 'GCP_SERVICE_ACCOUNT' not in st.secrets:
-            st.error("ไม่พบข้อมูลการเชื่อมต่อ Google Sheets ใน secrets")
-            logger.error("Google Sheets connection info not found in secrets")
-            return None
-            
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        credentials = Credentials.from_service_account_info(
-            st.secrets["GCP_SERVICE_ACCOUNT"],
-            scopes=scope
-        )
-        gc = gspread.authorize(credentials)
-        logger.info("Connected to Google Sheets successfully")
-        return gc
-    except Exception as e:
-        handle_error(e, "การเชื่อมต่อ Google Sheets")
-        return None
+    for attempt in range(max_retries):
+        try:
+            if 'GCP_SERVICE_ACCOUNT' not in st.secrets:
+                st.error("ไม่พบข้อมูลการเชื่อมต่อ Google Sheets ใน secrets")
+                logger.error("Google Sheets connection info not found in secrets")
+                return None
+                
+            scope = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            credentials = Credentials.from_service_account_info(
+                st.secrets["GCP_SERVICE_ACCOUNT"],
+                scopes=scope
+            )
+            gc = gspread.authorize(credentials)
+            logger.info("Connected to Google Sheets successfully")
+            return gc
+        except Exception as e:
+            if attempt == max_retries - 1:
+                handle_error(e, "การเชื่อมต่อ Google Sheets")
+                return None
+            time.sleep(2 ** attempt)  # Exponential backoff
         
 @st.cache_data(ttl=60)
 def load_customer_summary():
@@ -314,7 +316,7 @@ def load_customer_summary():
         handle_error(e, "การโหลดข้อมูลสรุปยอดค้าง")
         return pd.DataFrame()
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)  # ตั้งค่า TTL เป็น 5 นาที
 def load_product_data():
     """โหลดและทำความสะอาดข้อมูลสินค้าจาก Google Sheets"""
     try:
@@ -324,24 +326,35 @@ def load_product_data():
             
         sheet = gc.open_by_key(SHEET_ID)
         worksheet = sheet.worksheet("ตู้เย็น")
-        df = pd.DataFrame(worksheet.get_all_records())
         
-        if df.empty:
+        # ใช้ get_all_values แทน get_all_records เพื่อควบคุมการแปลงข้อมูล
+        data = worksheet.get_all_values()
+        if len(data) < 2:  # ต้องมี header และอย่างน้อย 1 แถวข้อมูล
             return pd.DataFrame()
+            
+        headers = data[0]
+        rows = data[1:]
         
-        # ✅ ตรวจสอบคอลัมน์ที่จำเป็น
+        # สร้าง DataFrame ด้วยข้อมูลที่ได้
+        df = pd.DataFrame(rows, columns=headers)
+        
+        # ตรวจสอบคอลัมน์ที่จำเป็น
         required_cols = ["ชื่อสินค้า", "ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
         missing = [col for col in required_cols if col not in df.columns]
         if missing:
             st.error(f"❌ โครงสร้างข้อมูลไม่ครบ: ขาดคอลัมน์ {', '.join(missing)}")
-            st.write("คอลัมน์ที่มี:", list(df.columns))
             return pd.DataFrame()
 
-        # ✅ ทำความสะอาดข้อมูล
+        # ทำความสะอาดข้อมูล
         df["ชื่อสินค้า"] = df["ชื่อสินค้า"].astype(str).str.strip()
-        for col in required_cols[1:]:
+        numeric_cols = ["ราคาขาย", "ต้นทุน", "เข้า", "ออก", "คงเหลือในตู้"]
+        for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
+            
+        # คำนวณสต็อกหากไม่มีคอลัมน์คงเหลือ
+        if "คงเหลือในตู้" not in df.columns:
+            df["คงเหลือในตู้"] = df["เข้า"] - df["ออก"]
+            
         return df
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาดในการโหลดข้อมูลสินค้า: {str(e)}")
