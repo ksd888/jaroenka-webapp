@@ -1546,20 +1546,24 @@ def show_debt_summary_page():
         st.metric("ยอดค้างรวม", f"{total_debt:,.2f} บาท", delta_color="inverse")
     
     # แสดงตารางข้อมูล
-    st.subheader("รายการลูกค้าค้างเงิน")
+if not df.empty:
+    st.subheader("ข้อมูลสรุปยอดค้างทั้งหมด")
     
     # จัดรูปแบบคอลัมน์ตัวเลข
     formatted_df = df.copy()
     numeric_cols = ["ยอดค้างสะสม", "ยอดชำระสะสม", "ยอดค้างคงเหลือ"]
+    
+    # แปลงคอลัมน์เป็นตัวเลขก่อน (ใช้ pd.to_numeric)
     for col in numeric_cols:
         if col in formatted_df.columns:
-            formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x)
+            formatted_df[col] = pd.to_numeric(formatted_df[col], errors='coerce')
     
-    st.dataframe(
-        formatted_df,
-        use_container_width=True,
-        hide_index=True
-    )
+    # จากนั้นค่อยจัดรูปแบบ
+    for col in numeric_cols:
+        if col in formatted_df.columns:
+            formatted_df[col] = formatted_df[col].apply(lambda x: f"{x:,.2f} บาท" if pd.notna(x) else "N/A")
+    
+    st.dataframe(formatted_df, height=400)
     
     # แสดงกราฟสรุป
     st.subheader("📊 กราฟสรุปยอดค้าง")
